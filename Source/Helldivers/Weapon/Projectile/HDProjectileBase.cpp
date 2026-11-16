@@ -9,6 +9,7 @@
 #include "Define/HDDefine.h"
 #include "Define/HDGameplayTag.h"
 #include "Collision/HDCollision.h"
+#include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Weapon/WeaponTypes.h"
 
 AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer)
@@ -60,7 +61,9 @@ void AHDProjectileBase::OnBoxHit(UPrimitiveComponent* HitComp, AActor* OtherActo
 	}
 	else
 	{
-        UAbilitySystemComponent* TargetASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(OtherActor);
+        // 적끼리는 피해를 주지 않는다(막힘 큐와 Destroy 는 그대로)
+        const bool bEnemyHitEnemy = OwnerActor->IsA<AHDCharacterNonPlayer>() && OtherActor->IsA<AHDCharacterNonPlayer>();
+        UAbilitySystemComponent* TargetASC = bEnemyHitEnemy ? nullptr : FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(OtherActor);
 		if (TargetASC)
 		{
 			ApplyDamageGameEffect(OwnerASC, TargetASC, ImpactDamage);

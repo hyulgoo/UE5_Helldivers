@@ -9,6 +9,7 @@
 #include "Attribute/HDHealthAttributeSet.h"
 #include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Character/NPC/HDEnemyCharger.h"
+#include "Character/NPC/HDEnemyShooter.h"
 
 namespace HDCheatManager
 {
@@ -20,7 +21,10 @@ namespace HDCheatManager
 
     TArray<FEnemyTypeEntry> GetEnemyTypes()
     {
-        return { { TEXT("Charger"), AHDEnemyCharger::StaticClass() } };
+        return {
+            { TEXT("Charger"), AHDEnemyCharger::StaticClass() },
+            { TEXT("Shooter"), AHDEnemyShooter::StaticClass() },
+        };
     }
 }
 

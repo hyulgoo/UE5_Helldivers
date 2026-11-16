@@ -6,6 +6,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Perception/AISense_Hearing.h"
 #include "Define/HDDefine.h"
 #include "Define/HDSocketNames.h"
 #include "Weapon/HDWeapon.h"
@@ -278,6 +279,9 @@ void UHDCombatComponent::SpawnProjectile()
     VALID_CHECK(Weapon);
 
     Weapon->SpawnProjectile(HitTarget);
+
+    // 총성: 최대 거리 0 = 듣는 쪽 HearingRange 로 거른다
+    UAISense_Hearing::ReportNoiseEvent(this, GetOwner()->GetActorLocation(), 1.f, GetOwner(), 0.f, NAME_None);
 }
 
 USkeletalMeshComponent* UHDCombatComponent::GetWeaponMesh() const

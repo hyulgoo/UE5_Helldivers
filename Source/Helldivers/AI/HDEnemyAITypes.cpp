@@ -19,9 +19,14 @@ EHDEnemyAIState HDEnemyAI::DecideState(const FHDEnemyAIInput& Input)
         return EHDEnemyAIState::Idle;
     }
 
-    if (Input.DistanceToTarget <= Input.AttackRange && Input.bAttackReady)
+    if (Input.DistanceToTarget <= Input.AttackRange && Input.bAttackReady && Input.bHasLineOfSight)
     {
         return EHDEnemyAIState::Attack;
+    }
+
+    if (Input.PreferredRange > 0.f && Input.DistanceToTarget <= Input.PreferredRange && Input.bHasLineOfSight)
+    {
+        return EHDEnemyAIState::Hold;
     }
 
     return EHDEnemyAIState::Chase;

@@ -74,6 +74,40 @@ bool FHDEnemyAIStateTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("Distance equals range"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Attack));
     }
 
+    // 시야 없음: 사거리 안, 준비됨이어도 쏘지 않고 다가간다
+    {
+        FHDEnemyAIInput Input = MakeInput(true, 150.f, 180.f, true);
+        Input.bHasLineOfSight = false;
+        TestEqual(TEXT("No line of sight"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Chase));
+    }
+
+    // 원거리 대기: 선호 거리 안, 준비 안 됨, 시야 있음
+    {
+        FHDEnemyAIInput Input = MakeInput(true, 1500.f, 2500.f, false);
+        Input.PreferredRange = 1800.f;
+        TestEqual(TEXT("Ranged holds inside preferred range"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Hold));
+    }
+
+    // 원거리 접근: 사거리 밖
+    {
+        FHDEnemyAIInput Input = MakeInput(true, 3000.f, 2500.f, true);
+        Input.PreferredRange = 1800.f;
+        TestEqual(TEXT("Ranged approaches out of range"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Chase));
+    }
+
+    // 원거리 사격: 사거리 안, 준비됨, 시야 있음
+    {
+        FHDEnemyAIInput Input = MakeInput(true, 2000.f, 2500.f, true);
+        Input.PreferredRange = 1800.f;
+        TestEqual(TEXT("Ranged attacks in range"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Attack));
+    }
+
+    // 근접은 대기 없음: PreferredRange 0, 사거리 안, 준비 안 됨
+    {
+        const FHDEnemyAIInput Input = MakeInput(true, 150.f, 180.f, false);
+        TestEqual(TEXT("Melee never holds"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Chase));
+    }
+
     return true;
 }
 
