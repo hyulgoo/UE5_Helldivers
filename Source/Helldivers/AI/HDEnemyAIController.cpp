@@ -22,6 +22,7 @@
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Define/HDGameplayTag.h"
 #include "Define/HDDefine.h"
+#include "Game/HDSpawnDirectorSubsystem.h"
 
 static TAutoConsoleVariable<int32> CVarHDAIDebug(
     TEXT("hd.AI.Debug"),
@@ -166,7 +167,27 @@ void AHDEnemyAIController::AcquireTarget(APawn* NewTarget, const TCHAR* Reason)
     {
         bAlerted = true;
         UE_LOG(LogTemp, Display, TEXT("[HDEnemy] %s alerted (%s)"), *GetNameSafe(GetPawn()), Reason);
+
+        UHDSpawnDirectorSubsystem* Director = GetWorld()->GetSubsystem<UHDSpawnDirectorSubsystem>();
+        if (Director)
+        {
+            Director->NotifyEnemyAlerted(Cast<AHDCharacterNonPlayer>(GetPawn()), NewTarget);
+        }
     }
+}
+
+void AHDEnemyAIController::ForceTarget(AActor* NewTarget)
+{
+    APawn* NewTargetPawn = Cast<APawn>(NewTarget);
+    NULL_CHECK(NewTargetPawn);
+
+    // 경보를 먼저 세워 AcquireTarget 이 디렉터에 알리지 않게 한다
+    bAlerted = true;
+    Target = NewTargetPawn;
+    LastSensedTime = GetWorld()->GetTimeSeconds();
+    LineOfSightElapsed = LineOfSightInterval;
+
+    UE_LOG(LogTemp, Display, TEXT("[HDEnemy] %s forced target %s"), *GetNameSafe(GetPawn()), *GetNameSafe(NewTargetPawn));
 }
 
 void AHDEnemyAIController::UpdateTarget(const AHDCharacterNonPlayer& Enemy)

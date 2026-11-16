@@ -27,6 +27,9 @@ public:
     bool                        IsAlerted() const { return bAlerted; }
     AActor*                     GetTargetActor() const { return Target.Get(); }
 
+    // 대상·마지막 감지 시각·경보를 바로 세운다. 디렉터에는 알리지 않는다(증원 웨이브가 웨이브를 부르는 연쇄 방지)
+    void                        ForceTarget(AActor* NewTarget);
+
     // 콘솔 변수 hd.AI.Debug 가 1 인가
     static bool                 IsDebugEnabled();
 

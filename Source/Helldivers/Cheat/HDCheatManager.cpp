@@ -10,6 +10,7 @@
 #include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Character/NPC/HDEnemyCharger.h"
 #include "Character/NPC/HDEnemyShooter.h"
+#include "Game/HDSpawnDirectorSubsystem.h"
 
 namespace HDCheatManager
 {
@@ -150,4 +151,54 @@ void UHDCheatManager::HDKillEnemies()
     }
 
     UE_LOG(LogTemp, Display, TEXT("[HDKillEnemies] Applied -9999 CurrentHealth to %d enemies"), KilledCount);
+}
+
+void UHDCheatManager::HDDirector(const FString& Command)
+{
+    UWorld* World = GetWorld();
+    UHDSpawnDirectorSubsystem* Director = World ? World->GetSubsystem<UHDSpawnDirectorSubsystem>() : nullptr;
+    if (Director == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDDirector] No spawn director in this world"));
+        return;
+    }
+
+    if (Command.Equals(TEXT("start"), ESearchCase::IgnoreCase))
+    {
+        Director->StartDirector();
+    }
+    else if (Command.Equals(TEXT("stop"), ESearchCase::IgnoreCase))
+    {
+        Director->StopDirector();
+    }
+    else if (Command.Equals(TEXT("status"), ESearchCase::IgnoreCase))
+    {
+        const FString Status = Director->DescribeStatus();
+        UE_LOG(LogTemp, Display, TEXT("[HDDirector] %s"), *Status);
+
+        APlayerController* PlayerController = GetPlayerController();
+        if (PlayerController)
+        {
+            PlayerController->ClientMessage(Status);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDDirector] Unknown command '%s'. Use start, stop or status"), *Command);
+    }
+}
+
+void UHDCheatManager::HDBreach()
+{
+    UWorld* World = GetWorld();
+    UHDSpawnDirectorSubsystem* Director = World ? World->GetSubsystem<UHDSpawnDirectorSubsystem>() : nullptr;
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    if (Director == nullptr || PlayerPawn == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDBreach] No spawn director or player pawn"));
+        return;
+    }
+
+    Director->ForceBreach(PlayerPawn);
 }

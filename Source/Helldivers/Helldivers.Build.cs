@@ -10,7 +10,7 @@ public class Helldivers : ModuleRules
 
         PublicIncludePaths.Add("Helldivers");
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Niagara", "PhysicsCore", "Landscape", "Foliage", "AIModule", "NavigationSystem" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Niagara", "PhysicsCore", "Landscape", "Foliage", "AIModule", "NavigationSystem", "DeveloperSettings" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
             "GameFeatures",

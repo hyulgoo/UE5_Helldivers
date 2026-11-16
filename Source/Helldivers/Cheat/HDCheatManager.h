@@ -22,4 +22,12 @@ public:
     // 살아 있는 적 전부에 CurrentHealth -9999 (사망 경로를 그대로 탄다)
     UFUNCTION(Exec)
     void        HDKillEnemies();
+
+    // 스폰 디렉터: start / stop / status
+    UFUNCTION(Exec)
+    void        HDDirector(const FString& Command);
+
+    // 플레이어를 대상으로 증원 웨이브를 바로 부른다
+    UFUNCTION(Exec)
+    void        HDBreach();
 };
