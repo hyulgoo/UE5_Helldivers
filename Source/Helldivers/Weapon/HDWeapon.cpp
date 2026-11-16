@@ -7,6 +7,7 @@
 #include "Collision/HDCollision.h"
 #include "Interface/HDWeaponInterface.h"
 #include "Projectile/HDProjectileBase.h"
+#include "Weapon/HDCasing.h"
 
 AHDWeapon::AHDWeapon(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

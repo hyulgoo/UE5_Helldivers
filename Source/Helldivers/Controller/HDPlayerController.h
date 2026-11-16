@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Abilities/GameplayAbilityTypes.h"
+#include "Character/CharacterTypes/HDCharacterStateTypes.h"
 #include "HDPlayerController.generated.h"
 
 class ACharacter;

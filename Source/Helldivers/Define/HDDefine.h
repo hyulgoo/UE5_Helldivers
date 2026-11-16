@@ -16,7 +16,7 @@ if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
 } \
 
 #define CONDITION_CHECK(condition) \
-if(condition == false) \
+if((condition) == false) \
 { \
     if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
     { \
@@ -27,7 +27,7 @@ if(condition == false) \
 } \
 
 #define CONDITION_CHECK_WITH_RETURNTYPE(condition, ret) \
-if(condition == false) \
+if((condition) == false) \
 { \
     if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
     { \
@@ -38,19 +38,19 @@ if(condition == false) \
 } \
 
 #define CONDITION_CHECK_WITHOUT_LOG(condition) \
-if(condition == false) \
+if((condition) == false) \
 { \
     return; \
 } \
 
 #define CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(condition, ret) \
-if(condition == false) \
+if((condition) == false) \
 { \
     return ret; \
 } \
 
 #define NULL_CHECK(ptr) \
-if(ptr == nullptr) \
+if((ptr) == nullptr) \
 { \
     if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
     { \
@@ -61,7 +61,7 @@ if(ptr == nullptr) \
 } \
 
 #define NULL_CHECK_WITH_RETURNTYPE(ptr, ret) \
-if(ptr == nullptr) \
+if((ptr) == nullptr) \
 { \
     if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
     { \
@@ -72,13 +72,13 @@ if(ptr == nullptr) \
 } \
 
 #define NULL_CHECK_WITHOUT_LOG(ptr) \
-if(ptr == nullptr) \
+if((ptr) == nullptr) \
 { \
     return; \
 } \
 
 #define NULL_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(ptr, ret) \
-if(ptr == nullptr) \
+if((ptr) == nullptr) \
 { \
     return ret; \
 } \

@@ -23,12 +23,12 @@ UDataTable* UHDStratagemComponent::GetAvaliableStratagemDataTable() const
     return AvaliableStratagemDataTable;
 }
 
-FORCEINLINE const TArray<FName>& UHDStratagemComponent::GetCommandMatchStratagemNameList() const
+const TArray<FName>& UHDStratagemComponent::GetCommandMatchStratagemNameList() const
 {
     return CommandMatchStratagemNameList;
 }
 
-FORCEINLINE const int32 UHDStratagemComponent::GetCurrentInputNum() const
+const int32 UHDStratagemComponent::GetCurrentInputNum() const
 {
     return CurrentInputCommandList.Num();
 }

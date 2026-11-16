@@ -78,7 +78,7 @@ void UHDGASPlayerUserWidget::OnGrenadeCountChanged(const int32 NewGrenadeCount)
 void UHDGASPlayerUserWidget::UpdateProgressbar(UProgressBar* Progressbar, const float Value)
 {
     NULL_CHECK(Progressbar);
-    CONDITION_CHECK(Value <= 0.f && Value <= 1.f);
+    CONDITION_CHECK(Value >= 0.f && Value <= 1.f);
 
     Progressbar->SetPercent(Value);
 }
