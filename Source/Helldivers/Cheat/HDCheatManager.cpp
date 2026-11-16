@@ -2,9 +2,27 @@
 
 #include "Cheat/HDCheatManager.h"
 #include "GameFramework/PlayerController.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/GameplayAbilityHelper.h"
 #include "Attribute/HDHealthAttributeSet.h"
+#include "Character/NPC/HDCharacterNonPlayer.h"
+#include "Character/NPC/HDEnemyCharger.h"
+
+namespace HDCheatManager
+{
+    struct FEnemyTypeEntry
+    {
+        const TCHAR*                        Name;
+        TSubclassOf<AHDCharacterNonPlayer>  Class;
+    };
+
+    TArray<FEnemyTypeEntry> GetEnemyTypes()
+    {
+        return { { TEXT("Charger"), AHDEnemyCharger::StaticClass() } };
+    }
+}
 
 void UHDCheatManager::HDDamageSelf(float Amount)
 {
@@ -22,4 +40,110 @@ void UHDCheatManager::HDDamageSelf(float Amount)
     const float NewCurrentHealth = ASC->GetNumericAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute());
 
     UE_LOG(LogTemp, Display, TEXT("[HDDamageSelf] CurrentHealth %.1f -> %.1f"), OldCurrentHealth, NewCurrentHealth);
+}
+
+void UHDCheatManager::HDSpawnEnemy(const FString& Type, int32 Count)
+{
+    using namespace HDCheatManager;
+
+    const TArray<FEnemyTypeEntry> EnemyTypes = GetEnemyTypes();
+    const FEnemyTypeEntry* FoundType = EnemyTypes.FindByPredicate([&Type](const FEnemyTypeEntry& Entry) { return Type.Equals(Entry.Name, ESearchCase::IgnoreCase); });
+    if (FoundType == nullptr)
+    {
+        FString KnownNames;
+        for (const FEnemyTypeEntry& Entry : EnemyTypes)
+        {
+            if (KnownNames.IsEmpty() == false)
+            {
+                KnownNames += TEXT(", ");
+            }
+            KnownNames += Entry.Name;
+        }
+
+        UE_LOG(LogTemp, Display, TEXT("[HDSpawnEnemy] Unknown enemy type '%s'. Known types: %s"), *Type, *KnownNames);
+        return;
+    }
+
+    if (Count < 1)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSpawnEnemy] Count must be 1 or more (got %d)"), Count);
+        return;
+    }
+
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UWorld* World = GetWorld();
+    if (PlayerPawn == nullptr || World == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSpawnEnemy] No player pawn"));
+        return;
+    }
+
+    // 앞 = 카메라가 보는 수평 방향(컨트롤 회전 Yaw)
+    const FVector PlayerLocation = PlayerPawn->GetActorLocation();
+    const FVector Forward = FRotator(0.f, PlayerController->GetControlRotation().Yaw, 0.f).Vector();
+    const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward);
+    const FVector FrontCenter = PlayerLocation + Forward * 1500.f;
+
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(HDSpawnEnemy), false, PlayerPawn);
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    int32 SpawnedCount = 0;
+    for (int32 Index = 0; Index < Count; ++Index)
+    {
+        // 가운데를 기준으로 좌우 250 간격
+        const float SideOffset = (static_cast<float>(Index) - static_cast<float>(Count - 1) * 0.5f) * 250.f;
+        const FVector Column = FrontCenter + Right * SideOffset;
+
+        FHitResult GroundHit;
+        const FVector TraceStart(Column.X, Column.Y, PlayerLocation.Z + 3000.f);
+        const FVector TraceEnd(Column.X, Column.Y, PlayerLocation.Z - 10000.f);
+        if (World->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_Visibility, QueryParams) == false)
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDSpawnEnemy] No ground at %s"), *Column.ToString());
+            continue;
+        }
+
+        const FVector SpawnLocation = GroundHit.ImpactPoint + FVector(0.f, 0.f, 100.f);
+        const FRotator SpawnRotation(0.f, (PlayerLocation - SpawnLocation).Rotation().Yaw, 0.f);
+
+        if (World->SpawnActor<AHDCharacterNonPlayer>(FoundType->Class, SpawnLocation, SpawnRotation, SpawnParams))
+        {
+            ++SpawnedCount;
+        }
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDSpawnEnemy] Spawned %d/%d %s"), SpawnedCount, Count, FoundType->Name);
+}
+
+void UHDCheatManager::HDKillEnemies()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        return;
+    }
+
+    int32 KilledCount = 0;
+    for (TActorIterator<AHDCharacterNonPlayer> It(World); It; ++It)
+    {
+        AHDCharacterNonPlayer* Enemy = *It;
+        if (IsValid(Enemy) == false || Enemy->IsDead())
+        {
+            continue;
+        }
+
+        UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(Enemy);
+        if (ASC == nullptr)
+        {
+            continue;
+        }
+
+        ASC->ApplyModToAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute(), EGameplayModOp::AddBase, -9999.f);
+        ++KilledCount;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDKillEnemies] Applied -9999 CurrentHealth to %d enemies"), KilledCount);
 }

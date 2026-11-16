@@ -34,6 +34,8 @@ protected:
 
     virtual void                            SetDead() override;
 
+    virtual void                            InitializeAttributeValues();
+
     virtual void				            SetRagdoll(const bool bRagdoll, const FVector& Impulse = FVector::ZeroVector) override;
     virtual const float			            GetRagdollPysicsLinearVelocity() const override;
 
@@ -47,13 +49,13 @@ protected:
     
     float                                   DeadEventDelayTime = 10.f;
 
+	UPROPERTY(EditAnywhere)
+	TArray<TSubclassOf<UGameplayAbility>>	Abilities;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UHDAbilitySystemComponent>	AbilitySystemComponent;
 
-	UPROPERTY(EditAnywhere)
-	TArray<TSubclassOf<UGameplayAbility>>	Abilities;
-    
     UPROPERTY(EditAnywhere)
     EHDArmorType                            ArmorType = EHDArmorType::Medium;
 

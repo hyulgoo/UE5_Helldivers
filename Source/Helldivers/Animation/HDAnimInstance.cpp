@@ -21,11 +21,9 @@ void UHDAnimInstance::NativeInitializeAnimation()
 	CharacterMovement = Owner->GetCharacterMovement();
 	NULL_CHECK(CharacterMovement);
 
+    // 적에는 두 컴포넌트가 없다. NativeUpdateAnimation 이 null 을 확인한다
     Combat = Owner->GetComponentByClass<UHDCombatComponent>();
-    NULL_CHECK(Combat);
-
     MovementState = Owner->GetComponentByClass<UHDMovementStateComponent>();
-    NULL_CHECK(MovementState);
 }
 
 void UHDAnimInstance::NativeUpdateAnimation(float DeltaSeconds)

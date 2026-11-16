@@ -12,5 +12,7 @@ class HELLDIVERS_API UHDGA_Dead : public UHDGA_Base
 	GENERATED_BODY()
 
 public:
+    UHDGA_Dead(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override final;
 };

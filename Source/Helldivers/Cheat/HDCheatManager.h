@@ -14,4 +14,12 @@ class HELLDIVERS_API UHDCheatManager : public UCheatManager
 public:
     UFUNCTION(Exec)
     void        HDDamageSelf(float Amount = 50.f);
+
+    // 플레이어 앞 1500 에 Count 마리를 좌우 250 간격으로 스폰한다. Type 은 대소문자 무시(Charger)
+    UFUNCTION(Exec)
+    void        HDSpawnEnemy(const FString& Type = TEXT("Charger"), int32 Count = 1);
+
+    // 살아 있는 적 전부에 CurrentHealth -9999 (사망 경로를 그대로 탄다)
+    UFUNCTION(Exec)
+    void        HDKillEnemies();
 };

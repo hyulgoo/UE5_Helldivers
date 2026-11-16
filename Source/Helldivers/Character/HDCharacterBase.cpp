@@ -58,6 +58,13 @@ void AHDCharacterBase::SetAbilitySystemComponent(AActor* OwnerActor, UAbilitySys
 
     AbilitySystemComponent->InitAbilityActorInfo(OwnerActor, this);
     AbilitySystemComponent->InitAttributeSet();
+    InitializeAttributeValues();
+}
+
+void AHDCharacterBase::InitializeAttributeValues()
+{
+    NULL_CHECK(AbilitySystemComponent);
+
     AbilitySystemComponent->SetAttributeSetStat(GetAttributeStatDataByArmorType(ArmorType), InitAttributeStatEffect);
 }
 
