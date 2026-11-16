@@ -59,6 +59,7 @@ void UHDGA_Fire::OnEventRecieved(FGameplayEventData Payload)
     if(CommitAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo) == false)
     {
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, true);
+        return;
     }
     
     WeaponInterface->SpawnProjectile();

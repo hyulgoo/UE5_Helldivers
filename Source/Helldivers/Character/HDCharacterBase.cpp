@@ -102,6 +102,8 @@ const float AHDCharacterBase::GetRagdollPysicsLinearVelocity() const
 
 FHDCharacterAttributeData* AHDCharacterBase::GetAttributeStatDataByArmorType(const EHDArmorType NewArmorType)
 {
+    NULL_CHECK_WITH_RETURNTYPE(ArmorTypeStatusDataTable, nullptr);
+
     static const UEnum* EnumPtr = StaticEnum<EHDArmorType>();
     FString ArmorTypetoString = EnumPtr->GetNameStringByValue(static_cast<int64>(NewArmorType));
     FHDCharacterAttributeData* ArmorStatus = ArmorTypeStatusDataTable->FindRow<FHDCharacterAttributeData>(FName(ArmorTypetoString), TEXT("ArmorStatus"));

@@ -1,11 +1,11 @@
 
 #include "HDGameplayTag.h"
 
-UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_StratagemInputMode,   "Character.Action.StratagemInputMode ");
-UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_HoldStratagem,        "Character.Action.HoldStratagem ");
-UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_DetachStratagem,      "Character.Action.DetachStratagem ");
-UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_ThrowEnd,             "Character.Action.ThrowEnd ");
-UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_Dead,                 "Character.State.Dead ");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_StratagemInputMode,   "Character.Action.StratagemInputMode");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_HoldStratagem,        "Character.Action.HoldStratagem");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_DetachStratagem,      "Character.Action.DetachStratagem");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_ThrowEnd,             "Character.Action.ThrowEnd");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_Dead,                 "Character.State.Dead");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_All,                             "Block.All");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Move,                            "Block.Move");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Fire,                            "Block.Fire");
@@ -24,6 +24,7 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_Reload,                        "Trigger.Reloa
 UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_RegenStamina,                  "Trigger.RegenStamina");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_StratagemInputMode,            "Trigger.StratagemInputMode");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_ThrowStratagem,                "Trigger.ThrowStratagem");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_Dead,                          "Trigger.Dead");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_StratagemHUD,                    "Event.StratagemHUD");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_StratagemHUD_Active,             "Event.StratagemHUD.Active");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_StratagemHUD_Deactive,           "Event.StratagemHUD.Deactive");

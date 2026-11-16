@@ -12,10 +12,13 @@
 #include "AbilitySystem/GameplayAbilityHelper.h"
 #include "GameData/HDCharacterControlData.h"
 #include "Character/Player/HDCharacterPlayer.h"
+#include "Cheat/HDCheatManager.h"
 
 AHDPlayerController::AHDPlayerController(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
+    CheatClass = UHDCheatManager::StaticClass();
+
     static ConstructorHelpers::FObjectFinder<UHDCharacterControlData> ThirdPersonDataRef(TEXT("/Script/Helldivers.HDCharacterControlData'/Game/Helldivers/CharacterControl/HDC_ThirdPerson.HDC_ThirdPerson'"));
     if (ThirdPersonDataRef.Succeeded())
     {

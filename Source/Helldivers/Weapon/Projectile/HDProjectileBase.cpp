@@ -136,9 +136,7 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 	for (const FHitResult& Result : HitResults)
 	{
 		AActor* Target = Result.GetActor();
-		NULL_CHECK(Target);
-
-		if (HitActors.Contains(Target))
+		if (Target == nullptr || HitActors.Contains(Target))
 		{
 			continue;
 		}
@@ -146,7 +144,10 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 		HitActors.Add(Target);
 
 		UAbilitySystemComponent* TargetASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(Target);
-		NULL_CHECK(TargetASC);
+		if (TargetASC == nullptr)
+		{
+			continue;
+		}
 
 		const float Distance = FVector::Distance(HitLocation, Target->GetActorLocation());
 

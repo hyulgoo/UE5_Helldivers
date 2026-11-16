@@ -11,7 +11,7 @@
 UHDStratagemComponent::UHDStratagemComponent(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
-    static ConstructorHelpers::FObjectFinder<UDataTable> StratagemDataListRef(TEXT("/Script/Engine.DataTable'/Game/Helldivers/GameData/DT_StratagemData.DT_StratagenData'"));
+    static ConstructorHelpers::FObjectFinder<UDataTable> StratagemDataListRef(TEXT("/Script/Engine.DataTable'/Game/Helldivers/GameData/DT_StratagemData.DT_StratagemData'"));
     if (StratagemDataListRef.Succeeded())
     {
         AvaliableStratagemDataTable = StratagemDataListRef.Object;

@@ -3,12 +3,17 @@
 #include "HDCharacterNonPlayer.h"
 #include "Component/HDAbilitySystemComponent.h"
 
+AHDCharacterNonPlayer::AHDCharacterNonPlayer(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer)
+{
+    NPCAbilitySystemComponent = CreateDefaultSubobject<UHDAbilitySystemComponent>(TEXT("HDAbilitySystem"));
+}
+
 void AHDCharacterNonPlayer::BeginPlay()
 {
     Super::BeginPlay();
 
-    UHDAbilitySystemComponent* ASC = CreateDefaultSubobject<UHDAbilitySystemComponent>("HDAbilitySystem");
-    SetAbilitySystemComponent(this, ASC);
+    SetAbilitySystemComponent(this, NPCAbilitySystemComponent);
 }
 
 void AHDCharacterNonPlayer::SetDead()

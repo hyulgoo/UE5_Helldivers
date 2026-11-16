@@ -18,10 +18,12 @@ class HELLDIVERS_API UHDGASPlayerUserWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
+    void                        InitializeHealth(const float InCurrentHealth, const float InMaxHealth);
     void                        OnHealthAttributeChangeds(const FOnAttributeChangeData& ChangeData);
     void                        OnWeaponAttributeChangeds(const FOnAttributeChangeData& ChangeData);
 private:
 
+    void                        RefreshHealthBar();
     void                        SetGrenadeCountInfo(const int32 NewGrenadeCount, const int32 NewMaxGrenadeCount);
     void                        OnCapacityCountChanged(const int32 NewCapacityCount);
     void                        OnGrenadeCountChanged(const int32 NewGrenadeCount);

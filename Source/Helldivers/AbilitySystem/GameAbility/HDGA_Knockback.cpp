@@ -17,6 +17,8 @@ void UHDGA_Knockback::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     if(TriggerEventData->EventTag == Tag_Data_Knockback_Hit)
     {
         LOG(TEXT("Knockback GA called!"));
+        EndAbility(Handle, ActorInfo, ActivationInfo, false, false);
+        return;
     }
     else if (TriggerEventData->EventTag == Tag_Data_Knockback_Ragdoll)
     {

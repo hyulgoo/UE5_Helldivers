@@ -8,6 +8,14 @@
 #include "Components/Image.h"
 #include "Define/HDDefine.h"
 
+void UHDGASPlayerUserWidget::InitializeHealth(const float InCurrentHealth, const float InMaxHealth)
+{
+    CurrentHealth = InCurrentHealth;
+    CurrentMaxHealth = InMaxHealth;
+
+    RefreshHealthBar();
+}
+
 void UHDGASPlayerUserWidget::OnHealthAttributeChangeds(const FOnAttributeChangeData& ChangeData)
 {
     if(ChangeData.Attribute == UHDHealthAttributeSet::GetCurrentHealthAttribute())
@@ -17,6 +25,18 @@ void UHDGASPlayerUserWidget::OnHealthAttributeChangeds(const FOnAttributeChangeD
     else if(ChangeData.Attribute == UHDHealthAttributeSet::GetMaxHealthAttribute())
     {
         CurrentMaxHealth = ChangeData.NewValue;
+    }
+
+    RefreshHealthBar();
+}
+
+void UHDGASPlayerUserWidget::RefreshHealthBar()
+{
+    // 최대 체력이 아직 0 이면 0 나누기를 피한다
+    if (CurrentMaxHealth <= 0.f)
+    {
+        UpdateProgressbar(Pb_HPbar, 0.f);
+        return;
     }
 
     UpdateProgressbar(Pb_HPbar, CurrentHealth / CurrentMaxHealth);
