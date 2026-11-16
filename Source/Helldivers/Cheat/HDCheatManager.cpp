@@ -11,6 +11,8 @@
 #include "Character/NPC/HDEnemyCharger.h"
 #include "Character/NPC/HDEnemyShooter.h"
 #include "Game/HDSpawnDirectorSubsystem.h"
+#include "Game/HDGameMode.h"
+#include "Game/HDGameState.h"
 
 namespace HDCheatManager
 {
@@ -201,4 +203,44 @@ void UHDCheatManager::HDBreach()
     }
 
     Director->ForceBreach(PlayerPawn);
+}
+
+void UHDCheatManager::HDMission()
+{
+    UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    if (HDGameState == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] No HDGameState in this world"));
+        return;
+    }
+
+    const FString Status = FString::Printf(TEXT("Phase=%s Objectives=%d/%d Reinforcements=%d Extraction=%.1f InZone=%d"),
+        *StaticEnum<EHDMissionPhase>()->GetNameStringByValue(static_cast<int64>(HDGameState->GetMissionPhase())),
+        HDGameState->GetCompletedObjectives(),
+        HDGameState->GetRequiredObjectives(),
+        HDGameState->GetReinforcementsLeft(),
+        HDGameState->GetExtractionRemaining(),
+        HDGameState->IsPlayerInExtractionZone() ? 1 : 0);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] %s"), *Status);
+
+    APlayerController* PlayerController = GetPlayerController();
+    if (PlayerController)
+    {
+        PlayerController->ClientMessage(Status);
+    }
+}
+
+void UHDCheatManager::HDCompleteObjective()
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->NotifyObjectiveCompleted(nullptr);
 }

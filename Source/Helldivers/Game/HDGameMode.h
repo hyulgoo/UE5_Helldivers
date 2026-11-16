@@ -4,8 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "Game/HDMissionFlow.h"
 #include "HDGameMode.generated.h"
 
+// 한 판의 단계(FHDMissionFlow)를 소유하고 착지·목표·추출·사망을 받아 게임스테이트와 스폰 디렉터에 반영한다
 UCLASS()
 class HELLDIVERS_API AHDGameMode : public AGameModeBase
 {
@@ -15,4 +17,27 @@ public:
     AHDGameMode(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void	StartPlay() override final;
+    virtual void                PostLogin(APlayerController* NewPlayer) override;
+    virtual void                Tick(float DeltaSeconds) override;
+
+    // 브리프 7~9 가 부른다
+    void                        NotifyObjectiveCompleted(AActor* Objective);
+    void                        NotifyPlayerInExtractionZone(bool bInZone);
+    void                        NotifyPlayerDied(AController* DeadController);
+
+    const FHDMissionFlow*       GetMissionFlow() const;
+    FHDMissionFlow*             GetMissionFlowForDebug();
+
+private:
+    // 처음 빙의는 헬포드, 착지 뒤 캐릭터. 캐릭터가 되면 착지(Deploy) 또는 재강하로 본다
+    UFUNCTION()
+    void                        HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn);
+
+    // 이전 단계 기억 -> Change 호출 -> 게임스테이트 반영 -> 단계가 바뀌었으면 HandlePhaseChanged
+    void                        ApplyMissionChange(TFunctionRef<void(FHDMissionFlow&)> Change);
+    void                        SyncGameState() const;
+    void                        HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase NewPhase);
+
+private:
+    TUniquePtr<FHDMissionFlow>  MissionFlow;
 };

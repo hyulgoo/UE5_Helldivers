@@ -30,4 +30,12 @@ public:
     // 플레이어를 대상으로 증원 웨이브를 바로 부른다
     UFUNCTION(Exec)
     void        HDBreach();
+
+    // 미션 상태 한 줄: Phase=... Objectives=a/b Reinforcements=n Extraction=s InZone=0|1
+    UFUNCTION(Exec)
+    void        HDMission();
+
+    // 목표 하나 완료로 친다(브리프 7 이 실제 시설 파괴로 바꾼다)
+    UFUNCTION(Exec)
+    void        HDCompleteObjective();
 };

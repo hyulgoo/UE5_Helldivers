@@ -8,6 +8,12 @@ AHDGameState::AHDGameState()
 	: BattleShipClass(nullptr)
 	, BattleShip(nullptr)
     , SpawnHeight(80000.f)
+    , MissionPhase(EHDMissionPhase::Deploy)
+    , CompletedObjectives(0)
+    , RequiredObjectives(0)
+    , ReinforcementsLeft(0)
+    , ExtractionRemaining(0.f)
+    , bPlayerInExtractionZone(false)
 {
 }
 
@@ -19,6 +25,23 @@ AHDBattleShip* AHDGameState::GetBattleShip() const
 void AHDGameState::SetBattleShip(AHDBattleShip* NewBattleShip)
 {
     BattleShip = NewBattleShip;
+}
+
+void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed, int32 Required, int32 Reinforcements, float NewExtractionRemaining, bool bInZone)
+{
+    const EHDMissionPhase OldPhase = MissionPhase;
+
+    MissionPhase = NewPhase;
+    CompletedObjectives = Completed;
+    RequiredObjectives = Required;
+    ReinforcementsLeft = Reinforcements;
+    ExtractionRemaining = NewExtractionRemaining;
+    bPlayerInExtractionZone = bInZone;
+
+    if (OldPhase != NewPhase)
+    {
+        OnMissionPhaseChanged.Broadcast(OldPhase, NewPhase);
+    }
 }
 
 void AHDGameState::BeginPlay()
