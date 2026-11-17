@@ -14,6 +14,7 @@ AHDGameState::AHDGameState()
     , ReinforcementsLeft(0)
     , ExtractionRemaining(0.f)
     , bPlayerInExtractionZone(false)
+    , RespawnRemaining(-1.f)
 {
 }
 
@@ -42,6 +43,11 @@ void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed,
     {
         OnMissionPhaseChanged.Broadcast(OldPhase, NewPhase);
     }
+}
+
+void AHDGameState::SetRespawnRemaining(float NewRespawnRemaining)
+{
+    RespawnRemaining = NewRespawnRemaining;
 }
 
 void AHDGameState::BeginPlay()

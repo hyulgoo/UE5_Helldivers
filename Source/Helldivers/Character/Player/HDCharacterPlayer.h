@@ -33,7 +33,11 @@ protected:
 	virtual void							SetDead() override final;
     virtual void							Tick(float DeltaTime) override final;
 	virtual void							PossessedBy(AController* NewController) override final;
+    // PossessedBy 가 PlayerState ASC 에 묶은 이벤트 콜백 4개를 푼다
+    virtual void                            UnPossessed() override;
     virtual void                            SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override final;
+    // 장착 무기 액터도 같이 지운다
+    virtual void                            EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// RagdollInterface
 	virtual void							SetRagdoll(const bool bRagdoll, const FVector& Impulse = FVector::ZeroVector) override final;

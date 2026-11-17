@@ -59,4 +59,19 @@ public:
     // 추출 지점 구의 반지름(cm). 플레이어 캡슐이 이 안에 있어야 대기 시간이 준다
     UPROPERTY(Config, EditAnywhere, Category = "Extraction")
     float               ExtractionZoneRadius = 1000.f;
+
+    // 죽은 뒤 증원 헬포드가 떨어지기까지 기다리는 시간(초)
+    UPROPERTY(Config, EditAnywhere, Category = "Reinforcement")
+    float               RespawnDelay = 5.f;
+
+    // 증원 헬포드를 지면에서 이 높이(cm)에 스폰한다
+    UPROPERTY(Config, EditAnywhere, Category = "Reinforcement")
+    float               ReinforceDropHeight = 15000.f;
+
+    // 시체에서 이 거리(cm) 사이 무작위 방향으로 떨어뜨린다
+    UPROPERTY(Config, EditAnywhere, Category = "Reinforcement")
+    float               ReinforceOffsetMin = 500.f;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Reinforcement")
+    float               ReinforceOffsetMax = 1000.f;
 };

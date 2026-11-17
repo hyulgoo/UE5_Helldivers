@@ -9,13 +9,18 @@
 #include "Game/HDSpawnDirectorSubsystem.h"
 #include "Game/HDMissionPlacement.h"
 #include "Define/HDDefine.h"
+#include "Define/HDGameplayTag.h"
+#include "AbilitySystem/GameplayAbilityHelper.h"
+#include "AbilitySystemComponent.h"
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
 #include "Mission/HDObjectiveFacility.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
+#include "GameFramework/PlayerState.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "TimerManager.h"
 
 namespace HDPlaceObjective
 {
@@ -44,6 +49,16 @@ namespace HDPlaceObjective
         OutGroundLocation = GroundHit.ImpactPoint;
         return true;
     }
+}
+
+namespace HDReinforce
+{
+    // 지면 찾기: 시체 Z + 낙하 높이 + 5000 에서 아래 50000 까지
+    constexpr float GroundTraceExtraUp = 5000.f;
+    constexpr float GroundTraceLength = 50000.f;
+
+    // 남겨 둔 시체가 사라지기까지(초)
+    constexpr float CorpseLifeSpan = 60.f;
 }
 
 AHDGameMode::AHDGameMode(const FObjectInitializer& ObjectInitializer)
@@ -92,6 +107,13 @@ void AHDGameMode::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds);
 
     ApplyMissionChange([DeltaSeconds](FHDMissionFlow& Flow) { Flow.Tick(DeltaSeconds); });
+
+    // 증원 대기 남은 시간. 타이머가 없으면 GetTimerRemaining 이 -1 을 돌려준다
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetRespawnRemaining(GetWorldTimerManager().GetTimerRemaining(ReinforceTimerHandle));
+    }
 }
 
 void AHDGameMode::NotifyObjectiveCompleted(AActor* Objective)
@@ -107,6 +129,28 @@ void AHDGameMode::NotifyPlayerInExtractionZone(bool bInZone)
 void AHDGameMode::NotifyPlayerDied(AController* DeadController)
 {
     ApplyMissionChange([](FHDMissionFlow& Flow) { Flow.NotifyPlayerDied(); });
+
+    // 남은 증원이 0 이면 로직이 이미 Fail 로 바꿨다
+    if (MissionFlow.IsValid() == false || MissionFlow->IsFinished() || MissionFlow->GetReinforcementsLeft() < 1)
+    {
+        return;
+    }
+
+    APlayerController* DeadPlayerController = Cast<APlayerController>(DeadController);
+    NULL_CHECK(DeadPlayerController);
+
+    const float RespawnDelay = GetDefault<UHDMissionSettings>()->RespawnDelay;
+    const TWeakObjectPtr<APlayerController> WeakPlayerController(DeadPlayerController);
+    GetWorldTimerManager().SetTimer(ReinforceTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this, WeakPlayerController]()
+    {
+        Reinforce(WeakPlayerController.Get());
+    }), RespawnDelay, false);
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetRespawnRemaining(RespawnDelay);
+    }
 }
 
 const FHDMissionFlow* AHDGameMode::GetMissionFlow() const
@@ -255,6 +299,78 @@ void AHDGameMode::StopForMissionEnd()
 
         PlayerPawn->DisableInput(PlayerController);
     }
+}
+
+void AHDGameMode::Reinforce(APlayerController* PC)
+{
+    using namespace HDReinforce;
+
+    NULL_CHECK(PC);
+
+    bool bConsumed = false;
+    ApplyMissionChange([&bConsumed](FHDMissionFlow& Flow) { bConsumed = Flow.TryConsumeReinforcement(); });
+    if (bConsumed == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] reinforce skipped"));
+        return;
+    }
+
+    // PlayerState ASC 는 캐릭터가 바뀌어도 남는다. 사망 태그를 지우고, 활성 BPGA_Dead 를 끝내 Character.State.IsDead 도 뺀다
+    UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(PC->PlayerState);
+    NULL_CHECK(ASC);
+
+    ASC->SetLooseGameplayTagCount(Tag_Character_Action_Dead, 0);
+    ASC->SetLooseGameplayTagCount(Tag_Trigger_Dead, 0);
+    ASC->CancelAllAbilities();
+
+    // 시체는 남겨 두었다가 지운다
+    APawn* Corpse = PC->GetPawn();
+    NULL_CHECK(Corpse);
+
+    PC->UnPossess();
+    Corpse->SetLifeSpan(CorpseLifeSpan);
+
+    // 위치: 시체에서 무작위 방향 ReinforceOffsetMin~Max, 그 XY 의 지면 + ReinforceDropHeight
+    const UHDMissionSettings* Settings = GetDefault<UHDMissionSettings>();
+    const FVector CorpseLocation = Corpse->GetActorLocation();
+    const float Angle = FMath::FRandRange(0.f, UE_TWO_PI);
+    const float Distance = FMath::FRandRange(Settings->ReinforceOffsetMin, Settings->ReinforceOffsetMax);
+
+    FVector DropLocation(CorpseLocation.X + FMath::Cos(Angle) * Distance, CorpseLocation.Y + FMath::Sin(Angle) * Distance, CorpseLocation.Z + Settings->ReinforceDropHeight);
+
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    const FVector TraceStart(DropLocation.X, DropLocation.Y, CorpseLocation.Z + Settings->ReinforceDropHeight + GroundTraceExtraUp);
+    const FVector TraceEnd(TraceStart.X, TraceStart.Y, TraceStart.Z - GroundTraceLength);
+
+    FHitResult GroundHit;
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(HDReinforce), false);
+    QueryParams.AddIgnoredActor(Corpse);
+    if (World->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+    {
+        DropLocation.Z = GroundHit.ImpactPoint.Z + Settings->ReinforceDropHeight;
+    }
+
+    // 헬포드 = 게임모드의 기본 폰. 착지하면 캐릭터를 스폰·빙의하고 HandlePossessedPawnChanged 가 NotifyPlayerRespawned 를 부른다
+    UClass* HellpodClass = GetDefaultPawnClassForController(PC);
+    NULL_CHECK(HellpodClass);
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    APawn* Hellpod = World->SpawnActor<APawn>(HellpodClass, DropLocation, FRotator::ZeroRotator, SpawnParams);
+    NULL_CHECK(Hellpod);
+
+    PC->Possess(Hellpod);
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetRespawnRemaining(-1.f);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] reinforce left=%d"), MissionFlow->GetReinforcementsLeft());
 }
 
 void AHDGameMode::HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn)

@@ -32,6 +32,10 @@ public:
     float                       GetExtractionRemaining() const { return ExtractionRemaining; }
     bool                        IsPlayerInExtractionZone() const { return bPlayerInExtractionZone; }
 
+    // 증원까지 남은 시간(초). 기다리는 중이 아니면 -1
+    float                       GetRespawnRemaining() const { return RespawnRemaining; }
+    void                        SetRespawnRemaining(float NewRespawnRemaining);
+
 public:
     // SetMissionSnapshot 안에서 단계가 바뀌면 방송한다
     FOnHDMissionPhaseChanged    OnMissionPhaseChanged;
@@ -66,4 +70,7 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     bool                        bPlayerInExtractionZone;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Mission")
+    float                       RespawnRemaining;
 };

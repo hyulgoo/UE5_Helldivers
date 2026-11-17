@@ -67,4 +67,7 @@ private:
 
     UPROPERTY(EditAnywhere)
     TMap<EHDCharacterControlType, TObjectPtr<UHDCharacterControlData>> CharacterControlDataMap;	
+
+    // showdebug abilitysystem 을 이미 켰는가(다시 강하할 때 꺼지지 않게)
+    bool                                    bAbilityDebugShown = false;
 };

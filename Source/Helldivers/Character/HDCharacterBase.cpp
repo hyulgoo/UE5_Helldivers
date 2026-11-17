@@ -51,8 +51,14 @@ void AHDCharacterBase::SetAbilitySystemComponent(AActor* OwnerActor, UAbilitySys
     AbilitySystemComponent = Cast<UHDAbilitySystemComponent>(ASC);
     NULL_CHECK(AbilitySystemComponent);
 
+    // PlayerState ASC 는 캐릭터가 바뀌어도 남으므로 이미 준 어빌리티는 건너뛴다
     for (const TSubclassOf<UGameplayAbility>& Ability : Abilities)
     {
+        if (AbilitySystemComponent->FindAbilitySpecFromClass(Ability))
+        {
+            continue;
+        }
+
         AbilitySystemComponent->GiveAbility(Ability);
     }
 

@@ -59,6 +59,44 @@ void AHDCharacterPlayer::PossessedBy(AController* NewController)
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_DetachStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived);
 }
 
+void AHDCharacterPlayer::UnPossessed()
+{
+    Super::UnPossessed();
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK(ASC);
+
+    const FGameplayTag BoundEventTags[] =
+    {
+        Tag_Event_PlayerHUD_Initialize,
+        Tag_Character_Action_HoldStratagem,
+        Tag_Character_Action_ThrowEnd,
+        Tag_Character_Action_DetachStratagem,
+    };
+
+    for (const FGameplayTag& EventTag : BoundEventTags)
+    {
+        FGameplayEventMulticastDelegate* EventDelegate = ASC->GenericGameplayEventCallbacks.Find(EventTag);
+        if (EventDelegate == nullptr)
+        {
+            continue;
+        }
+
+        EventDelegate->RemoveAll(this);
+    }
+}
+
+void AHDCharacterPlayer::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    AHDWeapon* EquippedWeapon = Combat ? Combat->GetWeapon() : nullptr;
+    if (IsValid(EquippedWeapon))
+    {
+        EquippedWeapon->Destroy();
+    }
+
+    Super::EndPlay(EndPlayReason);
+}
+
 void AHDCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -349,6 +387,9 @@ void AHDCharacterPlayer::InterpFOV(float DeltaSeconds)
 void AHDCharacterPlayer::SetDead()
 {
     Super::SetDead();
+
+    // 시체가 조준 선 검사와 디버그 구를 계속 그리지 않게
+    Combat->SetComponentTickEnabled(false);
 
     APlayerController* PlayerController = GetController<APlayerController>();
     NULL_CHECK(PlayerController);

@@ -27,6 +27,8 @@ class HELLDIVERS_API UHDStratagemHUDUserWidget : public UUserWidget
 	
 public:
     void                                            InitializeStratagemHUD(UHDStratagemComponent* InStratagemComponent);
+    // 다시 강하한 새 폰의 컴포넌트로 포인터만 바꾼다. 목록 위젯은 다시 만들지 않는다(행 이름으로 만든 자식이라 이름이 겹친다)
+    void                                            SetStratagemComponent(UHDStratagemComponent* InStratagemComponent);
 	void											SetHUDActiveByCurrentInputMatchList(const TArray<FName>& MatchStratagemList, const int32 CurrentInputNum);
 	void											SetAllWidgetOpacity(const float Opacity);
 	void											WidgetAppear(const bool bAppear);

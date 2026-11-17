@@ -65,11 +65,19 @@ void AHDPlayerController::OnPossess(APawn* aPawn)
         HUD->SetAbilitySystemComponent(ASC);
         HUD->CreateDefaultWidget();
 
-        ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Event_PlayerHUD_EquipWeapon).AddUObject(HUD, &AHDHUD::OnEquipWeaponUIEventRecieved);
+        // PlayerState ASC 는 다시 강하해도 같으므로 앞 빙의에서 묶은 것을 먼저 푼다
+        FGameplayEventMulticastDelegate& EquipWeaponDelegate = ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Event_PlayerHUD_EquipWeapon);
+        EquipWeaponDelegate.RemoveAll(HUD);
+        EquipWeaponDelegate.AddUObject(HUD, &AHDHUD::OnEquipWeaponUIEventRecieved);
 
         FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_Initialize, GetAbilitySystemComponent());
 
-        ConsoleCommand(TEXT("showdebug abilitysystem"));
+        // 토글 명령이라 처음 한 번만
+        if (bAbilityDebugShown == false)
+        {
+            ConsoleCommand(TEXT("showdebug abilitysystem"));
+            bAbilityDebugShown = true;
+        }
     }
 }
 

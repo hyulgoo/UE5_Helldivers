@@ -33,6 +33,9 @@ namespace HDHUDMission
     // 화면 가운데 MISSION COMPLETE / MISSION FAILED
     constexpr float     ResultTextScale = 2.f;
 
+    // 화면 가운데 REINFORCING IN <초>
+    constexpr float     RespawnTextScale = 2.f;
+
     // 추출 지점 표식: 위치 + Z 300
     constexpr float     ExtractionMarkerHeight = 300.f;
 }
@@ -47,40 +50,53 @@ void AHDHUD::CreateDefaultWidget()
 {
     NULL_CHECK_WITHOUT_LOG(AbilitySystemComponent);
 
+    // 빙의마다 불린다. ASC 는 같은 PlayerState ASC 라 위젯과 델리게이트는 처음 한 번만 만든다
     if(PlayerHUDWidgetClass)
     {
-        PlayerHUDWidget = CreateWidget<UHDGASPlayerUserWidget>(GetWorld(), PlayerHUDWidgetClass);
-        NULL_CHECK(PlayerHUDWidget);
+        if (PlayerHUDWidget == nullptr)
+        {
+            PlayerHUDWidget = CreateWidget<UHDGASPlayerUserWidget>(GetWorld(), PlayerHUDWidgetClass);
+            NULL_CHECK(PlayerHUDWidget);
 
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDHealthAttributeSet::GetCurrentHealthAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnHealthAttributeChangeds);
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDHealthAttributeSet::GetMaxHealthAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnHealthAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDHealthAttributeSet::GetCurrentHealthAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnHealthAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDHealthAttributeSet::GetMaxHealthAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnHealthAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetAmmoAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxAmmoAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetCapacityAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxCapacityAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetGrenadeAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
+            AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
+
+            PlayerHUDWidget->AddToViewport();
+        }
+
+        // 다시 강하하면 초기 GE 를 다시 적용한 값으로 막대를 맞춘다
         PlayerHUDWidget->InitializeHealth(AbilitySystemComponent->GetNumericAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute()), AbilitySystemComponent->GetNumericAttribute(UHDHealthAttributeSet::GetMaxHealthAttribute()));
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetAmmoAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxAmmoAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetCapacityAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxCapacityAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetGrenadeAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
-        AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
-
-        PlayerHUDWidget->AddToViewport();
     }
 
     if (StratagemWidgetClass)
     {
-        StratagemWidget = CreateWidget<UHDStratagemHUDUserWidget>(GetWorld(), StratagemWidgetClass, FName("StratagemHUDWidget"));
-        NULL_CHECK(StratagemWidget);
-
-        const FGameplayTagContainer& StratagemEventTags = FGameplayAbilityHelper::GetAllChildTag(Tag_Event_StratagemHUD);
-        for (const FGameplayTag& StratagemEventTag : StratagemEventTags)
-        {
-            AbilitySystemComponent->GenericGameplayEventCallbacks.FindOrAdd(StratagemEventTag).AddUObject(StratagemWidget, &UHDStratagemHUDUserWidget::OnStratagemEventReceived);
-        }
-
         UHDStratagemComponent* StratagemComponent = PlayerOwner->GetPawn()->GetComponentByClass<UHDStratagemComponent>();
         NULL_CHECK(StratagemComponent);
 
-        StratagemWidget->InitializeStratagemHUD(StratagemComponent);
-        StratagemWidget->AddToViewport();
+        if (StratagemWidget)
+        {
+            StratagemWidget->SetStratagemComponent(StratagemComponent);
+        }
+        else
+        {
+            StratagemWidget = CreateWidget<UHDStratagemHUDUserWidget>(GetWorld(), StratagemWidgetClass);
+            NULL_CHECK(StratagemWidget);
+
+            const FGameplayTagContainer& StratagemEventTags = FGameplayAbilityHelper::GetAllChildTag(Tag_Event_StratagemHUD);
+            for (const FGameplayTag& StratagemEventTag : StratagemEventTags)
+            {
+                AbilitySystemComponent->GenericGameplayEventCallbacks.FindOrAdd(StratagemEventTag).AddUObject(StratagemWidget, &UHDStratagemHUDUserWidget::OnStratagemEventReceived);
+            }
+
+            StratagemWidget->InitializeStratagemHUD(StratagemComponent);
+            StratagemWidget->AddToViewport();
+        }
     }
 }
 
@@ -171,6 +187,19 @@ void AHDHUD::DrawMissionText()
         float TextHeight = 0.f;
         GetTextSize(ResultText, TextWidth, TextHeight, LargeFont, ResultTextScale);
         DrawText(ResultText, bSuccess ? TextColor : FailColor, (Canvas->ClipX - TextWidth) * 0.5f, (Canvas->ClipY - TextHeight) * 0.5f, LargeFont, ResultTextScale);
+    }
+
+    // 증원 대기 중이면 화면 가운데 남은 초(올림)
+    const float RespawnRemaining = HDGameState->GetRespawnRemaining();
+    if (RespawnRemaining >= 0.f && Canvas)
+    {
+        const FString RespawnText = FString::Printf(TEXT("REINFORCING IN %d"), FMath::CeilToInt(RespawnRemaining));
+        UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+
+        float TextWidth = 0.f;
+        float TextHeight = 0.f;
+        GetTextSize(RespawnText, TextWidth, TextHeight, LargeFont, RespawnTextScale);
+        DrawText(RespawnText, TextColor, (Canvas->ClipX - TextWidth) * 0.5f, (Canvas->ClipY - TextHeight) * 0.5f, LargeFont, RespawnTextScale);
     }
 }
 

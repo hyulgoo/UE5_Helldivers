@@ -25,6 +25,8 @@ public:
     // 브리프 7~9 가 부른다
     void                        NotifyObjectiveCompleted(AActor* Objective);
     void                        NotifyPlayerInExtractionZone(bool bInZone);
+
+    // 미션이 안 끝났고 남은 증원이 있으면 RespawnDelay 뒤 Reinforce 를 예약한다
     void                        NotifyPlayerDied(AController* DeadController);
 
     const FHDMissionFlow*       GetMissionFlow() const;
@@ -43,6 +45,9 @@ private:
     // Success·Fail: 모든 적 AI 를 멈추고 플레이어 폰 입력을 막는다
     void                        StopForMissionEnd();
 
+    // 증원 하나를 써서 사망 태그·어빌리티를 정리하고, 시체 근처 하늘에 헬포드(기본 폰)를 스폰해 빙의한다
+    void                        Reinforce(APlayerController* PC);
+
     // 처음 빙의는 헬포드, 착지 뒤 캐릭터. 캐릭터가 되면 착지(Deploy) 또는 재강하로 본다
     UFUNCTION()
     void                        HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn);
@@ -54,4 +59,7 @@ private:
 
 private:
     TUniquePtr<FHDMissionFlow>  MissionFlow;
+
+    // 사망 -> Reinforce 대기. Tick 에서 남은 시간을 게임스테이트 RespawnRemaining 에 옮긴다
+    FTimerHandle                ReinforceTimerHandle;
 };

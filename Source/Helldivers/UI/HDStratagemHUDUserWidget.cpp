@@ -17,6 +17,12 @@ void UHDStratagemHUDUserWidget::InitializeStratagemHUD(UHDStratagemComponent* In
     SetStratagemListHUD(StratagemComponent->GetAvaliableStratagemDataTable());
 }
 
+void UHDStratagemHUDUserWidget::SetStratagemComponent(UHDStratagemComponent* InStratagemComponent)
+{
+    NULL_CHECK(InStratagemComponent);
+    StratagemComponent = InStratagemComponent;
+}
+
 void UHDStratagemHUDUserWidget::SetStratagemListHUD(UDataTable* StratagemDataTable)
 {
     FVector2D ViewportSize = FVector2D();
