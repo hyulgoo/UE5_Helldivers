@@ -50,3 +50,4 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Data_Knockback_Hit,                    "Data.Knockbac
 UE_DEFINE_GAMEPLAY_TAG(Tag_Data_Knockback_Ragdoll,                "Data.Knockback.Ragdoll");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Cost_Stamina,                          "Cost.Stamina");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Regen_Stamina,                         "Regen.Stamina");
+UE_DEFINE_GAMEPLAY_TAG(Tag_GameplayCue_Explode_BombHeavy,         "GameplayCue.Explode.Bomb_Heavy");

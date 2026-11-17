@@ -24,6 +24,13 @@ public:
     void                                CreateDefaultWidget();
     void                                OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload);
 
+    // 왼쪽 위 미션 글자와 미완료 목표 표식(라벨·거리)을 캔버스에 그린다
+    virtual void                        DrawHUD() override;
+
+private:
+    void                                DrawMissionText();
+    void                                DrawObjectiveMarkers();
+
 private:
     UPROPERTY()
     TObjectPtr<UAbilitySystemComponent>     AbilitySystemComponent;

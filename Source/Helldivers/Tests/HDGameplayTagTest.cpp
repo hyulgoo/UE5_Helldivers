@@ -74,6 +74,9 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
         // Stamina
         &Tag_Cost_Stamina,
         &Tag_Regen_Stamina,
+
+        // GameplayCue
+        &Tag_GameplayCue_Explode_BombHeavy,
     };
 
     const UGameplayTagsManager& TagsManager = UGameplayTagsManager::Get();

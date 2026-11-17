@@ -7,6 +7,8 @@
 #include "Game/HDMissionFlow.h"
 #include "HDGameMode.generated.h"
 
+class UHDMissionSettings;
+
 // 한 판의 단계(FHDMissionFlow)를 소유하고 착지·목표·추출·사망을 받아 게임스테이트와 스폰 디렉터에 반영한다
 UCLASS()
 class HELLDIVERS_API AHDGameMode : public AGameModeBase
@@ -29,6 +31,9 @@ public:
     FHDMissionFlow*             GetMissionFlowForDebug();
 
 private:
+    // 맵에 놓인 목표가 RequiredObjectives 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
+    int32                       PlaceObjectives(const UHDMissionSettings& Settings);
+
     // 처음 빙의는 헬포드, 착지 뒤 캐릭터. 캐릭터가 되면 착지(Deploy) 또는 재강하로 본다
     UFUNCTION()
     void                        HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn);

@@ -13,6 +13,7 @@
 #include "Game/HDSpawnDirectorSubsystem.h"
 #include "Game/HDGameMode.h"
 #include "Game/HDGameState.h"
+#include "Mission/HDObjectiveFacility.h"
 
 namespace HDCheatManager
 {
@@ -235,12 +236,62 @@ void UHDCheatManager::HDMission()
 void UHDCheatManager::HDCompleteObjective()
 {
     UWorld* World = GetWorld();
-    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
-    if (HDGameMode == nullptr)
+    if (World == nullptr)
     {
-        UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] No HDGameMode in this world"));
         return;
     }
 
+    // 기준 = 플레이어 폰 위치(폰이 없으면 시점 위치)
+    FVector ReferenceLocation = FVector::ZeroVector;
+    APlayerController* PlayerController = GetPlayerController();
+    if (PlayerController)
+    {
+        if (const APawn* PlayerPawn = PlayerController->GetPawn())
+        {
+            ReferenceLocation = PlayerPawn->GetActorLocation();
+        }
+        else
+        {
+            FRotator ViewRotation;
+            PlayerController->GetPlayerViewPoint(ReferenceLocation, ViewRotation);
+        }
+    }
+
+    // 가장 가까운 미완료 시설
+    AHDObjectiveFacility* NearestFacility = nullptr;
+    double NearestDistanceSquared = TNumericLimits<double>::Max();
+    for (TActorIterator<AHDObjectiveFacility> It(World); It; ++It)
+    {
+        AHDObjectiveFacility* Facility = *It;
+        if (IsValid(Facility) == false || Facility->IsCompleted())
+        {
+            continue;
+        }
+
+        const double DistanceSquared = FVector::DistSquared(ReferenceLocation, Facility->GetActorLocation());
+        if (DistanceSquared < NearestDistanceSquared)
+        {
+            NearestFacility = Facility;
+            NearestDistanceSquared = DistanceSquared;
+        }
+    }
+
+    UAbilitySystemComponent* FacilityASC = NearestFacility ? NearestFacility->GetAbilitySystemComponent() : nullptr;
+    if (FacilityASC)
+    {
+        // 파괴 경로를 그대로 탄다: 체력 0 -> Trigger.Dead -> 폭발·목표 완료
+        FacilityASC->ApplyModToAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute(), EGameplayModOp::AddBase, -99999.f);
+        UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] Applied -99999 CurrentHealth to %s (%.0fm)"), *NearestFacility->GetName(), FMath::Sqrt(NearestDistanceSquared) / 100.0);
+        return;
+    }
+
+    AHDGameMode* HDGameMode = World->GetAuthGameMode<AHDGameMode>();
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] No facility and no HDGameMode in this world"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] No facility left. Counting one objective as completed"));
     HDGameMode->NotifyObjectiveCompleted(nullptr);
 }

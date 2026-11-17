@@ -25,6 +25,9 @@ class HELLDIVERS_API AHDProjectileBase : public AActor
 public:	
     AHDProjectileBase(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+    // 충돌 피해를 줄 수 있는가. 적이 쏜 탄은 시설만 다치게 하지 않는다(적끼리는 피해를 준다)
+    static bool                                 CanApplyImpactDamage(const AActor* OwnerActor, const AActor* TargetActor);
+
 protected:
 	virtual void	                            BeginPlay() override;
 	

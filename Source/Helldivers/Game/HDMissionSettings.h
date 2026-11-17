@@ -33,4 +33,19 @@ public:
     // 미션 제한 시간(초). 0 = 제한 없음
     UPROPERTY(Config, EditAnywhere, Category = "Mission")
     float               MissionTimeLimit = 0.f;
+
+    // 시설 목표의 최대·시작 체력
+    UPROPERTY(Config, EditAnywhere, Category = "Objective")
+    float               FacilityHealth = 600.f;
+
+    // 맵에 놓인 목표가 모자랄 때 첫 PlayerStart 둘레에 스폰하는 링의 반지름(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Objective")
+    float               ObjectiveRadiusMin = 8000.f;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Objective")
+    float               ObjectiveRadiusMax = 15000.f;
+
+    // 스폰하는 목표끼리 떨어뜨리려는 거리(cm). 못 맞춰도 개수는 채운다
+    UPROPERTY(Config, EditAnywhere, Category = "Objective")
+    float               ObjectiveMinSeparation = 6000.f;
 };

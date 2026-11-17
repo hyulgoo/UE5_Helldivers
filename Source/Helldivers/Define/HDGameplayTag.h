@@ -63,3 +63,6 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_Knockback_Ragdoll);
 // Stamina
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Cost_Stamina);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Regen_Stamina);
+
+// GameplayCue
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_GameplayCue_Explode_BombHeavy);

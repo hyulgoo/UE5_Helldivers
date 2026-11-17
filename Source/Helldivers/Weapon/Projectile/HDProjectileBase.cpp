@@ -10,6 +10,7 @@
 #include "Define/HDGameplayTag.h"
 #include "Collision/HDCollision.h"
 #include "Character/NPC/HDCharacterNonPlayer.h"
+#include "Mission/HDObjectiveFacility.h"
 #include "Weapon/WeaponTypes.h"
 
 AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer)
@@ -30,6 +31,22 @@ AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
 	ProjectileMovement->SetUpdatedComponent(RootComponent);
 	ProjectileMovement->bRotationFollowsVelocity = true;
+}
+
+bool AHDProjectileBase::CanApplyImpactDamage(const AActor* OwnerActor, const AActor* TargetActor)
+{
+    if (OwnerActor == nullptr || TargetActor == nullptr)
+    {
+        return false;
+    }
+
+    // 적(돌격형·원거리형)이 쏜 탄은 시설만 다치게 하지 않는다. 적끼리는 피해를 준다
+    if (OwnerActor->IsA<AHDCharacterNonPlayer>() && TargetActor->IsA<AHDObjectiveFacility>())
+    {
+        return false;
+    }
+
+    return true;
 }
 
 void AHDProjectileBase::BeginPlay()
@@ -61,9 +78,8 @@ void AHDProjectileBase::OnBoxHit(UPrimitiveComponent* HitComp, AActor* OtherActo
 	}
 	else
 	{
-        // 적끼리는 피해를 주지 않는다(막힘 큐와 Destroy 는 그대로)
-        const bool bEnemyHitEnemy = OwnerActor->IsA<AHDCharacterNonPlayer>() && OtherActor->IsA<AHDCharacterNonPlayer>();
-        UAbilitySystemComponent* TargetASC = bEnemyHitEnemy ? nullptr : FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(OtherActor);
+        // 적이 쏜 탄은 시설을 다치게 하지 않는다(막힘 큐와 Destroy 는 그대로)
+        UAbilitySystemComponent* TargetASC = CanApplyImpactDamage(OwnerActor, OtherActor) ? FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(OtherActor) : nullptr;
 		if (TargetASC)
 		{
 			ApplyDamageGameEffect(OwnerASC, TargetASC, ImpactDamage);

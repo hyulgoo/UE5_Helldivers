@@ -13,6 +13,20 @@
 #include "AbilitySystem/GameplayAbilityHelper.h"
 #include "Component\HDStratagemComponent.h"
 #include "HDStratagemHUDUserWidget.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+#include "Game/HDGameState.h"
+#include "Mission/HDMissionObjective.h"
+
+namespace HDHUDMission
+{
+    const FLinearColor  TextColor(1.f, 0.85f, 0.2f);
+    constexpr float     TextLeft = 40.f;
+    constexpr float     TextTop = 40.f;
+    constexpr float     LineHeight = 26.f;
+}
 
 void AHDHUD::SetAbilitySystemComponent(UAbilitySystemComponent* ASC)
 {
@@ -87,4 +101,82 @@ void AHDHUD::OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload)
     //{
     //    SpreadChangedHandle = CurrentWeapon->OnSpreadChanged.AddUObject(ReticleWidget, &UHDReticleWidget::UpdateCrosshair);
     //}
+}
+
+void AHDHUD::DrawHUD()
+{
+    Super::DrawHUD();
+
+    DrawMissionText();
+    DrawObjectiveMarkers();
+}
+
+void AHDHUD::DrawMissionText()
+{
+    using namespace HDHUDMission;
+
+    UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    NULL_CHECK_WITHOUT_LOG(HDGameState);
+
+    TArray<FString> Lines;
+    switch (HDGameState->GetMissionPhase())
+    {
+    case EHDMissionPhase::Deploy:
+        Lines.Add(TEXT("DEPLOYING"));
+        break;
+    case EHDMissionPhase::InProgress:
+        Lines.Add(FString::Printf(TEXT("OBJECTIVE  DESTROY FACILITIES  %d/%d"), HDGameState->GetCompletedObjectives(), HDGameState->GetRequiredObjectives()));
+        break;
+    case EHDMissionPhase::Extraction:
+        Lines.Add(TEXT("EXTRACT"));
+        break;
+    default:
+        break;
+    }
+    Lines.Add(FString::Printf(TEXT("REINFORCEMENTS  %d"), HDGameState->GetReinforcementsLeft()));
+
+    UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+    float LineY = TextTop;
+    for (const FString& Line : Lines)
+    {
+        DrawText(Line, TextColor, TextLeft, LineY, Font);
+        LineY += LineHeight;
+    }
+}
+
+void AHDHUD::DrawObjectiveMarkers()
+{
+    using namespace HDHUDMission;
+
+    NULL_CHECK_WITHOUT_LOG(PlayerOwner);
+
+    const APawn* PlayerPawn = PlayerOwner->GetPawn();
+    NULL_CHECK_WITHOUT_LOG(PlayerPawn);
+
+    FVector ViewLocation;
+    FRotator ViewRotation;
+    PlayerOwner->GetPlayerViewPoint(ViewLocation, ViewRotation);
+    const FVector ViewDirection = ViewRotation.Vector();
+
+    UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+    for (TActorIterator<AHDMissionObjective> It(GetWorld()); It; ++It)
+    {
+        const AHDMissionObjective* Objective = *It;
+        if (IsValid(Objective) == false || Objective->IsCompleted())
+        {
+            continue;
+        }
+
+        // 카메라 뒤의 점도 Project 는 화면 좌표를 돌려주므로 앞에 있을 때만 그린다
+        const FVector MarkerLocation = Objective->GetMarkerLocation();
+        if (FVector::DotProduct(ViewDirection, MarkerLocation - ViewLocation) <= 0.f)
+        {
+            continue;
+        }
+
+        const FVector ScreenLocation = Project(MarkerLocation);
+        const int32 DistanceMeters = FMath::RoundToInt(FVector::Distance(PlayerPawn->GetActorLocation(), Objective->GetActorLocation()) / 100.f);
+        DrawText(FString::Printf(TEXT("%s  %dm"), *Objective->GetMarkerLabel(), DistanceMeters), TextColor, ScreenLocation.X, ScreenLocation.Y, Font);
+    }
 }
