@@ -48,4 +48,15 @@ public:
     // 스폰하는 목표끼리 떨어뜨리려는 거리(cm). 못 맞춰도 개수는 채운다
     UPROPERTY(Config, EditAnywhere, Category = "Objective")
     float               ObjectiveMinSeparation = 6000.f;
+
+    // 추출 단계가 되면 플레이어(없으면 첫 PlayerStart)에서 이 거리 링 위에 추출 지점을 스폰한다(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Extraction")
+    float               ExtractionDistanceMin = 10000.f;
+
+    UPROPERTY(Config, EditAnywhere, Category = "Extraction")
+    float               ExtractionDistanceMax = 16000.f;
+
+    // 추출 지점 구의 반지름(cm). 플레이어 캡슐이 이 안에 있어야 대기 시간이 준다
+    UPROPERTY(Config, EditAnywhere, Category = "Extraction")
+    float               ExtractionZoneRadius = 1000.f;
 };

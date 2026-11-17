@@ -13,6 +13,7 @@
 #include "Game/HDSpawnDirectorSubsystem.h"
 #include "Game/HDGameMode.h"
 #include "Game/HDGameState.h"
+#include "Mission/HDExtractionZone.h"
 #include "Mission/HDObjectiveFacility.h"
 
 namespace HDCheatManager
@@ -294,4 +295,43 @@ void UHDCheatManager::HDCompleteObjective()
 
     UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] No facility left. Counting one objective as completed"));
     HDGameMode->NotifyObjectiveCompleted(nullptr);
+}
+
+void UHDCheatManager::HDTeleportToExtraction()
+{
+    UWorld* World = GetWorld();
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    if (World == nullptr || PlayerPawn == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDTeleportToExtraction] No player pawn"));
+        return;
+    }
+
+    TActorIterator<AHDExtractionZone> ZoneIt(World);
+    if (ZoneIt)
+    {
+        const FVector Destination = ZoneIt->GetActorLocation() + FVector(0.f, 0.f, 200.f);
+        const bool bTeleported = PlayerPawn->TeleportTo(Destination, PlayerPawn->GetActorRotation());
+        UE_LOG(LogTemp, Display, TEXT("[HDTeleportToExtraction] %s to %s"), bTeleported ? TEXT("Teleported") : TEXT("Failed to teleport"), *Destination.ToString());
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDTeleportToExtraction] No extraction zone in this world"));
+}
+
+void UHDCheatManager::HDSetReinforcements(int32 Count)
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSetReinforcements] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->DebugSetReinforcementsLeft(Count);
+
+    const AHDGameState* HDGameState = World->GetGameState<AHDGameState>();
+    UE_LOG(LogTemp, Display, TEXT("[HDSetReinforcements] Reinforcements=%d"), HDGameState ? HDGameState->GetReinforcementsLeft() : -1);
 }

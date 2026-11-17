@@ -35,7 +35,15 @@ public:
     UFUNCTION(Exec)
     void        HDMission();
 
-    // 목표 하나 완료로 친다(브리프 7 이 실제 시설 파괴로 바꾼다)
+    // 가장 가까운 미완료 시설을 실제 파괴 경로(체력 0)로 부순다. 남은 시설이 없으면 목표 하나 완료로 친다
     UFUNCTION(Exec)
     void        HDCompleteObjective();
+
+    // 추출 지점이 있으면 플레이어 폰을 그 위 200 으로 옮긴다
+    UFUNCTION(Exec)
+    void        HDTeleportToExtraction();
+
+    // 남은 증원 수를 Count 로(0 이상으로 자른다)
+    UFUNCTION(Exec)
+    void        HDSetReinforcements(int32 Count);
 };

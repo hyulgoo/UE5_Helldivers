@@ -1,12 +1,15 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "HDGameMode.h"
+#include "AI/HDEnemyAIController.h"
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Game/HDGameState.h"
 #include "Game/HDMissionSettings.h"
+#include "Game/HDSpawnDirectorSettings.h"
 #include "Game/HDSpawnDirectorSubsystem.h"
 #include "Game/HDMissionPlacement.h"
 #include "Define/HDDefine.h"
+#include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
 #include "Mission/HDObjectiveFacility.h"
 #include "GameFramework/PlayerController.h"
@@ -116,6 +119,11 @@ FHDMissionFlow* AHDGameMode::GetMissionFlowForDebug()
     return MissionFlow.Get();
 }
 
+void AHDGameMode::DebugSetReinforcementsLeft(int32 Count)
+{
+    ApplyMissionChange([Count](FHDMissionFlow& Flow) { Flow.DebugSetReinforcementsLeft(Count); });
+}
+
 int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings)
 {
     using namespace HDPlaceObjective;
@@ -177,6 +185,78 @@ int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings)
     return PlacedCount + SpawnedCount;
 }
 
+void AHDGameMode::SpawnExtractionZone(const UHDMissionSettings& Settings)
+{
+    using namespace HDPlaceObjective;
+
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    // 중심 = 플레이어 폰(없으면 첫 PlayerStart, 그것도 없으면 원점)
+    FVector Center = FVector::ZeroVector;
+    APlayerController* PlayerController = World->GetFirstPlayerController();
+    const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    if (PlayerPawn)
+    {
+        Center = PlayerPawn->GetActorLocation();
+    }
+    else
+    {
+        TActorIterator<APlayerStart> PlayerStartIt(World);
+        if (PlayerStartIt)
+        {
+            Center = PlayerStartIt->GetActorLocation();
+        }
+    }
+
+    // 목표 배치와 같은 선 검사. 지면을 못 찾으면 같은 링에서 다시 뽑는다
+    FRandomStream Stream(FMath::Rand());
+    FVector GroundLocation = FVector::ZeroVector;
+    bool bFoundGround = false;
+    for (int32 Attempt = 0; Attempt <= MaxGroundRetries && bFoundGround == false; ++Attempt)
+    {
+        const TArray<FVector2D> Offsets = HDMissionPlacement::ComputeRingOffsets(1, Settings.ExtractionDistanceMin, Settings.ExtractionDistanceMax, 0.f, Stream);
+        bFoundGround = FindGround(World, Center, Offsets[0], GroundLocation);
+    }
+
+    if (bFoundGround == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] no ground for the extraction zone around %s"), *Center.ToString());
+        return;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    const AHDExtractionZone* ExtractionZone = World->SpawnActor<AHDExtractionZone>(AHDExtractionZone::StaticClass(), GroundLocation, FRotator::ZeroRotator, SpawnParams);
+    NULL_CHECK(ExtractionZone);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] extraction zone spawned %.0fm"), FVector::Distance(Center, GroundLocation) / 100.f);
+}
+
+void AHDGameMode::StopForMissionEnd()
+{
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    for (TActorIterator<AHDEnemyAIController> It(World); It; ++It)
+    {
+        It->StopForMissionEnd();
+    }
+
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PlayerController = It->Get();
+        APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+        if (PlayerPawn == nullptr)
+        {
+            continue;
+        }
+
+        PlayerPawn->DisableInput(PlayerController);
+    }
+}
+
 void AHDGameMode::HandlePossessedPawnChanged(APawn* OldPawn, APawn* NewPawn)
 {
     if (Cast<AHDCharacterPlayer>(NewPawn) == nullptr || MissionFlow.IsValid() == false)
@@ -235,17 +315,32 @@ void AHDGameMode::HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase N
 
     UWorld* World = GetWorld();
     UHDSpawnDirectorSubsystem* Director = World ? World->GetSubsystem<UHDSpawnDirectorSubsystem>() : nullptr;
-    if (Director == nullptr)
-    {
-        return;
-    }
 
     if (NewPhase == EHDMissionPhase::InProgress)
     {
-        Director->StartDirector();
+        if (Director)
+        {
+            Director->StartDirector();
+        }
+    }
+    else if (NewPhase == EHDMissionPhase::Extraction)
+    {
+        SpawnExtractionZone(*GetDefault<UHDMissionSettings>());
+
+        if (Director)
+        {
+            Director->SetIntensity(GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity);
+        }
     }
     else if (NewPhase == EHDMissionPhase::Success || NewPhase == EHDMissionPhase::Fail)
     {
-        Director->StopDirector();
+        if (Director)
+        {
+            Director->StopDirector();
+        }
+
+        StopForMissionEnd();
+
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] mission %s"), NewPhase == EHDMissionPhase::Success ? TEXT("Success") : TEXT("Fail"));
     }
 }

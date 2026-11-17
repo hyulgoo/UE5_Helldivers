@@ -30,9 +30,18 @@ public:
     const FHDMissionFlow*       GetMissionFlow() const;
     FHDMissionFlow*             GetMissionFlowForDebug();
 
+    // 치트용. 로직의 같은 이름 함수 + 게임스테이트 반영
+    void                        DebugSetReinforcementsLeft(int32 Count);
+
 private:
     // 맵에 놓인 목표가 RequiredObjectives 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
     int32                       PlaceObjectives(const UHDMissionSettings& Settings);
+
+    // Extraction: 플레이어 폰(없으면 첫 PlayerStart) 둘레 링 위 지면에 AHDExtractionZone 을 스폰한다
+    void                        SpawnExtractionZone(const UHDMissionSettings& Settings);
+
+    // Success·Fail: 모든 적 AI 를 멈추고 플레이어 폰 입력을 막는다
+    void                        StopForMissionEnd();
 
     // 처음 빙의는 헬포드, 착지 뒤 캐릭터. 캐릭터가 되면 착지(Deploy) 또는 재강하로 본다
     UFUNCTION()

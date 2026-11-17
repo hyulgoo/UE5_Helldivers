@@ -190,6 +190,20 @@ void AHDEnemyAIController::ForceTarget(AActor* NewTarget)
     UE_LOG(LogTemp, Display, TEXT("[HDEnemy] %s forced target %s"), *GetNameSafe(GetPawn()), *GetNameSafe(NewTargetPawn));
 }
 
+void AHDEnemyAIController::StopForMissionEnd()
+{
+    StopMovement();
+    ClearFocus(EAIFocusPriority::Gameplay);
+
+    UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(GetPawn());
+    if (ASC)
+    {
+        ASC->CancelAllAbilities();
+    }
+
+    SetActorTickEnabled(false);
+}
+
 void AHDEnemyAIController::UpdateTarget(const AHDCharacterNonPlayer& Enemy)
 {
     const FHDEnemyStats& Stats = Enemy.GetEnemyStats();

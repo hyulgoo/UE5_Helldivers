@@ -18,14 +18,23 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/HDGameState.h"
+#include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
+#include "Engine/Canvas.h"
 
 namespace HDHUDMission
 {
     const FLinearColor  TextColor(1.f, 0.85f, 0.2f);
+    const FLinearColor  FailColor(1.f, 0.f, 0.f);
     constexpr float     TextLeft = 40.f;
     constexpr float     TextTop = 40.f;
     constexpr float     LineHeight = 26.f;
+
+    // 화면 가운데 MISSION COMPLETE / MISSION FAILED
+    constexpr float     ResultTextScale = 2.f;
+
+    // 추출 지점 표식: 위치 + Z 300
+    constexpr float     ExtractionMarkerHeight = 300.f;
 }
 
 void AHDHUD::SetAbilitySystemComponent(UAbilitySystemComponent* ASC)
@@ -119,8 +128,10 @@ void AHDHUD::DrawMissionText()
     const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
     NULL_CHECK_WITHOUT_LOG(HDGameState);
 
+    const EHDMissionPhase Phase = HDGameState->GetMissionPhase();
+
     TArray<FString> Lines;
-    switch (HDGameState->GetMissionPhase())
+    switch (Phase)
     {
     case EHDMissionPhase::Deploy:
         Lines.Add(TEXT("DEPLOYING"));
@@ -129,8 +140,13 @@ void AHDHUD::DrawMissionText()
         Lines.Add(FString::Printf(TEXT("OBJECTIVE  DESTROY FACILITIES  %d/%d"), HDGameState->GetCompletedObjectives(), HDGameState->GetRequiredObjectives()));
         break;
     case EHDMissionPhase::Extraction:
-        Lines.Add(TEXT("EXTRACT"));
+    {
+        // 남은 시간 mm:ss
+        const int32 RemainingSeconds = FMath::Max(0, FMath::FloorToInt(HDGameState->GetExtractionRemaining()));
+        Lines.Add(FString::Printf(TEXT("EXTRACTION  HOLD  %02d:%02d"), RemainingSeconds / 60, RemainingSeconds % 60));
+        Lines.Add(HDGameState->IsPlayerInExtractionZone() ? TEXT("HOLD THE ZONE") : TEXT("ENTER EXTRACTION ZONE"));
         break;
+    }
     default:
         break;
     }
@@ -142,6 +158,19 @@ void AHDHUD::DrawMissionText()
     {
         DrawText(Line, TextColor, TextLeft, LineY, Font);
         LineY += LineHeight;
+    }
+
+    // 끝나면 화면 가운데 결과
+    if ((Phase == EHDMissionPhase::Success || Phase == EHDMissionPhase::Fail) && Canvas)
+    {
+        const bool bSuccess = Phase == EHDMissionPhase::Success;
+        const FString ResultText = bSuccess ? TEXT("MISSION COMPLETE") : TEXT("MISSION FAILED");
+        UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+
+        float TextWidth = 0.f;
+        float TextHeight = 0.f;
+        GetTextSize(ResultText, TextWidth, TextHeight, LargeFont, ResultTextScale);
+        DrawText(ResultText, bSuccess ? TextColor : FailColor, (Canvas->ClipX - TextWidth) * 0.5f, (Canvas->ClipY - TextHeight) * 0.5f, LargeFont, ResultTextScale);
     }
 }
 
@@ -160,6 +189,20 @@ void AHDHUD::DrawObjectiveMarkers()
     const FVector ViewDirection = ViewRotation.Vector();
 
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+
+    // "<라벨>  <거리>m". 카메라 뒤의 점도 Project 는 화면 좌표를 돌려주므로 앞에 있을 때만 그린다
+    auto DrawMarker = [&](const FString& Label, const FVector& MarkerLocation, const FVector& ActorLocation)
+    {
+        if (FVector::DotProduct(ViewDirection, MarkerLocation - ViewLocation) <= 0.f)
+        {
+            return;
+        }
+
+        const FVector ScreenLocation = Project(MarkerLocation);
+        const int32 DistanceMeters = FMath::RoundToInt(FVector::Distance(PlayerPawn->GetActorLocation(), ActorLocation) / 100.f);
+        DrawText(FString::Printf(TEXT("%s  %dm"), *Label, DistanceMeters), TextColor, ScreenLocation.X, ScreenLocation.Y, Font);
+    };
+
     for (TActorIterator<AHDMissionObjective> It(GetWorld()); It; ++It)
     {
         const AHDMissionObjective* Objective = *It;
@@ -168,15 +211,18 @@ void AHDHUD::DrawObjectiveMarkers()
             continue;
         }
 
-        // 카메라 뒤의 점도 Project 는 화면 좌표를 돌려주므로 앞에 있을 때만 그린다
-        const FVector MarkerLocation = Objective->GetMarkerLocation();
-        if (FVector::DotProduct(ViewDirection, MarkerLocation - ViewLocation) <= 0.f)
+        DrawMarker(Objective->GetMarkerLabel(), Objective->GetMarkerLocation(), Objective->GetActorLocation());
+    }
+
+    for (TActorIterator<AHDExtractionZone> It(GetWorld()); It; ++It)
+    {
+        const AHDExtractionZone* ExtractionZone = *It;
+        if (IsValid(ExtractionZone) == false)
         {
             continue;
         }
 
-        const FVector ScreenLocation = Project(MarkerLocation);
-        const int32 DistanceMeters = FMath::RoundToInt(FVector::Distance(PlayerPawn->GetActorLocation(), Objective->GetActorLocation()) / 100.f);
-        DrawText(FString::Printf(TEXT("%s  %dm"), *Objective->GetMarkerLabel(), DistanceMeters), TextColor, ScreenLocation.X, ScreenLocation.Y, Font);
+        const FVector ZoneLocation = ExtractionZone->GetActorLocation();
+        DrawMarker(TEXT("EXTRACT"), ZoneLocation + FVector(0.f, 0.f, ExtractionMarkerHeight), ZoneLocation);
     }
 }

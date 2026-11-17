@@ -16,6 +16,8 @@
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
 #include "GameData/HDCharacterControlData.h"
 #include "Weapon\HDWeapon.h"
+#include "Game/HDGameMode.h"
+#include "Engine/World.h"
 
 AHDCharacterPlayer::AHDCharacterPlayer(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -264,7 +266,7 @@ void AHDCharacterPlayer::InputStratagemCommand(const FInputActionValue& Value)
 
         Stratagem->AddStratagemCommand(NewCommand);
 
-        // HUD ������ GAS Event
+        // HUD 연동용 GAS Event
         FGameplayAbilityHelper::SendGameplayEventToTarget(Tag_Event_StratagemHUD_AddCommand, this, ASC);
     }
 }
@@ -357,4 +359,11 @@ void AHDCharacterPlayer::SetDead()
     }
 
     MovementStateComp->SetStanceState(EHDCharacterStanceState::Prone);
+
+    // 남은 증원이 0 이면 미션 실패. 남아 있으면 죽은 채로 기다린다(다시 강하는 브리프 9)
+    AHDGameMode* HDGameMode = GetWorld()->GetAuthGameMode<AHDGameMode>();
+    if (HDGameMode)
+    {
+        HDGameMode->NotifyPlayerDied(GetController());
+    }
 }
