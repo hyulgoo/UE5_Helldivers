@@ -18,6 +18,7 @@ public:
     int32               GetReinforcementsLeft() const { return ReinforcementsLeft; }
     float               GetExtractionRemaining() const { return ExtractionRemaining; }
     float               GetElapsedSeconds() const { return ElapsedSeconds; }
+    float               GetMissionTimeLimit() const { return Config.MissionTimeLimit; }
     bool                IsPlayerAlive() const { return bPlayerAlive; }
     bool                IsPlayerInExtractionZone() const { return bPlayerInExtractionZone; }
     bool                IsFinished() const;
@@ -43,6 +44,9 @@ public:
 
     // 치트용. 0 이상으로 자른다
     void                DebugSetReinforcementsLeft(int32 NewReinforcementsLeft);
+
+    // 치트용. 제한 시간(초, 0 = 제한 없음)을 바꾼다. 지난 시간이 이미 넘으면 다음 Tick 에서 Fail
+    void                DebugSetMissionTimeLimit(float NewMissionTimeLimit);
 
 private:
     FHDMissionConfig    Config;

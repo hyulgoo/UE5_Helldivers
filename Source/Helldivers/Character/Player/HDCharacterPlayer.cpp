@@ -139,6 +139,9 @@ void AHDCharacterPlayer::EquipWeapon(AHDWeapon* NewWeapon)
     SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_MaxCapacity, Combat->GetWeaponMaxCapacityCount());
 
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+    // HUD 가 이 이벤트로 크로스헤어 위젯을 만든다(AHDHUD::OnEquipWeaponUIEventRecieved)
+    FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
 }
 
 UAnimMontage* AHDCharacterPlayer::GetCombatMontage(const EHDCombatMontage MontageType) const

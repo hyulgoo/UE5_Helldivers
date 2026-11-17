@@ -143,6 +143,30 @@ bool FHDMissionFlowTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("TimeLimit: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
     }
 
+    // 죽어 있는 동안 제한 시간 초과
+    {
+        FHDMissionFlow Flow(MakeTestConfig(100.f));
+        Flow.NotifyPlayerLanded();
+        Flow.NotifyPlayerDied();
+        TestTrue(TEXT("DeadTimeout: Tick(100) changes phase"), Flow.Tick(100.f));
+        TestEqual(TEXT("DeadTimeout: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+        TestFalse(TEXT("DeadTimeout: consume refused after Fail"), Flow.TryConsumeReinforcement());
+        TestEqual(TEXT("DeadTimeout: 2 left"), Flow.GetReinforcementsLeft(), 2);
+    }
+
+    // 치트 제한 시간
+    {
+        FHDMissionFlow Flow(MakeTestConfig());
+        Flow.NotifyPlayerLanded();
+        TestFalse(TEXT("DebugTimeLimit: no limit, Tick(10) keeps phase"), Flow.Tick(10.f));
+        Flow.DebugSetMissionTimeLimit(5.f);
+        TestEqual(TEXT("DebugTimeLimit: limit 5"), Flow.GetMissionTimeLimit(), 5.f);
+        TestTrue(TEXT("DebugTimeLimit: elapsed 10 past limit, next Tick changes phase"), Flow.Tick(0.1f));
+        TestEqual(TEXT("DebugTimeLimit: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+        Flow.DebugSetMissionTimeLimit(0.f);
+        TestEqual(TEXT("DebugTimeLimit: ignored after Fail"), Flow.GetMissionTimeLimit(), 5.f);
+    }
+
     // 남은 시간 하한
     {
         FHDMissionFlow Flow(MakeTestConfig());

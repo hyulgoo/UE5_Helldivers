@@ -46,4 +46,8 @@ public:
     // 남은 증원 수를 Count 로(0 이상으로 자른다)
     UFUNCTION(Exec)
     void        HDSetReinforcements(int32 Count);
+
+    // 미션 제한 시간을 Seconds 초로(0 = 제한 없음). 지난 시간이 이미 넘으면 다음 프레임에 시간 초과 Fail
+    UFUNCTION(Exec)
+    void        HDSetTimeLimit(float Seconds);
 };

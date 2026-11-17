@@ -34,6 +34,7 @@ public:
 
     // 치트용. 로직의 같은 이름 함수 + 게임스테이트 반영
     void                        DebugSetReinforcementsLeft(int32 Count);
+    void                        DebugSetMissionTimeLimit(float Seconds);
 
 private:
     // 맵에 놓인 목표가 RequiredObjectives 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
@@ -42,7 +43,7 @@ private:
     // Extraction: 플레이어 폰(없으면 첫 PlayerStart) 둘레 링 위 지면에 AHDExtractionZone 을 스폰한다
     void                        SpawnExtractionZone(const UHDMissionSettings& Settings);
 
-    // Success·Fail: 모든 적 AI 를 멈추고 플레이어 폰 입력을 막는다
+    // Success·Fail: 증원 대기 예약을 지우고, 모든 적 AI 를 멈추고, 플레이어 폰 입력을 막는다
     void                        StopForMissionEnd();
 
     // 증원 하나를 써서 사망 태그·어빌리티를 정리하고, 시체 근처 하늘에 헬포드(기본 폰)를 스폰해 빙의한다

@@ -335,3 +335,18 @@ void UHDCheatManager::HDSetReinforcements(int32 Count)
     const AHDGameState* HDGameState = World->GetGameState<AHDGameState>();
     UE_LOG(LogTemp, Display, TEXT("[HDSetReinforcements] Reinforcements=%d"), HDGameState ? HDGameState->GetReinforcementsLeft() : -1);
 }
+
+void UHDCheatManager::HDSetTimeLimit(float Seconds)
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    const FHDMissionFlow* MissionFlow = HDGameMode ? HDGameMode->GetMissionFlow() : nullptr;
+    if (MissionFlow == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSetTimeLimit] No HDGameMode or mission flow in this world"));
+        return;
+    }
+
+    HDGameMode->DebugSetMissionTimeLimit(Seconds);
+    UE_LOG(LogTemp, Display, TEXT("[HDSetTimeLimit] MissionTimeLimit=%.1f Elapsed=%.1f"), MissionFlow->GetMissionTimeLimit(), MissionFlow->GetElapsedSeconds());
+}

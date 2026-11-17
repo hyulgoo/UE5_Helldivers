@@ -135,3 +135,13 @@ void FHDMissionFlow::DebugSetReinforcementsLeft(int32 NewReinforcementsLeft)
 
     ReinforcementsLeft = FMath::Max(0, NewReinforcementsLeft);
 }
+
+void FHDMissionFlow::DebugSetMissionTimeLimit(float NewMissionTimeLimit)
+{
+    if (IsFinished())
+    {
+        return;
+    }
+
+    Config.MissionTimeLimit = NewMissionTimeLimit;
+}

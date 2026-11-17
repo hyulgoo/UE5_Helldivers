@@ -168,6 +168,11 @@ void AHDGameMode::DebugSetReinforcementsLeft(int32 Count)
     ApplyMissionChange([Count](FHDMissionFlow& Flow) { Flow.DebugSetReinforcementsLeft(Count); });
 }
 
+void AHDGameMode::DebugSetMissionTimeLimit(float Seconds)
+{
+    ApplyMissionChange([Seconds](FHDMissionFlow& Flow) { Flow.DebugSetMissionTimeLimit(Seconds); });
+}
+
 int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings)
 {
     using namespace HDPlaceObjective;
@@ -282,6 +287,14 @@ void AHDGameMode::StopForMissionEnd()
 {
     UWorld* World = GetWorld();
     NULL_CHECK(World);
+
+    // 증원을 기다리던 중에 끝나면 예약을 지운다. 이후 Tick 은 GetTimerRemaining 이 -1 이라 RespawnRemaining 이 -1 로 남는다
+    GetWorldTimerManager().ClearTimer(ReinforceTimerHandle);
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetRespawnRemaining(-1.f);
+    }
 
     for (TActorIterator<AHDEnemyAIController> It(World); It; ++It)
     {

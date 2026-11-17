@@ -105,12 +105,13 @@ void AHDHUD::OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload)
     NULL_CHECK_WITHOUT_LOG(AbilitySystemComponent);
     NULL_CHECK(ReticleWidgetClass);
 
-    if (ReticleWidget)
+    // 다시 강하하거나 무기를 바꿔 두 번째로 불려도 위젯은 하나만 둔다. 확산 연결(아래 주석)이 끊겨 있어 CurrentWeapon 은 비어 있을 수 있다
+    if (CurrentWeapon)
     {
-        NULL_CHECK(CurrentWeapon);
         CurrentWeapon->OnSpreadChanged.Remove(SpreadChangedHandle);
     }
-    else
+
+    if (ReticleWidget == nullptr)
     {
         ReticleWidget = CreateWidget<UHDReticleWidget>(GetWorld(), ReticleWidgetClass);
         NULL_CHECK(ReticleWidget);
