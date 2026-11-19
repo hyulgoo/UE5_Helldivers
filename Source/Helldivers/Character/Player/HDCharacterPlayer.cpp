@@ -54,9 +54,9 @@ void AHDCharacterPlayer::PossessedBy(AController* NewController)
     NULL_CHECK(ASC);
 
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Event_PlayerHUD_Initialize).AddUObject(this, &AHDCharacterPlayer::SpawnDefaultWeapon);
-    ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_HoldStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived);
-    ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_ThrowEnd).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived);
-    ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_DetachStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived);
+    ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_HoldStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_HoldStratagem.GetTag());
+    ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_ThrowEnd).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_ThrowEnd.GetTag());
+    ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_DetachStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_DetachStratagem.GetTag());
 }
 
 void AHDCharacterPlayer::UnPossessed()
@@ -84,6 +84,9 @@ void AHDCharacterPlayer::UnPossessed()
 
         EventDelegate->RemoveAll(this);
     }
+
+    // 남은 시체가 플레이어스테이트 ASC 를 계속 돌려주면 시체에 맞은 폭발·총알이 새 몸의 체력을 깎는다
+    ClearAbilitySystemComponent();
 }
 
 void AHDCharacterPlayer::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -333,17 +336,22 @@ void AHDCharacterPlayer::RestoreStanceState()
     UpdateSpeed(MovementStateComp->GetStanceState(), MovementStateComp->GetMovementState());
 }
 
-void AHDCharacterPlayer::OnStratagemEventReceived(const FGameplayEventData* Payload)
+void AHDCharacterPlayer::OnStratagemEventReceived(const FGameplayEventData* Payload, const FGameplayTag EventTag)
 {
-    if (Payload->EventTag == Tag_Character_Action_HoldStratagem)
+    if (EventTag == Tag_Character_Action_HoldStratagem)
     {
         TryHoldStratagem();
     }
-    else if (Payload->EventTag == Tag_Character_Action_DetachStratagem)
+    else if (EventTag == Tag_Character_Action_DetachStratagem)
     {
         Stratagem->ThrowFinished();
+
+        // 손을 떠났으므로 든 상태를 푼다. 사격은 투척 GA 가 끝날 때까지 그 GA 의 Block.Fire 로 막혀 있다
+        UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+        NULL_CHECK(ASC);
+        ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
     }
-    else if(Payload->EventTag == Tag_Character_Action_ThrowEnd)
+    else if (EventTag == Tag_Character_Action_ThrowEnd)
     {
         SetWeaponActive(true);
     }
@@ -358,7 +366,8 @@ void AHDCharacterPlayer::TryHoldStratagem()
         SetWeaponActive(false);
         UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
         NULL_CHECK(ASC);
-        ASC->AddLooseGameplayTag(Tag_Character_Action_HoldStratagem);
+        // 루즈 태그는 개수를 세므로, 들기가 겹쳐도 한 번 풀면 없어지게 1 로 둔다
+        ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 1);
     }
     else
     {
@@ -393,6 +402,13 @@ void AHDCharacterPlayer::SetDead()
 
     // 시체가 조준 선 검사와 디버그 구를 계속 그리지 않게
     Combat->SetComponentTickEnabled(false);
+
+    // 들고 있던 스트라타젬은 버리고 든 상태를 푼다. ASC 는 플레이어스테이트 것이라 증원 뒤에도 남는다
+    Stratagem->CancelStratagem();
+    if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+    {
+        ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
+    }
 
     APlayerController* PlayerController = GetController<APlayerController>();
     NULL_CHECK(PlayerController);

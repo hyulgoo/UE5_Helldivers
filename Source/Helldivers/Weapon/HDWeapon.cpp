@@ -53,9 +53,13 @@ void AHDWeapon::SpawnProjectile(const FVector& HitTarget)
     const FVector ToTarget = HitTarget - MuzzleSocketTransform.GetLocation();
     const FTransform SpawnTransform(ToTarget.Rotation(), MuzzleSocketTransform.GetLocation());
 
-    AHDProjectileBase* SpawnedProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform);
-    NULL_CHECK(SpawnedProjectile); 
-    SpawnedProjectile->SetOwner(GetOwner());
+    // Instigator 를 넘겨야 탄이 BeginPlay 에서 쏜 캐릭터를 무시한다
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = GetOwner();
+    SpawnParams.Instigator = Cast<APawn>(GetOwner());
+
+    AHDProjectileBase* SpawnedProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform, SpawnParams);
+    NULL_CHECK(SpawnedProjectile);
 
     const FTransform& EjectSocketTransform = WeaponMesh->GetSocketTransform(HDSOCKETNAME_AMMOEJECT);
     CONDITION_CHECK(EjectSocketTransform.IsValid());

@@ -61,7 +61,8 @@ protected:
 	virtual void							SetCharacterStanceState(const EHDCharacterStanceState NewState, const bool bForced = false);
 	virtual void							RestoreStanceState() override;
 
-    void                                    OnStratagemEventReceived(const FGameplayEventData* Payload);
+    // EventTag 는 바인딩할 때 묶는다. 애님 노티파이(Send Gameplay Event to Actor)는 Payload->EventTag 를 채우지 않는다
+    void                                    OnStratagemEventReceived(const FGameplayEventData* Payload, const FGameplayTag EventTag);
 	void							        TryHoldStratagem();
 
     void    								UpdateSpeed(const EHDCharacterStanceState StanceState, const EHDCharacterMovementState MoveState);

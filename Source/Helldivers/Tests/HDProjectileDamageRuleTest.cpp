@@ -27,6 +27,8 @@ bool FHDProjectileDamageRuleTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Enemy -> player: damage"), AHDProjectileBase::CanApplyImpactDamage(Shooter, Player));
     TestTrue(TEXT("Player -> facility: damage"), AHDProjectileBase::CanApplyImpactDamage(Player, Facility));
     TestTrue(TEXT("Player -> enemy: damage"), AHDProjectileBase::CanApplyImpactDamage(Player, Shooter));
+    TestFalse(TEXT("Player -> self: no damage"), AHDProjectileBase::CanApplyImpactDamage(Player, Player));
+    TestFalse(TEXT("Enemy -> self: no damage"), AHDProjectileBase::CanApplyImpactDamage(Shooter, Shooter));
     TestTrue(TEXT("Battleship -> facility: damage"), AHDProjectileBase::CanApplyImpactDamage(BattleShip, Facility));
     TestFalse(TEXT("No owner: no damage"), AHDProjectileBase::CanApplyImpactDamage(nullptr, Facility));
     TestFalse(TEXT("No target: no damage"), AHDProjectileBase::CanApplyImpactDamage(Player, nullptr));

@@ -40,9 +40,12 @@ void AHDStratagem::AddImpulseToStratagem(const FVector& NewThrowDirection)
     SetOwner(nullptr);
 
     ThrowDirection = NewThrowDirection;
+    // 반지름 8cm 공이 한 프레임에 지름보다 멀리 가므로 CCD 없이는 지형을 뚫고 떨어진다
+    CollisionSphere->SetUseCCD(true);
     CollisionSphere->SetSimulatePhysics(true);
     CollisionSphere->SetNotifyRigidBodyCollision(true);
-    CollisionSphere->AddImpulse(ThrowDirection * ThrowImpulse);
+    // 질량과 무관하게 ThrowImpulse(cm/s)를 처음 속도로 준다. BP 의 질량 덮어쓰기(100kg)로 나누면 초속 30cm 라 발밑에 떨어진다
+    CollisionSphere->AddImpulse(ThrowDirection * ThrowImpulse, NAME_None, true);
 }
 
 void AHDStratagem::BeginPlay()

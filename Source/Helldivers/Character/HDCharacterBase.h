@@ -28,6 +28,7 @@ public:
 protected:
     virtual UAbilitySystemComponent*        GetAbilitySystemComponent() const override final;
     void                                    SetAbilitySystemComponent(AActor* OwnerActor, UAbilitySystemComponent* ASC);
+    void                                    ClearAbilitySystemComponent();
 
     template < class T >
     T*                                      GetAbilitySystemComponent() const { return Cast<T>(GetAbilitySystemComponent()); }

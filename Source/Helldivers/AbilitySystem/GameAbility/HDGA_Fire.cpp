@@ -6,6 +6,7 @@
 #include "AbilitySystem/AbilityTask/HDAT_PlayMontageAndWaitForEvent.h"
 #include "Define/HDMontageSectionNames.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
+#include "AbilitySystemComponent.h"
 
 UHDGA_Fire::UHDGA_Fire(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
     : Super(ObjectInitializer)
@@ -16,6 +17,10 @@ UHDGA_Fire::UHDGA_Fire(const FObjectInitializer& ObjectInitializer /*= FObjectIn
 bool UHDGA_Fire::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags /*= nullptr*/, const FGameplayTagContainer* TargetTags /*= nullptr*/, OUT FGameplayTagContainer* OptionalRelevantTags /*= nullptr*/) const
 {
     CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags), false);
+
+    // 스트라타젬을 든 동안 같은 입력(Trigger.Attack)은 투척 GA 몫이다. 사격 몽타주가 투척 몽타주를 끊지 않게 막는다
+    const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+    CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(ASC && ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) == false, false);
 
     return CheckCost(Handle, ActorInfo);
 }

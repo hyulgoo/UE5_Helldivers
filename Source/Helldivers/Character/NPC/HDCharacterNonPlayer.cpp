@@ -46,7 +46,7 @@ void AHDCharacterNonPlayer::SetDead()
 
 	const float RandomDeadEventDelayTime = FMath::FRandRange(DeadEventDelayTime, DeadEventDelayTime * 1.5f);
     FTimerHandle DeadTimerHandle;
-	GetWorld()->GetTimerManager().SetTimer(DeadTimerHandle, FTimerDelegate::CreateLambda([this]() { Destroy(); } ), RandomDeadEventDelayTime, false);
+	GetWorld()->GetTimerManager().SetTimer(DeadTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]() { Destroy(); } ), RandomDeadEventDelayTime, false);
 
     AHDEnemyAIController* EnemyAIController = Cast<AHDEnemyAIController>(GetController());
     if (EnemyAIController)

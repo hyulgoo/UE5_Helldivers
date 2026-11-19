@@ -44,6 +44,11 @@ UAbilitySystemComponent* AHDCharacterBase::GetAbilitySystemComponent() const
     return Cast<UAbilitySystemComponent>(AbilitySystemComponent);
 }
 
+void AHDCharacterBase::ClearAbilitySystemComponent()
+{
+    AbilitySystemComponent = nullptr;
+}
+
 void AHDCharacterBase::SetAbilitySystemComponent(AActor* OwnerActor, UAbilitySystemComponent* ASC)
 {
     NULL_CHECK(ASC);

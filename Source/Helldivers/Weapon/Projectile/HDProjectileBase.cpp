@@ -40,6 +40,12 @@ bool AHDProjectileBase::CanApplyImpactDamage(const AActor* OwnerActor, const AAc
         return false;
     }
 
+    // 쏜 쪽 자신은 다치지 않는다(총구가 캡슐과 겹쳐 생성될 때)
+    if (OwnerActor == TargetActor)
+    {
+        return false;
+    }
+
     // 적(돌격형·원거리형)이 쏜 탄은 시설만 다치게 하지 않는다. 적끼리는 피해를 준다
     if (OwnerActor->IsA<AHDCharacterNonPlayer>() && TargetActor->IsA<AHDObjectiveFacility>())
     {
@@ -102,7 +108,8 @@ void AHDProjectileBase::InitializeBeginPlay()
 
 void AHDProjectileBase::StartDestroyTimer()
 {
-    FTimerDelegate Delegate = FTimerDelegate::CreateLambda([this]() { Destroy();});
+    // 맞아서 먼저 Destroy 되면 EndPlay 의 ClearAllTimersForObject 가 이 타이머도 지우도록 this 에 묶는다
+    FTimerDelegate Delegate = FTimerDelegate::CreateWeakLambda(this, [this]() { Destroy(); });
 	GetWorldTimerManager().SetTimer(DestroyTimer, Delegate, DestroyTime, false);
 }
 
