@@ -83,3 +83,13 @@ Demos/*
 Content/Asset/CT_Components/Demos/*
 Content/Brushify/*
 Content/A_Surface_Footstep/*
+
+# ue-mcp 로컬 도구 (개발자별 설치물, 저장소에 올리지 않음)
+/node_modules/
+/package.json
+/package-lock.json
+/.npmrc
+/.mcp.json
+/.claude/
+/.ue-mcp/
+/Plugins/UE_MCP_Bridge/
