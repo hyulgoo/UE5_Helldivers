@@ -14,6 +14,12 @@
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Cheat/HDCheatManager.h"
 
+static TAutoConsoleVariable<int32> CVarHDAbilitySystemDebugOnSpawn(
+    TEXT("hd.Debug.AbilitySystemOnSpawn"),
+    0,
+    TEXT("1: run 'showdebug abilitysystem' on first possess. While it is shown, AHUD skips DrawHUD, so the mission HUD is hidden"),
+    ECVF_Cheat);
+
 AHDPlayerController::AHDPlayerController(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
@@ -72,8 +78,8 @@ void AHDPlayerController::OnPossess(APawn* aPawn)
 
         FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_Initialize, GetAbilitySystemComponent());
 
-        // 토글 명령이라 처음 한 번만
-        if (bAbilityDebugShown == false)
+        // 토글 명령이라 처음 한 번만. 켜져 있으면 AHUD::PostRender 가 DrawHUD 를 건너뛰어 미션 HUD 가 안 보이므로 hd.Debug.AbilitySystemOnSpawn 1 일 때만
+        if (bAbilityDebugShown == false && CVarHDAbilitySystemDebugOnSpawn.GetValueOnGameThread() > 0)
         {
             ConsoleCommand(TEXT("showdebug abilitysystem"));
             bAbilityDebugShown = true;

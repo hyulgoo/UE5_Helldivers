@@ -26,7 +26,8 @@ namespace HDHUDMission
 {
     const FLinearColor  TextColor(1.f, 0.85f, 0.2f);
     const FLinearColor  FailColor(1.f, 0.f, 0.f);
-    constexpr float     TextLeft = 40.f;
+    // 왼쪽 위는 스트라타젬 패널(위젯)이 차지하므로 미션 글자는 오른쪽 위에 오른쪽 정렬
+    constexpr float     TextRight = 40.f;
     constexpr float     TextTop = 40.f;
     constexpr float     LineHeight = 26.f;
 
@@ -173,7 +174,11 @@ void AHDHUD::DrawMissionText()
     float LineY = TextTop;
     for (const FString& Line : Lines)
     {
-        DrawText(Line, TextColor, TextLeft, LineY, Font);
+        float LineWidth = 0.f;
+        float LineTextHeight = 0.f;
+        GetTextSize(Line, LineWidth, LineTextHeight, Font);
+        const float LineX = Canvas ? Canvas->ClipX - TextRight - LineWidth : TextRight;
+        DrawText(Line, TextColor, LineX, LineY, Font);
         LineY += LineHeight;
     }
 

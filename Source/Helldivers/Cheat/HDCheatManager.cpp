@@ -242,6 +242,15 @@ void UHDCheatManager::HDCompleteObjective()
         return;
     }
 
+    // 착지 전(Deploy)·종료 뒤에는 목표 완료가 무시되므로 시설도 부수지 않는다(부수면 목표 수는 그대로인 채 시설만 사라진다)
+    const AHDGameState* HDGameState = World->GetGameState<AHDGameState>();
+    if (HDGameState && HDGameState->GetMissionPhase() != EHDMissionPhase::InProgress)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDCompleteObjective] Ignored: Phase=%s (only InProgress)"),
+            *StaticEnum<EHDMissionPhase>()->GetNameStringByValue(static_cast<int64>(HDGameState->GetMissionPhase())));
+        return;
+    }
+
     // 기준 = 플레이어 폰 위치(폰이 없으면 시점 위치)
     FVector ReferenceLocation = FVector::ZeroVector;
     APlayerController* PlayerController = GetPlayerController();

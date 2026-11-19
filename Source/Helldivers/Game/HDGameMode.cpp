@@ -304,13 +304,20 @@ void AHDGameMode::StopForMissionEnd()
     for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
     {
         APlayerController* PlayerController = It->Get();
-        APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
-        if (PlayerPawn == nullptr)
+        if (PlayerController == nullptr)
         {
             continue;
         }
 
-        PlayerPawn->DisableInput(PlayerController);
+        // 이동·시점·능력 입력은 컨트롤러 InputComponent 에 묶여 있어(AHDPlayerController::SetupInputComponent) 컨트롤러 자신도 막는다
+        PlayerController->DisableInput(PlayerController);
+
+        // 스트라타젬 명령은 캐릭터 InputComponent 에 묶여 있다(AHDCharacterPlayer::SetupPlayerInputComponent)
+        APawn* PlayerPawn = PlayerController->GetPawn();
+        if (PlayerPawn)
+        {
+            PlayerPawn->DisableInput(PlayerController);
+        }
     }
 }
 

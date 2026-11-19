@@ -175,7 +175,19 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 			continue;
 		}
 
-		const float Distance = FVector::Distance(HitLocation, Target->GetActorLocation());
+		float Distance = FVector::Distance(HitLocation, Target->GetActorLocation());
+
+		// 시설은 400x400x600 상자라 중심(지면 위 3m)까지 재면 벽 바로 옆 폭발도 반경을 넘는다. 시설만 가장 가까운 표면까지 잰다
+		if (Target->IsA<AHDObjectiveFacility>())
+		{
+			const UPrimitiveComponent* HitComponent = Result.GetComponent();
+			FVector ClosestPoint = FVector::ZeroVector;
+			const float SurfaceDistance = HitComponent ? HitComponent->GetClosestPointOnCollision(HitLocation, ClosestPoint) : -1.f;
+			if (SurfaceDistance >= 0.f)
+			{
+				Distance = SurfaceDistance;
+			}
+		}
 
 		if (Distance <= ExplodeDamageRange)
 		{
