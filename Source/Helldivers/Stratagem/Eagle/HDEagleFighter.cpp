@@ -59,10 +59,19 @@ void AHDEagleFighter::HandleTimelineProgress(const float TimelineRatio)
     }
 }
 
+void AHDEagleFighter::InitializeStrike(const FVector& StartLocation, const FHDStratagemEffectData& EffectData, const FVector& TargetLocation, TSubclassOf<AHDProjectileBase> BombClass, TSubclassOf<AHDProjectileBase> BulletClass)
+{
+    FlightStartLocation         = StartLocation;
+    StratagemEffectData         = EffectData;
+    ProjectileTargetLocation    = TargetLocation;
+    ProjectileBombClass         = BombClass;
+    ProjectileBulletClass       = BulletClass;
+}
+
 void AHDEagleFighter::HandleTimelineFinished()
 {
-    // º¹±Í ¿Ï·á ÈÄ ºñÈ°¼ºÈ­
-    SetActiveEagleFighter(false);
+    // ë³µê·€ê°€ ëë‚˜ë©´ ì‚¬ë¼ì§„ë‹¤. ë°œë™ë§ˆë‹¤ ìƒˆë¡œ ë„ìš´ë‹¤(UHDGA_StratagemEagle)
+    Destroy();
 }
 
 void AHDEagleFighter::InitEagleFighter()
@@ -127,18 +136,6 @@ void AHDEagleFighter::SetSplnePoints()
 
     SplineComponent->UpdateSpline();
     SplineLength = SplineComponent->GetSplineLength();
-}
-
-void AHDEagleFighter::SetActiveEagleFighter(const bool bIsActive)
-{
-    SetActorHiddenInGame(bIsActive == false);
-    SetActorTickEnabled(bIsActive);
-    SetActorEnableCollision(bIsActive);
-
-    if(bIsActive)
-    {
-        InitEagleFighter();
-    }
 }
 
 void AHDEagleFighter::DropBombWithDelayAndReturn(const int32 Index)

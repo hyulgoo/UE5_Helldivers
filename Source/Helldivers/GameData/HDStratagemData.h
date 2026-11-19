@@ -16,5 +16,5 @@ public:
     TArray<EHDCommandInput> CommandSequence;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float                   StratagemDelay;
+    float                   StratagemDelay = 0.f;
 };

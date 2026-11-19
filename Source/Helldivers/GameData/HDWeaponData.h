@@ -24,13 +24,13 @@ enum class EHDCrosshair : uint8
  
  public:
      UPROPERTY(EditDefaultsOnly)
-     float ZoomedFOV;     
+     float ZoomedFOV = 0.f;
      
      UPROPERTY(EditDefaultsOnly)
-     float ZoomInterpSpeed;
+     float ZoomInterpSpeed = 0.f;
      
      UPROPERTY(EditDefaultsOnly)
-     float ErgonomicFactor;
+     float ErgonomicFactor = 0.f;
  };
  
  USTRUCT(BlueprintType)
@@ -40,16 +40,16 @@ enum class EHDCrosshair : uint8
  
  public:
      UPROPERTY(EditDefaultsOnly)
-     int32 Ammo;
+     int32 Ammo = 0;
      
      UPROPERTY(EditDefaultsOnly)
-     int32 MaxAmmo;
+     int32 MaxAmmo = 0;
      
      UPROPERTY(EditDefaultsOnly)
-     int32 Capacity;
+     int32 Capacity = 0;
  
      UPROPERTY(EditDefaultsOnly)
-     int32 MaxCapacity;
+     int32 MaxCapacity = 0;
  };
  
  USTRUCT(BlueprintType)
@@ -59,7 +59,7 @@ struct FHDWeaponCrosshairPair
 
 public:
     UPROPERTY(EditDefaultsOnly)
-    EHDCrosshair            Type;
+    EHDCrosshair            Type = EHDCrosshair::Center;
 
     UPROPERTY(EditDefaultsOnly)
     TObjectPtr<UTexture2D>  Texture;

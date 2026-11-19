@@ -20,6 +20,7 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
         &Tag_Character_Action_DetachStratagem,
         &Tag_Character_Action_ThrowEnd,
         &Tag_Character_Action_Dead,
+        &Tag_Character_State_IsDead,
 
         // Block
         &Tag_Block_All,
@@ -58,6 +59,10 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
         &Tag_Event_PlayerHUD_EquipWeapon,
         &Tag_Event_Spawn_Projectile,
         &Tag_Event_Reload,
+
+        // Stratagem
+        &Tag_Event_Stratagem_Orbital,
+        &Tag_Event_Stratagem_Eagle,
 
         // Data
         &Tag_Data_Damage_Projectile,

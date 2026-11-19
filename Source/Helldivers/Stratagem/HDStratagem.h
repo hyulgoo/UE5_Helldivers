@@ -21,6 +21,8 @@ public:
     AHDStratagem(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	void								SetStratagemInfo(const FName StratagemName, const float StratagemActiveDelay);
+	FName								GetStratagemName() const { return StratagemName; }
+	float								GetStratagemActiveDelay() const { return StratagemActiveDelay; }
 	void								AddImpulseToStratagem(const FVector& ThrowDirection);
 
 protected:

@@ -35,7 +35,7 @@ public:
 	FGameplayTag				AbilityTriggerTag;
     
 	UPROPERTY(EditDefaultsOnly)
-	EHDTriggerType				TriggerType;
+	EHDTriggerType				TriggerType = EHDTriggerType::None;
 };
 
 UCLASS()

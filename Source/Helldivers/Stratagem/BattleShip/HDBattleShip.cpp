@@ -1,14 +1,16 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "HDBattleShip.h"
-#include "Kismet/GameplayStatics.h"
 #include "AbilitySystemComponent.h"
+#include "Abilities/GameplayAbilityTargetTypes.h"
 #include "Components/SphereComponent.h"
-#include "Stratagem/Eagle/HDEagleFighter.h"
+#include "AbilitySystem/GameAbility/HDGA_StratagemOrbital.h"
+#include "AbilitySystem/GameAbility/HDGA_StratagemEagle.h"
+#include "Stratagem/HDStratagem.h"
+#include "Stratagem/HDStratagemPattern.h"
 #include "Stratagem/Types/StratagemProjectileTypes.h"
 #include "GameData/HDStratagemEffectData.h"
 #include "Game/HDGameState.h"
-#include "Weapon/Projectile/HDProjectileBase.h"
 #include "Define/HDDefine.h"
 
 AHDBattleShip::AHDBattleShip(const FObjectInitializer& ObjectInitializer)
@@ -23,51 +25,61 @@ AHDBattleShip::AHDBattleShip(const FObjectInitializer& ObjectInitializer)
     BattleShipMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
     AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
+
+    StratagemAbilities.Add(UHDGA_StratagemOrbital::StaticClass());
+    StratagemAbilities.Add(UHDGA_StratagemEagle::StaticClass());
 }
 
-void AHDBattleShip::ActivateStratagem(const FName StratagemName, const FTransform& Transform, const float StratagemActiveDelay)
+void AHDBattleShip::ActivateStratagem(const AHDStratagem* Beacon, const FTransform& TargetTransform)
 {
-    FHDStratagemEffectData* StratagemEffectData = FindStratagemEffectData(StratagemName);
+    NULL_CHECK(Beacon);
+    NULL_CHECK(AbilitySystemComponent);
+
+    const FHDStratagemEffectData* StratagemEffectData = FindStratagemEffectData(Beacon->GetStratagemName());
     NULL_CHECK(StratagemEffectData);
 
-    StratagemTransform = Transform;
-    ActiveStratagemTimerHandle.Invalidate();
-    FTimerDelegate Delegate;
+    const FGameplayEventData Payload = MakeActivationPayload(HDStratagemPattern::GetActivationEventTag(*StratagemEffectData), Beacon, TargetTransform);
+    const int32 ActivatedCount = AbilitySystemComponent->HandleGameplayEvent(Payload.EventTag, &Payload);
+    // at = 표적 XY(PIE 판정용, D12)
+    UE_LOG(LogTemp, Display, TEXT("[BattleShip] %s -> %s activated=%d at=(%.0f, %.0f)"), *Beacon->GetStratagemName().ToString(), *Payload.EventTag.ToString(), ActivatedCount,
+        TargetTransform.GetLocation().X, TargetTransform.GetLocation().Y);
+}
 
-    if (StratagemEffectData->bIsEagle)
-    {
-        Delegate = FTimerDelegate::CreateLambda(
-            [this, StratagemEffectData, Transform]()
-            {
-                EagleStrike(*StratagemEffectData);
-            }
-        );
-    }
-    else
-    {
-        const int32 BombIndex = 0;
-        Delegate = FTimerDelegate::CreateLambda(
-            [this, StratagemEffectData, BombIndex]()
-            {
-                OrbitalStrikeWithDelay(*StratagemEffectData, BombIndex);
-            }
-        );
-    }
+FGameplayEventData AHDBattleShip::MakeActivationPayload(const FGameplayTag& EventTag, const AHDStratagem* Beacon, const FTransform& TargetTransform)
+{
+    // 이름·발동 지연은 던진 스트라타젬에서, 표적 변환은 TargetData 에서 GA 가 읽는다
+    FGameplayAbilityTargetData_LocationInfo* LocationData = new FGameplayAbilityTargetData_LocationInfo();
+    LocationData->TargetLocation.LocationType = EGameplayAbilityTargetingLocationType::LiteralTransform;
+    LocationData->TargetLocation.LiteralTransform = TargetTransform;
 
-    if (Delegate.IsBound())
-    {
-        GetWorldTimerManager().SetTimer(
-            ActiveStratagemTimerHandle,
-            Delegate,
-            StratagemActiveDelay,
-            false
-        );
-    }
+    FGameplayEventData Payload;
+    Payload.EventTag = EventTag;
+    Payload.Instigator = Beacon ? Beacon->GetInstigator() : nullptr;
+    Payload.OptionalObject = Beacon;
+    Payload.TargetData.Add(LocationData);
+    return Payload;
 }
 
 UAbilitySystemComponent* AHDBattleShip::GetAbilitySystemComponent() const
 {
     return AbilitySystemComponent;
+}
+
+void AHDBattleShip::PostInitializeComponents()
+{
+    Super::PostInitializeComponents();
+
+    // 전함 ASC 는 자기 자신이 주인·아바타다
+    AbilitySystemComponent->InitAbilityActorInfo(this, this);
+    for (const TSubclassOf<UGameplayAbility>& AbilityClass : StratagemAbilities)
+    {
+        if (AbilityClass == nullptr || AbilitySystemComponent->FindAbilitySpecFromClass(AbilityClass))
+        {
+            continue;
+        }
+
+        AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass));
+    }
 }
 
 void AHDBattleShip::BeginPlay()
@@ -83,116 +95,17 @@ void AHDBattleShip::BeginPlay()
     GameState->SetBattleShip(this);
 }
 
-FHDStratagemEffectData* AHDBattleShip::FindStratagemEffectData(const FName StratagemName) const
+const FHDStratagemEffectData* AHDBattleShip::FindStratagemEffectData(const FName StratagemName) const
 {
     NULL_CHECK_WITH_RETURNTYPE(StratagemEffectDataTable, nullptr);
 
-    FHDStratagemEffectData* StratagemData = StratagemEffectDataTable->FindRow<FHDStratagemEffectData>(StratagemName, TEXT("Lookup"));
+    const FHDStratagemEffectData* StratagemData = StratagemEffectDataTable->FindRow<FHDStratagemEffectData>(StratagemName, TEXT("Lookup"));
     NULL_CHECK_WITH_RETURNTYPE(StratagemData, nullptr);
 
     return StratagemData;
 }
 
-void AHDBattleShip::OrbitalStrikeWithDelay(const FHDStratagemEffectData& StratagemEffectData, int32 BombIndex)
+TSubclassOf<AHDProjectileBase> AHDBattleShip::GetProjectileClass(const EHDStratagemProjectile ProjectileType) const
 {
-    NULL_CHECK(StratagemEffectDataTable);
-
-    const int32 NumberOfProjectileToBeSpawn = StratagemEffectData.ProjectileDropLocation.IsEmpty() 
-        ? StratagemEffectData.SpecifyProjectileSpawnCount : StratagemEffectData.ProjectileDropLocation.Num();
-    CONDITION_CHECK(BombIndex <= NumberOfProjectileToBeSpawn);
-
-    UWorld* World = GetWorld();
-    VALID_CHECK(World);
-
-    TSubclassOf<AHDProjectileBase> ProjectileClass = StratagemEffectData.StratagemProjectileType == EHDStratagemProjectile::Bullet 
-                                                    ? ProjectileBulletClass : ProjectileBombClass;
-    NULL_CHECK(ProjectileClass);
-
-    FVector FinalDropTargetPosition = FVector();
-    if (StratagemEffectData.bUseRandomRange)
-    {
-        const float Angle       = FMath::FRandRange(0.f, 2.f * PI);
-        const float Distance    = FMath::Sqrt(FMath::FRand()) * StratagemEffectData.RandomPositionRange;
-        const float RandomX     = FMath::Cos(Angle) * Distance;
-        const float RandomY     = FMath::Sin(Angle) * Distance;
-        FinalDropTargetPosition = StratagemTransform.GetLocation() + FVector(RandomX, RandomY, 0.f);
-    }
-    else
-    {
-        CONDITION_CHECK(StratagemEffectData.ProjectileDropLocation.IsEmpty() == false);
-
-        const FVector2D& DropPosition2D = StratagemEffectData.ProjectileDropLocation[BombIndex];
-        FinalDropTargetPosition = StratagemTransform.GetLocation() + FVector(DropPosition2D.X, DropPosition2D.Y, 0.f);
-    }
-
-    const FVector& SpawnLocation    = GetActorLocation();
-    const FVector ToTarget          = FinalDropTargetPosition - SpawnLocation;
-    const FTransform SpawnTransform(ToTarget.Rotation(), SpawnLocation);
-
-    AHDProjectileBase* SpawnProjectile = World->SpawnActorDeferred<AHDProjectileBase>(
-        ProjectileClass,
-        SpawnTransform,
-        this,
-        nullptr,
-        ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn
-    );
-
-    UGameplayStatics::FinishSpawningActor(SpawnProjectile, SpawnTransform);
-
-    if (BombIndex + 1 < NumberOfProjectileToBeSpawn)
-    {
-        FTimerHandle TimerHandle;
-        const int32 NextBombIndex = BombIndex + 1;
-        FTimerDelegate Delegate = FTimerDelegate::CreateLambda(
-            [this, StratagemEffectData, NextBombIndex]()
-            {
-                OrbitalStrikeWithDelay(StratagemEffectData, NextBombIndex);
-            });
-        World->GetTimerManager().SetTimer(
-            TimerHandle,
-            Delegate,
-            StratagemEffectData.OrbitalDuration / NumberOfProjectileToBeSpawn,
-            false
-        );
-    }
-}
-
-void AHDBattleShip::EagleStrike(const FHDStratagemEffectData& StratagemEffectData)
-{
-    NULL_CHECK(EagleFighterClass);
-
-    UWorld* World = GetWorld();
-    VALID_CHECK(World);
-
-    CONDITION_CHECK(StratagemTransform.IsValid());
-
-    const FVector SpawnLocation = GetActorLocation();
-    if (IsValid(EagleFighter))
-    {
-        EagleFighter->FlightStartLocation = SpawnLocation;
-        EagleFighter->StratagemEffectData = StratagemEffectData;
-        EagleFighter->ProjectileTargetLocation = StratagemTransform.GetLocation();
-
-        EagleFighter->SetActiveEagleFighter(true);
-    }
-    else
-    {
-        EagleFighter = World->SpawnActorDeferred<AHDEagleFighter>(
-            EagleFighterClass,
-            StratagemTransform,
-            this,
-            nullptr,
-            ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn
-        );
-
-        NULL_CHECK(EagleFighter);
-
-        EagleFighter->FlightStartLocation = SpawnLocation;
-        EagleFighter->StratagemEffectData = StratagemEffectData;
-        EagleFighter->ProjectileTargetLocation = StratagemTransform.GetLocation();
-        EagleFighter->ProjectileBombClass = ProjectileBombClass;
-        EagleFighter->ProjectileBulletClass = ProjectileBulletClass;
-
-        UGameplayStatics::FinishSpawningActor(EagleFighter, StratagemTransform);
-    }
+    return ProjectileType == EHDStratagemProjectile::Bullet ? ProjectileBulletClass : ProjectileBombClass;
 }

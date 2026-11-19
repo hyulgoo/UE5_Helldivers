@@ -6,6 +6,7 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_HoldStratagem,        "Character.Act
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_DetachStratagem,      "Character.Action.DetachStratagem");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_ThrowEnd,             "Character.Action.ThrowEnd");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_Dead,                 "Character.State.Dead");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_IsDead,                "Character.State.IsDead");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_All,                             "Block.All");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Move,                            "Block.Move");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Fire,                            "Block.Fire");
@@ -38,6 +39,8 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Event_PlayerHUD_Initialize,            "Event.PlayerH
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_PlayerHUD_EquipWeapon,           "Event.PlayerHUD.EquipWeapon");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Spawn_Projectile,                "Event.Spawn.Projectile");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Reload,                          "Event.Reload");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Stratagem_Orbital,               "Event.Stratagem.Orbital");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Stratagem_Eagle,                 "Event.Stratagem.Eagle");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Data_Damage_Projectile,                "Data.Damage.Projectile");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Data_DotDamage_TickDamage,             "Data.DotDamage.TickDamage");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Data_Projectile_StatusEffectDuration,  "Data.Projectile.StatusEffectDuration");

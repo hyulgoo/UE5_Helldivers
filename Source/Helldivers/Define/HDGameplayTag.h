@@ -9,6 +9,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_HoldStratagem);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_DetachStratagem);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_ThrowEnd);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_Dead);
+// BPGA_Dead 의 ActivationOwnedTags 가 쓰는 이름. C++ 은 쓰지 않고 등록만 한다(없으면 에셋 태그가 무효)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_IsDead);
 
 // Block
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_All);
@@ -47,6 +49,10 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_PlayerHUD_Initialize);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_PlayerHUD_EquipWeapon);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Spawn_Projectile);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Reload);
+
+// Stratagem: 전함 ASC 의 스트라타젬 GA 를 깨우는 이벤트
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Orbital);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Eagle);
 
 // Data
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_Damage_Projectile);

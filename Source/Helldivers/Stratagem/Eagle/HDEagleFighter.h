@@ -17,10 +17,11 @@ class HELLDIVERS_API AHDEagleFighter : public AActor
 {
     GENERATED_BODY()
 
-    friend class AHDBattleShip;
-
 public:
     AHDEagleFighter(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+
+    // FinishSpawning 전에 부른다(UHDGA_StratagemEagle). 발동마다 새 전투기를 띄운다
+    void                                InitializeStrike(const FVector& StartLocation, const FHDStratagemEffectData& EffectData, const FVector& TargetLocation, TSubclassOf<AHDProjectileBase> BombClass, TSubclassOf<AHDProjectileBase> BulletClass);
 
 protected:
     virtual void                        BeginPlay() override final;
@@ -34,7 +35,6 @@ private:
 
     void                                InitEagleFighter();
     void                                SetSplnePoints();
-    void                                SetActiveEagleFighter(const bool bIsActive);
     void                                DropBombWithDelayAndReturn(const int32 Index);
     void                                CreateProjectile(TSubclassOf<AHDProjectileBase> ProjectileClass, const int32 Index);
 

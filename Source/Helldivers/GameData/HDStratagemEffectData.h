@@ -16,22 +16,22 @@ public:
     uint8                       bIsEagle : 1;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eagle")
-    EHDEagleAirStrikeDirection  EagleAirStrikeDirection;
+    EHDEagleAirStrikeDirection  EagleAirStrikeDirection = EHDEagleAirStrikeDirection::Front;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbital")
-    float                       OrbitalDuration;
+    float                       OrbitalDuration = 0.f;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RandomLocation")
     uint8                       bUseRandomRange: 1;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RandomLocation")
-    float                       RandomPositionRange;
+    float                       RandomPositionRange = 0.f;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecifyProjectile")
-    uint8                       SpecifyProjectileSpawnCount;
+    uint8                       SpecifyProjectileSpawnCount = 0;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpecifyProjectile")
-    float                       SpecifyProjectileSpawnDelay;
+    float                       SpecifyProjectileSpawnDelay = 0.f;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multiple")
     uint8                       bMultipleSpawn: 1;
@@ -40,14 +40,14 @@ public:
     TArray<FVector2D>           MultiSpawnDropLocation;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
-    EHDStratagemProjectile      StratagemProjectileType;
+    EHDStratagemProjectile      StratagemProjectileType = EHDStratagemProjectile::Bullet;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
     TArray<FVector2D>           ProjectileDropLocation;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
-    float                       ProjectileAttackRange;
+    float                       ProjectileAttackRange = 0.f;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
-    float                       ProjectileDamage;
+    float                       ProjectileDamage = 0.f;
 };
