@@ -28,6 +28,9 @@ public:
     // 충돌 피해를 줄 수 있는가. 적이 쏜 탄은 시설만 다치게 하지 않는다(적끼리는 피해를 준다)
     static bool                                 CanApplyImpactDamage(const AActor* OwnerActor, const AActor* TargetActor);
 
+    // 같은 투사체 BP 를 쓰되 쏘는 쪽에 따라 충돌 피해만 바꿀 때(예: 원거리형 적)
+    void                                        SetImpactDamage(const float NewImpactDamage) { ImpactDamage = NewImpactDamage; }
+
 protected:
 	virtual void	                            BeginPlay() override;
 	

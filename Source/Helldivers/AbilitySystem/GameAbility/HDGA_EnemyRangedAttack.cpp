@@ -6,6 +6,7 @@
 #include "AI/HDEnemyAIController.h"
 #include "Character/NPC/HDEnemyShooter.h"
 #include "Weapon/Projectile/HDProjectileBase.h"
+#include "Game/HDSpawnDirectorSettings.h"
 
 UHDGA_EnemyRangedAttack::UHDGA_EnemyRangedAttack(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -87,11 +88,15 @@ void UHDGA_EnemyRangedAttack::FireOneShot(AHDEnemyShooter& Shooter)
     const FVector AimDirection = (AimLocation - MuzzleLocation).GetSafeNormal();
     const FVector ShotDirection = FMath::VRandCone(AimDirection, FMath::DegreesToRadians(Shooter.GetEnemyStats().AimSpreadDegrees));
 
-    // 소유자가 적이므로 AHDProjectileBase::OnBoxHit 이 적 ASC 를 원천으로 피해를 준다. 피해 값은 BP 의 ImpactDamage
+    // 소유자가 적이므로 AHDProjectileBase::OnBoxHit 이 적 ASC 를 원천으로 피해를 준다
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = &Shooter;
     SpawnParams.Instigator = &Shooter;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-    World->SpawnActor<AHDProjectileBase>(ProjectileClass, MuzzleLocation, ShotDirection.Rotation(), SpawnParams);
+    AHDProjectileBase* Projectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, MuzzleLocation, ShotDirection.Rotation(), SpawnParams);
+    NULL_CHECK(Projectile);
+
+    // 총알 BP 는 플레이어 소총과 같으므로 피해만 원거리형 값으로 바꾼다(Project Settings > HD Spawn Director > Enemy)
+    Projectile->SetImpactDamage(GetDefault<UHDSpawnDirectorSettings>()->ShooterShotDamage);
 }

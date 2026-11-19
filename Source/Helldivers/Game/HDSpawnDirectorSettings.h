@@ -59,4 +59,8 @@ public:
     // 추출 중 강도(브리프 8 이 SetIntensity 로 쓴다)
     UPROPERTY(Config, EditAnywhere, Category = "Director")
     float               ExtractionIntensity = 2.f;
+
+    // 원거리형 총알 한 발 피해. 총알 BP(BPP_Bullet_Light, 50)는 플레이어 소총과 같아 그대로 쓰면 3점사로 즉사한다
+    UPROPERTY(Config, EditAnywhere, Category = "Enemy", meta = (ClampMin = "0"))
+    float               ShooterShotDamage = 10.f;
 };
