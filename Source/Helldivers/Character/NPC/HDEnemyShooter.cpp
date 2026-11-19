@@ -52,10 +52,8 @@ AHDEnemyShooter::AHDEnemyShooter(const FObjectInitializer& ObjectInitializer)
 
 FVector AHDEnemyShooter::GetMuzzleLocation() const
 {
-    if (EnemyWeaponMesh && EnemyWeaponMesh->DoesSocketExist(HDSOCKETNAME_MUZZLEFLASH))
-    {
-        return EnemyWeaponMesh->GetSocketLocation(HDSOCKETNAME_MUZZLEFLASH);
-    }
-
-    return GetActorLocation() + FVector::UpVector * 60.f + GetActorForwardVector() * 80.f;
+    // 조준 자세 애니메이션이 없어 소총이 아래를 향하므로 MuzzleFlash 소켓은 지면 바로 위(발목 높이)다.
+    // 거기서 쏘면 비탈에서 총알이 곧바로 지형에 박힌다. AI 시선 판정(GetPawnViewLocation → 가슴)과 같은 눈 높이에서 쏜다
+    constexpr float MuzzleForwardOffset = 40.f;
+    return GetPawnViewLocation() + GetActorForwardVector() * MuzzleForwardOffset;
 }
