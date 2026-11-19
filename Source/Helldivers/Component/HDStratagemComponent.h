@@ -8,6 +8,10 @@
 
 class AHDStratagem;
 class UInputAction;
+class AHDGASPlayerState;
+class FHDStratagemLoadout;
+class UAbilitySystemComponent;
+struct FHDStratagemEntry;
 enum class EHDCommandInput : uint8;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -30,6 +34,22 @@ public:
 	void						CancelStratagem();
 	void						ClearCommand();
 
+public:
+    // 빙의한 플레이어스테이트의 로드아웃을 쓴다. 아직 비어 있으면 Project Settings(HD Stratagem)의 Loadout 과 텍스트 카탈로그로 채운다
+    void                        BindLoadout(AHDGASPlayerState* InPlayerState);
+    const FHDStratagemLoadout*  GetLoadout() const;
+    // 남은 횟수가 있고 재사용 대기 중이 아닌가
+    bool                        IsSlotAvailable(const int32 SlotIndex) const;
+    float                       GetSlotCooldownRemaining(const int32 SlotIndex) const;
+    // 텍스트 카탈로그(Config/HDStratagems.json) 행 -> 로드아웃 항목. 파일 행 순서
+    TArray<FHDStratagemEntry>   BuildCatalog() const;
+
+private:
+    FHDStratagemLoadout*        GetMutableLoadout() const;
+    UAbilitySystemComponent*    GetOwnerAbilitySystemComponent() const;
+    // 들고 있던 칸을 쓴다: 남은 횟수 1 감소 + 재사용 대기 GE
+    void                        CommitHeldSlot();
+
 private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<AHDStratagem>	StratagemClass;
@@ -48,4 +68,8 @@ private:
 	
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UDataTable>		AvaliableStratagemDataTable;
+
+    TWeakObjectPtr<AHDGASPlayerState>   LoadoutOwner;
+    int32                       SelectedSlotIndex   = INDEX_NONE;
+    int32                       HeldSlotIndex       = INDEX_NONE;
 };

@@ -50,4 +50,12 @@ public:
     // 미션 제한 시간을 Seconds 초로(0 = 제한 없음). 지난 시간이 이미 넘으면 다음 프레임에 시간 초과 Fail
     UFUNCTION(Exec)
     void        HDSetTimeLimit(float Seconds);
+
+    // 로드아웃 칸마다 한 줄: [HDStratagems] <칸> <이름> cooldown=<남은 초> uses=<남은/최대|inf> available=0|1
+    UFUNCTION(Exec)
+    void        HDStratagems();
+
+    // 로드아웃 사용 횟수를 처음 값으로, 모든 칸의 재사용 대기를 지운다
+    UFUNCTION(Exec)
+    void        HDStratagemReset();
 };

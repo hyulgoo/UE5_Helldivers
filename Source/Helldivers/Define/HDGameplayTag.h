@@ -54,6 +54,12 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Reload);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Orbital);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Eagle);
 
+// Cooldown: 로드아웃 칸(1~4)의 재사용 대기(UHDGE_StratagemCooldown 이 Spec 에 붙인다)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Cooldown_Stratagem_Slot1);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Cooldown_Stratagem_Slot2);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Cooldown_Stratagem_Slot3);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Cooldown_Stratagem_Slot4);
+
 // Data
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_Damage_Projectile);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Data_DotDamage_TickDamage);

@@ -7,6 +7,13 @@
 #include "Components/SkinnedMeshComponent.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Stratagem/HDStratagem.h"
+#include "Stratagem/HDStratagemCatalog.h"
+#include "Stratagem/HDStratagemLoadout.h"
+#include "Stratagem/HDStratagemSettings.h"
+#include "AbilitySystem/GameplayEffect/HDGE_StratagemCooldown.h"
+#include "Player/HDGASPlayerState.h"
+#include "AbilitySystemGlobals.h"
+#include "AbilitySystemComponent.h"
 
 UHDStratagemComponent::UHDStratagemComponent(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -37,38 +44,31 @@ void UHDStratagemComponent::AddStratagemCommand(const EHDCommandInput NewInput)
 {
     CurrentInputCommandList.Add(NewInput);
     CommandMatchStratagemNameList.Empty();
-    const TArray<FName> StratagemDataNameList = AvaliableStratagemDataTable->GetRowNames();
 
-    const FString FindString(TEXT("Lookup"));
-    for (const FName& StratagemDataName : StratagemDataNameList)
+    // 로드아웃 칸만 본다. 대기 중이거나 횟수를 다 쓴 칸은 후보에서 빠진다
+    const FHDStratagemLoadout* Loadout = GetLoadout();
+    NULL_CHECK(Loadout);
+
+    TArray<bool> bAvailable;
+    bAvailable.Reserve(Loadout->Num());
+    for (int32 SlotIndex = 0; SlotIndex < Loadout->Num(); ++SlotIndex)
     {
-        FHDStratagemData* StratagemData = AvaliableStratagemDataTable->FindRow<FHDStratagemData>(StratagemDataName, FindString);
-        const TArray<EHDCommandInput>& CommandList = StratagemData->CommandSequence;
-        if (CurrentInputCommandList.Num() > CommandList.Num())
-        {
-            continue;
-        }
+        bAvailable.Add(IsSlotAvailable(SlotIndex));
+    }
 
-        bool bCommandMatch = true;
-        for (int32 index = 0; index < CurrentInputCommandList.Num(); ++index)
-        {
-            if (CurrentInputCommandList[index] != CommandList[index])
-            {
-                bCommandMatch = false;
-                break;
-            }
-        }
+    const FHDStratagemCommandMatch Match = Loadout->MatchCommands(CurrentInputCommandList, bAvailable);
+    for (const int32 SlotIndex : Match.MatchedSlots)
+    {
+        CommandMatchStratagemNameList.Add(Loadout->GetSlot(SlotIndex)->StratagemName);
+    }
 
-        if (bCommandMatch)
-        {
-            if (CurrentInputCommandList.Num() == CommandList.Num())
-            {
-                SelectedStratagemName = StratagemDataName;
-                SelecteddStratagemActiveDelay = StratagemData->StratagemDelay;
-            }
-
-            CommandMatchStratagemNameList.Add(StratagemDataName);
-        }
+    // 선택은 ClearCommand 까지 남는다. 다 맞힌 뒤 더 누르면 후보 목록만 빈다
+    const FHDStratagemSlot* SelectedSlot = Loadout->GetSlot(Match.SelectedSlot);
+    if (SelectedSlot)
+    {
+        SelectedSlotIndex = Match.SelectedSlot;
+        SelectedStratagemName = SelectedSlot->StratagemName;
+        SelecteddStratagemActiveDelay = SelectedSlot->ActivationDelay;
     }
 }
 
@@ -106,6 +106,7 @@ void UHDStratagemComponent::HoldStratagem(USkeletalMeshComponent* MeshComponent,
     
     RightHandSocket->AttachActor(Stratagem, MeshComponent);
     Stratagem->SetStratagemInfo(SelectedStratagemName, SelecteddStratagemActiveDelay);
+    HeldSlotIndex = SelectedSlotIndex;
 }
 
 void UHDStratagemComponent::ThrowFinished()
@@ -114,12 +115,16 @@ void UHDStratagemComponent::ThrowFinished()
 
     const FRotator& BaseAim = GetOwner<APawn>()->GetBaseAimRotation();
     const FVector ThrowDirection = BaseAim.Vector().GetSafeNormal();
-    Stratagem->AddImpulseToStratagem(ThrowDirection); 
+    Stratagem->AddImpulseToStratagem(ThrowDirection);
     Stratagem = nullptr;
+    // 재사용 대기는 손에서 떠날 때 시작한다
+    CommitHeldSlot();
 }
 
 void UHDStratagemComponent::CancelStratagem()
 {
+    // 던지지 않고 버리면(죽음 등) 횟수·대기를 쓰지 않는다
+    HeldSlotIndex = INDEX_NONE;
     NULL_CHECK_WITHOUT_LOG(Stratagem);
 
     Stratagem->Destroy();
@@ -128,7 +133,106 @@ void UHDStratagemComponent::CancelStratagem()
 
 void UHDStratagemComponent::ClearCommand()
 {
+    // HeldSlotIndex 는 지우지 않는다(TryHoldStratagem 이 HoldStratagem 바로 뒤에 부른다)
     SelectedStratagemName = FName();
+    SelectedSlotIndex = INDEX_NONE;
     CommandMatchStratagemNameList.Empty();
     CurrentInputCommandList.Empty();
+}
+
+void UHDStratagemComponent::BindLoadout(AHDGASPlayerState* InPlayerState)
+{
+    NULL_CHECK(InPlayerState);
+    LoadoutOwner = InPlayerState;
+
+    // 다시 강하하면 이미 채워져 있으므로 남은 횟수를 그대로 둔다
+    FHDStratagemLoadout& Loadout = InPlayerState->GetStratagemLoadout();
+    if (Loadout.IsInitialized())
+    {
+        return;
+    }
+
+    Loadout.Initialize(GetDefault<UHDStratagemSettings>()->Loadout, BuildCatalog());
+
+    FString SlotNames;
+    for (int32 SlotIndex = 0; SlotIndex < Loadout.Num(); ++SlotIndex)
+    {
+        if (SlotNames.IsEmpty() == false)
+        {
+            SlotNames += TEXT(", ");
+        }
+        SlotNames += Loadout.GetSlot(SlotIndex)->StratagemName.ToString();
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] loadout %d slots: %s"), Loadout.Num(), *SlotNames);
+}
+
+const FHDStratagemLoadout* UHDStratagemComponent::GetLoadout() const
+{
+    return GetMutableLoadout();
+}
+
+bool UHDStratagemComponent::IsSlotAvailable(const int32 SlotIndex) const
+{
+    const FHDStratagemLoadout* Loadout = GetLoadout();
+    return Loadout
+        && Loadout->HasUsesLeft(SlotIndex)
+        && UHDGE_StratagemCooldown::IsSlotOnCooldown(GetOwnerAbilitySystemComponent(), SlotIndex) == false;
+}
+
+float UHDStratagemComponent::GetSlotCooldownRemaining(const int32 SlotIndex) const
+{
+    return UHDGE_StratagemCooldown::GetSlotRemaining(GetOwnerAbilitySystemComponent(), SlotIndex);
+}
+
+TArray<FHDStratagemEntry> UHDStratagemComponent::BuildCatalog() const
+{
+    // 카탈로그 문제는 GetProjectCatalog 가 처음 읽을 때 Warning 으로 남긴다
+    const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+
+    TArray<FHDStratagemEntry> Entries;
+    for (const FName& StratagemName : Catalog.GetNames())
+    {
+        const FHDStratagemDefinition* Definition = Catalog.Find(StratagemName);
+        if (Definition == nullptr)
+        {
+            continue;
+        }
+
+        FHDStratagemEntry& Entry = Entries.AddDefaulted_GetRef();
+        Entry.Name = StratagemName;
+        Entry.CommandSequence = Definition->CommandSequence;
+        Entry.ActivationDelay = Definition->ActivationDelay;
+        Entry.Cooldown = Definition->Cooldown;
+        Entry.MaxUses = Definition->MaxUses;
+    }
+
+    return Entries;
+}
+
+FHDStratagemLoadout* UHDStratagemComponent::GetMutableLoadout() const
+{
+    AHDGASPlayerState* PlayerState = LoadoutOwner.Get();
+    return PlayerState ? &PlayerState->GetStratagemLoadout() : nullptr;
+}
+
+UAbilitySystemComponent* UHDStratagemComponent::GetOwnerAbilitySystemComponent() const
+{
+    // 캐릭터는 플레이어스테이트 ASC 를 돌려준다
+    return UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+}
+
+void UHDStratagemComponent::CommitHeldSlot()
+{
+    const int32 SlotIndex = HeldSlotIndex;
+    HeldSlotIndex = INDEX_NONE;
+
+    FHDStratagemLoadout* Loadout = GetMutableLoadout();
+    const FHDStratagemSlot* Slot = Loadout ? Loadout->GetSlot(SlotIndex) : nullptr;
+    NULL_CHECK_WITHOUT_LOG(Slot);
+
+    Loadout->ConsumeUse(SlotIndex);
+    UHDGE_StratagemCooldown::ApplyToSlot(GetOwnerAbilitySystemComponent(), SlotIndex, Slot->Cooldown);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] thrown %s slot=%d uses=%s cooldown=%.1f"), *Slot->StratagemName.ToString(), SlotIndex + 1, *Slot->GetUsesText(), Slot->Cooldown);
 }

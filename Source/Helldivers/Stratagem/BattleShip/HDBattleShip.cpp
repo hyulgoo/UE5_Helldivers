@@ -8,6 +8,7 @@
 #include "AbilitySystem/GameAbility/HDGA_StratagemEagle.h"
 #include "Stratagem/HDStratagem.h"
 #include "Stratagem/HDStratagemPattern.h"
+#include "Stratagem/HDStratagemCatalog.h"
 #include "Stratagem/Types/StratagemProjectileTypes.h"
 #include "GameData/HDStratagemEffectData.h"
 #include "Game/HDGameState.h"
@@ -97,12 +98,12 @@ void AHDBattleShip::BeginPlay()
 
 const FHDStratagemEffectData* AHDBattleShip::FindStratagemEffectData(const FName StratagemName) const
 {
-    NULL_CHECK_WITH_RETURNTYPE(StratagemEffectDataTable, nullptr);
+    // 효과는 텍스트 카탈로그(Config/HDStratagems.json) 행에서 찾는다(계획 D11).
+    // StratagemEffectDataTable(BP 값 DT_StratagemEffectData)은 BP 호환용으로 남기고 읽지 않는다
+    const FHDStratagemDefinition* Definition = FHDStratagemCatalog::GetProjectCatalog().Find(StratagemName);
+    NULL_CHECK_WITH_RETURNTYPE(Definition, nullptr);
 
-    const FHDStratagemEffectData* StratagemData = StratagemEffectDataTable->FindRow<FHDStratagemEffectData>(StratagemName, TEXT("Lookup"));
-    NULL_CHECK_WITH_RETURNTYPE(StratagemData, nullptr);
-
-    return StratagemData;
+    return Definition;
 }
 
 TSubclassOf<AHDProjectileBase> AHDBattleShip::GetProjectileClass(const EHDStratagemProjectile ProjectileType) const

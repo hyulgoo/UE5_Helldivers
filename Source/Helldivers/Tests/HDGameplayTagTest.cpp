@@ -64,6 +64,12 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
         &Tag_Event_Stratagem_Orbital,
         &Tag_Event_Stratagem_Eagle,
 
+        // Cooldown
+        &Tag_Cooldown_Stratagem_Slot1,
+        &Tag_Cooldown_Stratagem_Slot2,
+        &Tag_Cooldown_Stratagem_Slot3,
+        &Tag_Cooldown_Stratagem_Slot4,
+
         // Data
         &Tag_Data_Damage_Projectile,
         &Tag_Data_DotDamage_TickDamage,

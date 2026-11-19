@@ -57,6 +57,7 @@ void AHDCharacterPlayer::PossessedBy(AController* NewController)
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_HoldStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_HoldStratagem.GetTag());
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_ThrowEnd).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_ThrowEnd.GetTag());
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_DetachStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_DetachStratagem.GetTag());
+    Stratagem->BindLoadout(GetPlayerState<AHDGASPlayerState>());
 }
 
 void AHDCharacterPlayer::UnPossessed()

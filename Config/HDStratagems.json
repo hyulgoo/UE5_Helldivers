@@ -1,0 +1,39 @@
+[
+	{
+		"Name": "EagleAirstrike",
+		"CommandSequence": ["Up", "Right", "Down", "Right"],
+		"ActivationDelay": 3,
+		"Cooldown": 10,
+		"MaxUses": 2,
+		"bIsEagle": true,
+		"EagleAirStrikeDirection": "Right",
+		"StratagemProjectileType": "Bomb",
+		"ProjectileDropLocation": [ { "X": 500, "Y": 0 }, { "X": -2, "Y": 0 }, { "X": -500, "Y": 0 } ],
+		"SpecifyProjectileSpawnDelay": 0.15,
+		"ProjectileAttackRange": 300,
+		"ProjectileDamage": 500
+	},
+	{
+		"Name": "OrbitalPrecisionStrike",
+		"CommandSequence": ["Up", "Right", "Right"],
+		"ActivationDelay": 2,
+		"Cooldown": 30,
+		"StratagemProjectileType": "Bomb",
+		"ProjectileDropLocation": [ { "X": 0, "Y": 0 } ],
+		"ProjectileAttackRange": 500,
+		"ProjectileDamage": 500
+	},
+	{
+		"Name": "OrbitalGatlingBarrage",
+		"CommandSequence": ["Right", "Down", "Left", "Up", "Up"],
+		"ActivationDelay": 1,
+		"Cooldown": 60,
+		"OrbitalDuration": 15,
+		"bUseRandomRange": true,
+		"RandomPositionRange": 500,
+		"SpecifyProjectileSpawnCount": 150,
+		"StratagemProjectileType": "Bullet",
+		"ProjectileAttackRange": 50,
+		"ProjectileDamage": 100
+	}
+]

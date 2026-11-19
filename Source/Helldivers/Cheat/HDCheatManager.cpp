@@ -15,6 +15,10 @@
 #include "Game/HDGameState.h"
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDObjectiveFacility.h"
+#include "Component/HDStratagemComponent.h"
+#include "Stratagem/HDStratagemLoadout.h"
+#include "Player/HDGASPlayerState.h"
+#include "AbilitySystem/GameplayEffect/HDGE_StratagemCooldown.h"
 
 namespace HDCheatManager
 {
@@ -358,4 +362,43 @@ void UHDCheatManager::HDSetTimeLimit(float Seconds)
 
     HDGameMode->DebugSetMissionTimeLimit(Seconds);
     UE_LOG(LogTemp, Display, TEXT("[HDSetTimeLimit] MissionTimeLimit=%.1f Elapsed=%.1f"), MissionFlow->GetMissionTimeLimit(), MissionFlow->GetElapsedSeconds());
+}
+
+void UHDCheatManager::HDStratagems()
+{
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    const UHDStratagemComponent* StratagemComponent = PlayerPawn ? PlayerPawn->FindComponentByClass<UHDStratagemComponent>() : nullptr;
+    const FHDStratagemLoadout* Loadout = StratagemComponent ? StratagemComponent->GetLoadout() : nullptr;
+    if (Loadout == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDStratagems] No stratagem loadout"));
+        return;
+    }
+
+    for (int32 SlotIndex = 0; SlotIndex < Loadout->Num(); ++SlotIndex)
+    {
+        const FHDStratagemSlot* Slot = Loadout->GetSlot(SlotIndex);
+        UE_LOG(LogTemp, Display, TEXT("[HDStratagems] %d %s cooldown=%.1f uses=%s available=%d"),
+            SlotIndex + 1,
+            *Slot->StratagemName.ToString(),
+            StratagemComponent->GetSlotCooldownRemaining(SlotIndex),
+            *Slot->GetUsesText(),
+            StratagemComponent->IsSlotAvailable(SlotIndex) ? 1 : 0);
+    }
+}
+
+void UHDCheatManager::HDStratagemReset()
+{
+    APlayerController* PlayerController = GetPlayerController();
+    AHDGASPlayerState* GASPlayerState = PlayerController ? PlayerController->GetPlayerState<AHDGASPlayerState>() : nullptr;
+    if (GASPlayerState == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDStratagemReset] No HDGASPlayerState"));
+        return;
+    }
+
+    GASPlayerState->GetStratagemLoadout().ResetUses();
+    UHDGE_StratagemCooldown::ClearAll(GASPlayerState->GetAbilitySystemComponent());
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagemReset] cooldowns cleared, uses reset"));
 }
