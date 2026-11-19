@@ -35,5 +35,16 @@
 		"StratagemProjectileType": "Bullet",
 		"ProjectileAttackRange": 50,
 		"ProjectileDamage": 100
+	},
+	{
+		"Name": "Orbital120mmBarrage",
+		"CommandSequence": ["Right", "Right", "Down", "Left", "Right", "Down"],
+		"ActivationDelay": 3,
+		"Cooldown": 45,
+		"OrbitalDuration": 6,
+		"bUseRandomRange": true,
+		"RandomPositionRange": 800,
+		"SpecifyProjectileSpawnCount": 12,
+		"StratagemProjectileType": "Bomb"
 	}
 ]

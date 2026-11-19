@@ -146,13 +146,26 @@ void UHDStratagemComponent::BindLoadout(AHDGASPlayerState* InPlayerState)
     LoadoutOwner = InPlayerState;
 
     // 다시 강하하면 이미 채워져 있으므로 남은 횟수를 그대로 둔다
-    FHDStratagemLoadout& Loadout = InPlayerState->GetStratagemLoadout();
-    if (Loadout.IsInitialized())
+    if (InPlayerState->GetStratagemLoadout().IsInitialized())
     {
         return;
     }
 
-    Loadout.Initialize(GetDefault<UHDStratagemSettings>()->Loadout, BuildCatalog());
+    ReinitializeLoadout(GetDefault<UHDStratagemSettings>()->Loadout);
+}
+
+void UHDStratagemComponent::ReinitializeLoadout(const TArray<FName>& LoadoutNames)
+{
+    FHDStratagemLoadout* LoadoutPtr = GetMutableLoadout();
+    NULL_CHECK(LoadoutPtr);
+
+    FHDStratagemLoadout& Loadout = *LoadoutPtr;
+    Loadout.Initialize(LoadoutNames, BuildCatalog());
+
+    // 칸 태그(Cooldown.Stratagem.SlotN)는 칸 번호에 붙어 있어 이름이 바뀐 칸에 앞 대기가 남지 않게 모두 지운다
+    UHDGE_StratagemCooldown::ClearAll(GetOwnerAbilitySystemComponent());
+    SelectedSlotIndex = INDEX_NONE;
+    HeldSlotIndex = INDEX_NONE;
 
     FString SlotNames;
     for (int32 SlotIndex = 0; SlotIndex < Loadout.Num(); ++SlotIndex)

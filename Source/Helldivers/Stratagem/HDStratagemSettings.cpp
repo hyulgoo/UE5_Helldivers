@@ -5,7 +5,7 @@
 UHDStratagemSettings::UHDStratagemSettings(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
-    Loadout = { TEXT("OrbitalPrecisionStrike"), TEXT("EagleAirstrike"), TEXT("OrbitalGatlingBarrage") };
+    Loadout = { TEXT("OrbitalPrecisionStrike"), TEXT("EagleAirstrike"), TEXT("OrbitalGatlingBarrage"), TEXT("Orbital120mmBarrage") };
 }
 
 FName UHDStratagemSettings::GetCategoryName() const

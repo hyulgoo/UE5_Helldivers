@@ -37,6 +37,8 @@ public:
 public:
     // 빙의한 플레이어스테이트의 로드아웃을 쓴다. 아직 비어 있으면 Project Settings(HD Stratagem)의 Loadout 과 텍스트 카탈로그로 채운다
     void                        BindLoadout(AHDGASPlayerState* InPlayerState);
+    // 바인딩된 플레이어스테이트의 로드아웃을 LoadoutNames 로 다시 만든다. 칸 번호가 바뀌므로 모든 칸의 재사용 대기를 지우고 남은 횟수도 처음 값이 된다
+    void                        ReinitializeLoadout(const TArray<FName>& LoadoutNames);
     const FHDStratagemLoadout*  GetLoadout() const;
     // 남은 횟수가 있고 재사용 대기 중이 아닌가
     bool                        IsSlotAvailable(const int32 SlotIndex) const;

@@ -58,4 +58,9 @@ public:
     // 로드아웃 사용 횟수를 처음 값으로, 모든 칸의 재사용 대기를 지운다
     UFUNCTION(Exec)
     void        HDStratagemReset();
+
+    // 로드아웃을 주어진 이름(Config/HDStratagems.json 의 "Name", 1~4개)으로 바꾸고 화면 목록을 다시 만든다. 빈 칸은 뺀다.
+    // 칸을 새로 만들므로 모든 칸의 남은 횟수·재사용 대기가 처음으로 돌아간다. 카탈로그에 없는 이름은 건너뛴다
+    UFUNCTION(Exec)
+    void        HDStratagemLoadout(const FString& Slot1, const FString& Slot2 = TEXT(""), const FString& Slot3 = TEXT(""), const FString& Slot4 = TEXT(""));
 };

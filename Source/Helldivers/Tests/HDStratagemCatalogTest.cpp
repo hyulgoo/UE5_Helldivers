@@ -16,6 +16,18 @@ namespace HDStratagemCatalogTest
     {
         return Catalog.GetProblems().ContainsByPredicate([Text](const FString& Problem) { return Problem.Contains(Text); });
     }
+
+    using FConflict = TPair<FName, FName>;
+
+    FString DescribeConflicts(const TArray<FConflict>& Conflicts)
+    {
+        FString Text;
+        for (const FConflict& Conflict : Conflicts)
+        {
+            Text += FString::Printf(TEXT("(%s, %s) "), *Conflict.Key.ToString(), *Conflict.Value.ToString());
+        }
+        return Text;
+    }
 }
 
 bool FHDStratagemCatalogTest::RunTest(const FString& Parameters)
@@ -104,6 +116,48 @@ bool FHDStratagemCatalogTest::RunTest(const FString& Parameters)
             bAllHaveCommand &= (Definition && Definition->CommandSequence.Num() > 0);
         }
         TestTrue(TEXT("Project file: every entry has a command"), bAllHaveCommand);
+
+        const TArray<FConflict> ProjectConflicts = Project.FindCommandConflicts();
+        AddInfo(FString::Printf(TEXT("project conflicts: %s"), *DescribeConflicts(ProjectConflicts)));
+        TestTrue(TEXT("Project file: no command conflicts"), ProjectConflicts.IsEmpty());
+    }
+
+    // 4. 커맨드 충돌(같거나 한쪽이 다른 쪽의 앞부분)
+    {
+        const FString DefaultRows = TEXT(R"(
+            { "Name": "EagleAirstrike", "CommandSequence": ["Up", "Right", "Down", "Right"] },
+            { "Name": "OrbitalPrecisionStrike", "CommandSequence": ["Up", "Right", "Right"] },
+            { "Name": "OrbitalGatlingBarrage", "CommandSequence": ["Right", "Down", "Left", "Up", "Up"] },
+            { "Name": "Orbital120mmBarrage", "CommandSequence": ["Right", "Right", "Down", "Left", "Right", "Down"] })");
+
+        const FHDStratagemCatalog Default = FHDStratagemCatalog::FromJsonString(TEXT("[") + DefaultRows + TEXT("]"));
+        AddInfo(FString::Printf(TEXT("default conflicts: %s"), *DescribeConflicts(Default.FindCommandConflicts())));
+        TestTrue(TEXT("Conflicts: default catalog has none"), Default.Num() == 4 && Default.FindCommandConflicts().IsEmpty());
+
+        const FHDStratagemCatalog Prefix = FHDStratagemCatalog::FromJsonString(TEXT("[") + DefaultRows + TEXT(R"(,
+            { "Name": "Bad", "CommandSequence": ["Up", "Right"] } ])"));
+        AddInfo(FString::Printf(TEXT("prefix conflicts: %s"), *DescribeConflicts(Prefix.FindCommandConflicts())));
+        TestTrue(TEXT("Conflicts: prefix conflicts found"), Prefix.FindCommandConflicts() == TArray<FConflict>({
+            FConflict(FName(TEXT("EagleAirstrike")), FName(TEXT("Bad"))),
+            FConflict(FName(TEXT("OrbitalPrecisionStrike")), FName(TEXT("Bad"))) }));
+
+        const FHDStratagemCatalog Identical = FHDStratagemCatalog::FromJsonString(TEXT(R"([
+            { "Name": "A", "CommandSequence": ["Up", "Down"] },
+            { "Name": "B", "CommandSequence": ["Up", "Down"] } ])"));
+        AddInfo(FString::Printf(TEXT("identical conflicts: %s"), *DescribeConflicts(Identical.FindCommandConflicts())));
+        TestTrue(TEXT("Conflicts: identical commands"), Identical.FindCommandConflicts() == TArray<FConflict>({
+            FConflict(FName(TEXT("A")), FName(TEXT("B"))) }));
+
+        const FHDStratagemCatalog EmptyCommand = FHDStratagemCatalog::FromJsonString(TEXT(R"([
+            { "Name": "Empty", "CommandSequence": [] },
+            { "Name": "EagleAirstrike", "CommandSequence": ["Up", "Right", "Down", "Right"] },
+            { "Name": "OrbitalPrecisionStrike", "CommandSequence": ["Up", "Right", "Right"] },
+            { "Name": "OrbitalGatlingBarrage", "CommandSequence": ["Right", "Down", "Left", "Up", "Up"] } ])"));
+        AddInfo(FString::Printf(TEXT("empty conflicts: %s"), *DescribeConflicts(EmptyCommand.FindCommandConflicts())));
+        TestTrue(TEXT("Conflicts: empty command conflicts with all"), EmptyCommand.FindCommandConflicts() == TArray<FConflict>({
+            FConflict(FName(TEXT("Empty")), FName(TEXT("EagleAirstrike"))),
+            FConflict(FName(TEXT("Empty")), FName(TEXT("OrbitalPrecisionStrike"))),
+            FConflict(FName(TEXT("Empty")), FName(TEXT("OrbitalGatlingBarrage"))) }));
     }
 
     return true;

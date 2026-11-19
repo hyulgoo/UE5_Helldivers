@@ -130,6 +130,12 @@ void AHDHUD::OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload)
     //}
 }
 
+void AHDHUD::RebuildStratagemList()
+{
+    NULL_CHECK_WITHOUT_LOG(StratagemWidget);
+    StratagemWidget->RebuildStratagemList();
+}
+
 void AHDHUD::DrawHUD()
 {
     Super::DrawHUD();

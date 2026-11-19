@@ -24,6 +24,8 @@ public:
     const TArray<FName>&                GetNames() const { return Names; }
     const FHDStratagemDefinition*       Find(const FName Name) const;
     const TArray<FString>&              GetProblems() const { return Problems; }
+    // 커맨드가 같거나 한쪽이 다른 쪽의 앞부분인 이름 쌍(파일 순서로 앞 이름이 Key). 빈 커맨드는 모든 행과 충돌한다
+    TArray<TPair<FName, FName>>         FindCommandConflicts() const;
 
 private:
     TArray<FName>                       Names;

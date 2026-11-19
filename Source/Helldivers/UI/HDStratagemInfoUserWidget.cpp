@@ -7,17 +7,27 @@
 #include "Components/HorizontalBox.h"
 #include "UI/HDCommandIcon.h"
 
-void UHDStratagemInfoUserWidget::InitializeStratagemInfoWidget(UTexture2D* IconTexture, const TArray<EHDCommandInput>& CommandList, const TMap<EHDCommandInput, UTexture2D*> CommandIconList)
+void UHDStratagemInfoUserWidget::InitializeStratagemInfoWidget(UTexture2D* IconTexture, const TArray<EHDCommandInput>& CommandList, const TMap<EHDCommandInput, UTexture2D*> CommandIconList, const FName InStratagemName)
 {
+    StratagemName = InStratagemName;
+    LastStatus.Reset();
+
     NULL_CHECK(Img_StratagemIcon);
-    Img_StratagemIcon->SetBrushFromTexture(IconTexture);
+    if (IconTexture)
+    {
+        Img_StratagemIcon->SetBrushFromTexture(IconTexture);
+        Img_StratagemIcon->SetVisibility(ESlateVisibility::Visible);
+    }
+    else
+    {
+        // 아이콘이 없는 스트라타젬(JSON 행만 더한 것)은 자리만 남기고 이름으로 보인다
+        Img_StratagemIcon->SetVisibility(ESlateVisibility::Hidden);
+    }
 
     NULL_CHECK(TB_StratagemName);
-    FString WidgetName = GetName();
+    CONDITION_CHECK(StratagemName.IsNone() == false);
 
-    CONDITION_CHECK(WidgetName.IsEmpty() == false);
-
-    TB_StratagemName->SetText(FText::FromString(WidgetName));
+    TB_StratagemName->SetText(FText::FromName(StratagemName));
 
     NULL_CHECK(HB_StratagemCommand);
     NULL_CHECK(CommandIconWidgetClass);
@@ -56,4 +66,18 @@ void UHDStratagemInfoUserWidget::SetAllWidgetCapacity(const float Opacity)
     {
         CommandIconWidgetList[Index]->SetRenderOpacity(Opacity);
     }
+}
+
+FName UHDStratagemInfoUserWidget::GetStratagemName() const
+{
+    return StratagemName;
+}
+
+void UHDStratagemInfoUserWidget::SetStatusText(const FString& Status)
+{
+    CONDITION_CHECK_WITHOUT_LOG(Status != LastStatus);
+    NULL_CHECK(TB_StratagemName);
+
+    LastStatus = Status;
+    TB_StratagemName->SetText(FText::FromString(StratagemName.ToString() + Status));
 }

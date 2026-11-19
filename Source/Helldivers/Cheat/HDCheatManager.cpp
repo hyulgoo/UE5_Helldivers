@@ -19,6 +19,7 @@
 #include "Stratagem/HDStratagemLoadout.h"
 #include "Player/HDGASPlayerState.h"
 #include "AbilitySystem/GameplayEffect/HDGE_StratagemCooldown.h"
+#include "UI/HDHUD.h"
 
 namespace HDCheatManager
 {
@@ -401,4 +402,46 @@ void UHDCheatManager::HDStratagemReset()
     GASPlayerState->GetStratagemLoadout().ResetUses();
     UHDGE_StratagemCooldown::ClearAll(GASPlayerState->GetAbilitySystemComponent());
     UE_LOG(LogTemp, Display, TEXT("[HDStratagemReset] cooldowns cleared, uses reset"));
+}
+
+void UHDCheatManager::HDStratagemLoadout(const FString& Slot1, const FString& Slot2, const FString& Slot3, const FString& Slot4)
+{
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UHDStratagemComponent* StratagemComponent = PlayerPawn ? PlayerPawn->FindComponentByClass<UHDStratagemComponent>() : nullptr;
+    if (StratagemComponent == nullptr || StratagemComponent->GetLoadout() == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDStratagemLoadout] No stratagem component or loadout"));
+        return;
+    }
+
+    TArray<FName> LoadoutNames;
+    for (const FString* SlotName : { &Slot1, &Slot2, &Slot3, &Slot4 })
+    {
+        if (SlotName->IsEmpty() == false)
+        {
+            LoadoutNames.Add(FName(**SlotName));
+        }
+    }
+
+    StratagemComponent->ReinitializeLoadout(LoadoutNames);
+
+    AHDHUD* HUD = PlayerController->GetHUD<AHDHUD>();
+    if (HUD)
+    {
+        HUD->RebuildStratagemList();
+    }
+
+    const FHDStratagemLoadout* Loadout = StratagemComponent->GetLoadout();
+    FString SlotNames;
+    for (int32 SlotIndex = 0; SlotIndex < Loadout->Num(); ++SlotIndex)
+    {
+        if (SlotNames.IsEmpty() == false)
+        {
+            SlotNames += TEXT(", ");
+        }
+        SlotNames += Loadout->GetSlot(SlotIndex)->StratagemName.ToString();
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagemLoadout] %d slots: %s"), Loadout->Num(), *SlotNames);
 }

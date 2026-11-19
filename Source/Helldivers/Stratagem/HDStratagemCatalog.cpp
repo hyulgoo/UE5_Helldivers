@@ -66,6 +66,12 @@ const FHDStratagemCatalog& FHDStratagemCatalog::GetProjectCatalog()
         UE_LOG(LogTemp, Warning, TEXT("[HDStratagem] catalog problem: %s"), *Problem);
     }
 
+    // 한 커맨드가 다른 커맨드의 앞부분이면 짧은 쪽이 먼저 선택돼 긴 쪽을 부르지 못할 수 있다. 막지 않고 알리기만 한다
+    for (const TPair<FName, FName>& Conflict : CachedCatalog.FindCommandConflicts())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HDStratagem] command conflict: %s / %s"), *Conflict.Key.ToString(), *Conflict.Value.ToString());
+    }
+
     return CachedCatalog;
 }
 
@@ -73,4 +79,36 @@ const FHDStratagemDefinition* FHDStratagemCatalog::Find(const FName Name) const
 {
     const int32 Index = Names.IndexOfByKey(Name);
     return Definitions.IsValidIndex(Index) ? &Definitions[Index] : nullptr;
+}
+
+TArray<TPair<FName, FName>> FHDStratagemCatalog::FindCommandConflicts() const
+{
+    TArray<TPair<FName, FName>> Conflicts;
+    for (int32 First = 0; First < Definitions.Num(); ++First)
+    {
+        const TArray<EHDCommandInput>& FirstCommand = Definitions[First].CommandSequence;
+        for (int32 Second = First + 1; Second < Definitions.Num(); ++Second)
+        {
+            const TArray<EHDCommandInput>& SecondCommand = Definitions[Second].CommandSequence;
+
+            // 짧은 쪽 길이까지 같으면 충돌이다. 짧은 쪽이 비어 있으면 그대로 같다
+            const int32 CompareNum = FMath::Min(FirstCommand.Num(), SecondCommand.Num());
+            bool bSamePrefix = true;
+            for (int32 InputIndex = 0; InputIndex < CompareNum; ++InputIndex)
+            {
+                if (FirstCommand[InputIndex] != SecondCommand[InputIndex])
+                {
+                    bSamePrefix = false;
+                    break;
+                }
+            }
+
+            if (bSamePrefix)
+            {
+                Conflicts.Emplace(Names[First], Names[Second]);
+            }
+        }
+    }
+
+    return Conflicts;
 }
