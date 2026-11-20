@@ -14,6 +14,17 @@
 
 #define AIMOFFSET_PITCH_OFFSET 20.f
 
+namespace HDCombatWeaponSlot
+{
+    // 칸에 넣어 둔 무기는 손에 붙인 채 숨긴다(숨김·틱·충돌)
+    void SetWeaponShown(AHDWeapon* InWeapon, const bool bShown)
+    {
+        InWeapon->SetActorTickEnabled(bShown);
+        InWeapon->SetActorHiddenInGame(bShown == false);
+        InWeapon->SetActorEnableCollision(bShown);
+    }
+}
+
 UHDCombatComponent::UHDCombatComponent(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
@@ -259,6 +270,24 @@ void UHDCombatComponent::EquipWeapon(AHDWeapon* NewWeapon, UAbilitySystemCompone
 {
     VALID_CHECK(NewWeapon);
 
+    using namespace HDCombatWeaponSlot;
+
+    // 쓰던 무기: 지금 탄약 Attribute 를 무기에 적어 두고 손에 붙인 채 숨긴다
+    if (IsValid(Weapon) && Weapon != NewWeapon)
+    {
+        Weapon->AmmoData = HDWeaponAmmo::ReadFromAttributes(ASC);
+        SetWeaponShown(Weapon, false);
+    }
+
+    // 같은 칸에 있던 무기는 앞에 버린다
+    const FHDWeaponPickupResult PickupResult = WeaponSlots.Pickup(NewWeapon->IsSupportWeapon());
+    TObjectPtr<AHDWeapon>& SlotWeapon = PickupResult.Slot == EHDWeaponSlot::Support ? SupportWeapon : PrimaryWeapon;
+    if (PickupResult.bReplaced && IsValid(SlotWeapon) && SlotWeapon != NewWeapon)
+    {
+        SlotWeapon->DropAt(GetWeaponDropLocation());
+    }
+
+    SlotWeapon = NewWeapon;
     Weapon = NewWeapon;
     Weapon->EquipWeapon(GetOwner());
     ErgonomicFactor = Weapon->ErgoData.ErgonomicFactor;
@@ -272,6 +301,71 @@ void UHDCombatComponent::EquipWeapon(AHDWeapon* NewWeapon, UAbilitySystemCompone
     const USkeletalMeshSocket* RightHandSocket = SkeletalMesh->GetSocketByName(HDSOCKETNAME_RIGRHTHAND);
     NULL_CHECK(RightHandSocket);
     RightHandSocket->AttachActor(NewWeapon, SkeletalMesh);
+    SetWeaponShown(NewWeapon, true);
+}
+
+bool UHDCombatComponent::SwapWeapon(UAbilitySystemComponent* ASC)
+{
+    CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(WeaponSlots.Swap(), false);
+
+    using namespace HDCombatWeaponSlot;
+
+    AHDWeapon* NextWeapon = WeaponSlots.GetActiveSlot() == EHDWeaponSlot::Support ? SupportWeapon : PrimaryWeapon;
+    if (IsValid(NextWeapon) == false)
+    {
+        // 칸은 찼다고 하는데 무기 액터가 없다. 쓰는 칸을 되돌린다
+        WeaponSlots.Swap();
+        return false;
+    }
+
+    if (IsValid(Weapon))
+    {
+        Weapon->AmmoData = HDWeaponAmmo::ReadFromAttributes(ASC);
+        SetWeaponShown(Weapon, false);
+    }
+
+    Weapon = NextWeapon;
+    SetWeaponShown(Weapon, true);
+    ErgonomicFactor = Weapon->ErgoData.ErgonomicFactor;
+    ZoomedFOV = Weapon->ErgoData.ZoomedFOV;
+    ZoomInterpSpeed = Weapon->ErgoData.ZoomInterpSpeed;
+    bIsEquipped = true;
+    return true;
+}
+
+void UHDCombatComponent::GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const
+{
+    OutWeapons.Reset();
+
+    if (IsValid(PrimaryWeapon))
+    {
+        OutWeapons.Add(PrimaryWeapon);
+    }
+
+    if (IsValid(SupportWeapon))
+    {
+        OutWeapons.Add(SupportWeapon);
+    }
+}
+
+FVector UHDCombatComponent::GetWeaponDropLocation() const
+{
+    const AActor* Owner = GetOwner();
+    const FVector DropColumn = Owner->GetActorLocation() + Owner->GetActorForwardVector() * 150.f;
+
+    UWorld* World = GetWorld();
+    NULL_CHECK_WITH_RETURNTYPE(World, DropColumn);
+
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(HDWeaponDrop), false, Owner);
+    FHitResult GroundHit;
+    const FVector TraceStart = DropColumn + FVector(0.f, 0.f, 200.f);
+    const FVector TraceEnd = DropColumn - FVector(0.f, 0.f, 2000.f);
+    if (World->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECollisionChannel::ECC_Visibility, QueryParams))
+    {
+        return GroundHit.ImpactPoint;
+    }
+
+    return DropColumn;
 }
 
 void UHDCombatComponent::SpawnProjectile()

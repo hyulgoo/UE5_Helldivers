@@ -63,4 +63,12 @@ public:
     // 칸을 새로 만들므로 모든 칸의 남은 횟수·재사용 대기가 처음으로 돌아간다. 카탈로그에 없는 이름은 건너뛴다
     UFUNCTION(Exec)
     void        HDStratagemLoadout(const FString& Slot1, const FString& Slot2 = TEXT(""), const FString& Slot3 = TEXT(""), const FString& Slot4 = TEXT(""));
+
+    // 플레이어 앞 300 의 지면에 지원 무기(AHDSupportWeapon)를 놓는다
+    UFUNCTION(Exec)
+    void        HDGiveSupportWeapon();
+
+    // 플레이어 폰의 무기 칸을 바꾼다(E 키와 같은 경로)
+    UFUNCTION(Exec)
+    void        HDSwapWeapon();
 };

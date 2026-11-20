@@ -2,6 +2,7 @@
 #include "Weapon/HDWeapon.h"
 #include "Components/SphereComponent.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "TimerManager.h"
 #include "Define/HDDefine.h"
 #include "Define/HDSocketNames.h"
 #include "Collision/HDCollision.h"
@@ -31,6 +32,31 @@ void AHDWeapon::EquipWeapon(AActor* OwnerActor)
 
     // 장착한 무기의 줍기 구는 끈다. 켜 두면 스트라타젬 투척 뒤 SetActorEnableCollision(true) 에서 주인 캡슐과 다시 겹쳐 EquipWeapon 이 또 불리고, 탄약이 AmmoData 처음 값으로 돌아간다
     AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AHDWeapon::DropAt(const FVector& Location)
+{
+    constexpr float PickupRearmDelay = 2.f;
+
+    DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+    SetOwner(nullptr);
+    WeaponState = EWeaponState::Drop;
+
+    SetActorHiddenInGame(false);
+    SetActorEnableCollision(true);
+    SetActorLocation(Location);
+
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+    World->GetTimerManager().SetTimer(PickupRearmTimerHandle, this, &AHDWeapon::RearmPickupSphere, PickupRearmDelay, false);
+}
+
+void AHDWeapon::RearmPickupSphere()
+{
+    // 2초 안에 다시 장착됐으면 줍기 구를 켜지 않는다
+    CONDITION_CHECK_WITHOUT_LOG(WeaponState == EWeaponState::Drop);
+
+    AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 }
 
 const void AHDWeapon::TraceEndWithScatter(const FVector& HitTarget)

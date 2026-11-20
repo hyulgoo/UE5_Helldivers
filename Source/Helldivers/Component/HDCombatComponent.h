@@ -5,6 +5,7 @@
 #include "Components/ActorComponent.h"
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
 #include "Components/TimelineComponent.h"
+#include "Weapon/HDWeaponSlots.h"
 #include "HDCombatComponent.generated.h"
 
 class UAnimMontage;
@@ -30,8 +31,13 @@ public:
     UHDCombatComponent(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
     AHDWeapon*                              SpawnDefaultWeapon();
+    // NewWeapon 을 그 종류의 칸에 넣고 쓴다. 쓰던 무기는 지금 탄약 Attribute 를 적어 두고 숨기며, 같은 칸에 있던 무기는 앞에 버린다
     void                                    EquipWeapon(AHDWeapon* NewWeapon, UAbilitySystemComponent* ASC);
-    void                                    SpawnProjectile();     
+    // 다른 칸에 무기가 있으면 그 무기로 바꾸고 참. 쓰던 무기의 탄약은 ASC 의 지금 값으로 적어 둔다
+    bool                                    SwapWeapon(UAbilitySystemComponent* ASC);
+    // 두 칸의 무기(비어 있는 칸은 뺀다)
+    void                                    GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const;
+    void                                    SpawnProjectile();
 
     AHDWeapon*                              GetWeapon() const;
     USkeletalMeshComponent*                 GetWeaponMesh() const;
@@ -75,6 +81,8 @@ private:
     void					                TraceUnderCrosshairs();
     void					                AimOffset(const float DeltaTime);
     void									TurnInPlace(const float DeltaTime);
+    // 주인 앞 150 의 지면
+    FVector                                 GetWeaponDropLocation() const;
 
     UFUNCTION()
     void                                    OnSpringArmLengthUpdate(const float Value);
@@ -120,9 +128,18 @@ private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<AHDWeapon>					DefaultWeaponClass;
     
+    // 쓰는 칸의 무기
     UPROPERTY()
 	TObjectPtr<AHDWeapon>	                Weapon;
-    
+
+    UPROPERTY()
+    TObjectPtr<AHDWeapon>                   PrimaryWeapon;
+
+    UPROPERTY()
+    TObjectPtr<AHDWeapon>                   SupportWeapon;
+
+    FHDWeaponSlots                          WeaponSlots;
+
     UPROPERTY()
 	TObjectPtr<UGameplayEffect>	            ReloadGameplayEffect;
 

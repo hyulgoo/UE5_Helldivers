@@ -20,6 +20,8 @@
 #include "Player/HDGASPlayerState.h"
 #include "AbilitySystem/GameplayEffect/HDGE_StratagemCooldown.h"
 #include "UI/HDHUD.h"
+#include "Character/Player/HDCharacterPlayer.h"
+#include "Weapon/HDSupportWeapon.h"
 
 namespace HDCheatManager
 {
@@ -444,4 +446,56 @@ void UHDCheatManager::HDStratagemLoadout(const FString& Slot1, const FString& Sl
     }
 
     UE_LOG(LogTemp, Display, TEXT("[HDStratagemLoadout] %d slots: %s"), Loadout->Num(), *SlotNames);
+}
+
+void UHDCheatManager::HDGiveSupportWeapon()
+{
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UWorld* World = GetWorld();
+    if (PlayerPawn == nullptr || World == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDGiveSupportWeapon] No player pawn"));
+        return;
+    }
+
+    // 앞 = 카메라가 보는 수평 방향(HDSpawnEnemy 와 같다)
+    const float Yaw = PlayerController->GetControlRotation().Yaw;
+    const FVector PlayerLocation = PlayerPawn->GetActorLocation();
+    const FVector Column = PlayerLocation + FRotator(0.f, Yaw, 0.f).Vector() * 300.f;
+
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(HDGiveSupportWeapon), false, PlayerPawn);
+    FHitResult GroundHit;
+    const FVector TraceStart(Column.X, Column.Y, PlayerLocation.Z + 3000.f);
+    const FVector TraceEnd(Column.X, Column.Y, PlayerLocation.Z - 10000.f);
+    if (World->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_Visibility, QueryParams) == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDGiveSupportWeapon] No ground at %s"), *Column.ToString());
+        return;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    const AHDSupportWeapon* SupportWeapon = World->SpawnActor<AHDSupportWeapon>(AHDSupportWeapon::StaticClass(), GroundHit.ImpactPoint, FRotator(0.f, Yaw, 0.f), SpawnParams);
+    if (SupportWeapon == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDGiveSupportWeapon] Failed to spawn"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDGiveSupportWeapon] spawned at %s"), *SupportWeapon->GetActorLocation().ToString());
+}
+
+void UHDCheatManager::HDSwapWeapon()
+{
+    APlayerController* PlayerController = GetPlayerController();
+    AHDCharacterPlayer* PlayerCharacter = PlayerController ? Cast<AHDCharacterPlayer>(PlayerController->GetPawn()) : nullptr;
+    if (PlayerCharacter == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSwapWeapon] No player character"));
+        return;
+    }
+
+    PlayerCharacter->SwapWeapon();
 }

@@ -7,6 +7,8 @@
 #include "AbilitySystemComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
+#include "InputAction.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Component/HDCombatComponent.h"
 #include "Component/HDMovementStateComponent.h"
 #include "Component/HDStratagemComponent.h"
@@ -17,6 +19,8 @@
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
 #include "GameData/HDCharacterControlData.h"
 #include "Weapon\HDWeapon.h"
+#include "Weapon/HDWeaponSlots.h"
+#include "TimerManager.h"
 #include "Game/HDGameMode.h"
 #include "Engine/World.h"
 
@@ -38,6 +42,13 @@ AHDCharacterPlayer::AHDCharacterPlayer(const FObjectInitializer& ObjectInitializ
     Combat              = CreateDefaultSubobject<UHDCombatComponent>(TEXT("Combat"));
     MovementStateComp   = CreateDefaultSubobject<UHDMovementStateComponent>(TEXT("MovementState"));
     Stratagem           = CreateDefaultSubobject<UHDStratagemComponent>(TEXT("Stratagem"));
+
+    // DA_Input·C++ 어디에서도 쓰지 않던 IA_Equipped(E)를 무기 교체에 쓴다
+    static ConstructorHelpers::FObjectFinder<UInputAction> SwapWeaponInputActionRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Helldivers/Input/Action/IA_Equipped.IA_Equipped'"));
+    if (SwapWeaponInputActionRef.Succeeded())
+    {
+        SwapWeaponInputAction = SwapWeaponInputActionRef.Object;
+    }
 }
 
 void AHDCharacterPlayer::Tick(float DeltaTime)
@@ -93,10 +104,16 @@ void AHDCharacterPlayer::UnPossessed()
 
 void AHDCharacterPlayer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    AHDWeapon* EquippedWeapon = Combat ? Combat->GetWeapon() : nullptr;
-    if (IsValid(EquippedWeapon))
+    GetWorldTimerManager().ClearTimer(CodeReloadEventTimerHandle);
+
+    if (Combat)
     {
-        EquippedWeapon->Destroy();
+        TArray<AHDWeapon*> SlotWeapons;
+        Combat->GetAllWeapons(SlotWeapons);
+        for (AHDWeapon* SlotWeapon : SlotWeapons)
+        {
+            SlotWeapon->Destroy();
+        }
     }
 
     Super::EndPlay(EndPlayReason);
@@ -113,6 +130,10 @@ void AHDCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     NULL_CHECK(CommandInput);
 
     EnhancedInputComponent->BindAction(CommandInput, ETriggerEvent::Triggered, this, &AHDCharacterPlayer::InputStratagemCommand);
+
+    // 교체 입력이 없으면 교체만 묶지 않는다(위 입력은 이미 묶었다)
+    NULL_CHECK(SwapWeaponInputAction);
+    EnhancedInputComponent->BindAction(SwapWeaponInputAction, ETriggerEvent::Started, this, &AHDCharacterPlayer::SwapWeapon);
 }
 
 void AHDCharacterPlayer::SetRagdoll(const bool bRagdoll, const FVector& Impulse)
@@ -134,6 +155,19 @@ void AHDCharacterPlayer::EquipWeapon(AHDWeapon* NewWeapon)
     NULL_CHECK(ASC);
 
     Combat->EquipWeapon(NewWeapon, ASC);
+    ApplyWeaponAttributes(Combat->GetWeapon());
+
+    // HUD 가 이 이벤트로 크로스헤어 위젯을 만든다(AHDHUD::OnEquipWeaponUIEventRecieved)
+    FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
+}
+
+void AHDCharacterPlayer::ApplyWeaponAttributes(const AHDWeapon* InWeapon)
+{
+    NULL_CHECK(InWeapon);
+    NULL_CHECK(WeaponAttributeSetEffect);
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK(ASC);
 
     // GE 수정자는 Ammo 가 MaxAmmo 보다 먼저라, Max 가 0 인 첫 장착에서는 PreAttributeChange 가 Ammo·Capacity current 를 0 으로 자른다.
     // 그래서 Max 를 무기 값으로 먼저 정한다(브리프 14 사용자 결정 (A))
@@ -149,9 +183,29 @@ void AHDCharacterPlayer::EquipWeapon(AHDWeapon* NewWeapon)
     SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_MaxCapacity, Combat->GetWeaponMaxCapacityCount());
 
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+}
 
-    // HUD 가 이 이벤트로 크로스헤어 위젯을 만든다(AHDHUD::OnEquipWeaponUIEventRecieved)
+void AHDCharacterPlayer::SwapWeapon()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK_WITHOUT_LOG(ASC);
+
+    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) || ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead))
+    {
+        return;
+    }
+
+    CONDITION_CHECK_WITHOUT_LOG(Combat->SwapWeapon(ASC));
+
+    const AHDWeapon* ActiveWeapon = Combat->GetWeapon();
+    ApplyWeaponAttributes(ActiveWeapon);
     FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] swap -> %s ammo=%.0f/%.0f capacity=%.0f"),
+        (ActiveWeapon && ActiveWeapon->IsSupportWeapon()) ? TEXT("Support") : TEXT("Primary"),
+        ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute()),
+        ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxAmmoAttribute()),
+        ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()));
 }
 
 bool AHDCharacterPlayer::Resupply()
@@ -232,6 +286,70 @@ void AHDCharacterPlayer::PlayWeaponMontage(const EHDCombatMontage MontageType)
 
     WeaponAnimInstance->Montage_Play(WeaponMontage, PlayRate);
     WeaponAnimInstance->Montage_JumpToSection(SectionName, WeaponMontage);
+
+    // 노티파이가 없는 무기 몽타주는 발사·재장전 이벤트를 C++ 로 보낸다. 소총은 무기 몽타주 노티파이가 보낸다
+    const AHDWeapon* ActiveWeapon = Combat->GetWeapon();
+    if (ActiveWeapon && ActiveWeapon->SendsMontageEventsFromCode())
+    {
+        ScheduleCodeMontageEvent(MontageType, WeaponMontage, SectionName);
+    }
+}
+
+void AHDCharacterPlayer::ScheduleCodeMontageEvent(const EHDCombatMontage MontageType, const UAnimMontage* WeaponMontage, const FName SectionName)
+{
+    NULL_CHECK(WeaponMontage);
+
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    if (MontageType == EHDCombatMontage::Fire)
+    {
+        // 한 활성에 한 발. FireDelay 안에 다시 오면 보내지 않고, 사격 GA 는 입력을 뗄 때 취소로 끝난다
+        const double Now = World->GetTimeSeconds();
+        const float FireDelay = Combat->GetWeaponFireDelay();
+        if (HDWeaponMontageEvent::IsFireReady(LastCodeFireEventTime, Now, FireDelay) == false)
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDWeapon] code fire skipped (%.2fs < %.2fs)"), Now - LastCodeFireEventTime, FireDelay);
+            return;
+        }
+
+        LastCodeFireEventTime = Now;
+        GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]() { SendCodeMontageEvent(Tag_Event_Spawn_Projectile); }));
+        UE_LOG(LogTemp, Display, TEXT("[HDWeapon] code event Event.Spawn.Projectile next tick"));
+    }
+    else if (MontageType == EHDCombatMontage::Reload)
+    {
+        // 재장전 대기 태스크는 몸 몽타주가 끝나면 끝나므로 그 전에 보낸다
+        const int32 SectionIndex = WeaponMontage->GetSectionIndex(SectionName);
+        const float WeaponSectionLength = SectionIndex != INDEX_NONE ? WeaponMontage->GetSectionLength(SectionIndex) : 0.f;
+        const UAnimMontage* BodyReloadMontage = GetCombatMontage(EHDCombatMontage::Reload);
+        // 재장전 GA 는 섹션 이름 없이 재생해 첫 섹션만 돈다(AM_Reload 는 섹션 7개, 첫 섹션 Rifle_Hip 은 다음 섹션 없음)
+        const float BodyMontageLength = BodyReloadMontage ? BodyReloadMontage->GetSectionLength(0) : 0.f;
+        const float Delay = HDWeaponMontageEvent::GetReloadEventDelay(WeaponSectionLength, BodyMontageLength);
+
+        FTimerManager& TimerManager = GetWorldTimerManager();
+        TimerManager.ClearTimer(CodeReloadEventTimerHandle);
+
+        const FTimerDelegate ReloadEventDelegate = FTimerDelegate::CreateWeakLambda(this, [this]() { SendCodeMontageEvent(Tag_Event_Reload); });
+        if (Delay <= 0.f)
+        {
+            TimerManager.SetTimerForNextTick(ReloadEventDelegate);
+        }
+        else
+        {
+            TimerManager.SetTimer(CodeReloadEventTimerHandle, ReloadEventDelegate, Delay, false);
+        }
+
+        UE_LOG(LogTemp, Display, TEXT("[HDWeapon] code event Event.Reload in %.2fs (weapon %.2f body %.2f)"), Delay, WeaponSectionLength, BodyMontageLength);
+    }
+}
+
+void AHDCharacterPlayer::SendCodeMontageEvent(const FGameplayTag EventTag)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK_WITHOUT_LOG(ASC);
+
+    FGameplayAbilityHelper::SendGameplayEventToSelf(EventTag, ASC);
 }
 
 bool AHDCharacterPlayer::IsEquippedWeapon() const
