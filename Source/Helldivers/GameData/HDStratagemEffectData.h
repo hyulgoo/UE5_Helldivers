@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "Stratagem/Types/StratagemKindTypes.h"
 #include "Stratagem/Types/StratagemProjectileTypes.h"
 #include "Stratagem/Types/EagleAirStrikeDirectionTypes.h"
 #include "HDStratagemEffectData.generated.h"
@@ -12,6 +13,17 @@ struct FHDStratagemEffectData : public FTableRowBase
     GENERATED_BODY()
 
 public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kind")
+    EHDStratagemKind            Kind                        = EHDStratagemKind::Projectile;
+
+    // 보급 상자가 남아 있는 시간(초). 0 = 줍기 전까지
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
+    float                       EffectLifetime              = 0.f;
+
+    // 보급 상자를 줍는 반지름(cm)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
+    float                       EffectRange                 = 0.f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eagle")
     uint8                       bIsEagle : 1;
     

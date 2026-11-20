@@ -46,5 +46,14 @@
 		"RandomPositionRange": 800,
 		"SpecifyProjectileSpawnCount": 12,
 		"StratagemProjectileType": "Bomb"
+	},
+	{
+		"Name": "Resupply",
+		"CommandSequence": ["Down", "Down", "Up", "Right"],
+		"ActivationDelay": 2,
+		"Cooldown": 60,
+		"Kind": "Resupply",
+		"EffectLifetime": 60,
+		"EffectRange": 250
 	}
 ]

@@ -52,6 +52,17 @@ namespace HDStratagemActivationTest
         return Data;
     }
 
+    // Config/HDStratagems.json 의 Resupply 행과 같은 종류(브리프 14). 투사체 열은 쓰지 않는다
+    FHDStratagemEffectData MakeResupply()
+    {
+        FHDStratagemEffectData Data = FHDStratagemEffectData();
+        Data.Kind                       = EHDStratagemKind::Resupply;
+        Data.bIsEagle                   = false;
+        Data.EffectLifetime             = 60.f;
+        Data.EffectRange                = 250.f;
+        return Data;
+    }
+
     // 활성 인스턴스 하나 = (스트라타젬 이름, 표적 위치)
     using FActiveInstance = TPair<FName, FVector>;
 
@@ -143,6 +154,16 @@ bool FHDStratagemActivationTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("Eagle: 3 projectiles from ProjectileDropLocation"), HDStratagemPattern::GetProjectileCount(Eagle), 3);
         TestTrue(TEXT("Eagle: offset 1 is (-2,0)"), HDStratagemPattern::GetDropOffset(Eagle, 1, Stream).Equals(FVector2D(-2.f, 0.f)));
         TestTrue(TEXT("Eagle: offset 3 out of range is (0,0)"), HDStratagemPattern::GetDropOffset(Eagle, 3, Stream).Equals(FVector2D(0.f, 0.f)));
+    }
+
+    {
+        FHDStratagemEffectData Resupply = MakeResupply();
+
+        TestTrue(TEXT("Resupply: event Resupply"), HDStratagemPattern::GetActivationEventTag(Resupply) == Tag_Event_Stratagem_Resupply.GetTag());
+
+        // 종류가 Projectile 이 아니면 bIsEagle 은 이벤트를 고르지 않는다
+        Resupply.bIsEagle = true;
+        TestTrue(TEXT("Resupply: bIsEagle ignored when kind is not Projectile"), HDStratagemPattern::GetActivationEventTag(Resupply) == Tag_Event_Stratagem_Resupply.GetTag());
     }
 
     {

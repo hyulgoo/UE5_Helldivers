@@ -29,6 +29,9 @@ public:
 
     void									SetCharacterControlData(UHDCharacterControlData* CharacterControlData);
 
+    // 탄창과 예비 탄약을 최대로 채운다(보급 상자). 죽었거나 ASC 가 없으면 거짓
+    bool                                    Resupply();
+
 protected:
 	virtual void							SetDead() override final;
     virtual void							Tick(float DeltaTime) override final;

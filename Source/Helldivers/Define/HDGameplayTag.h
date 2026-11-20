@@ -53,6 +53,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Reload);
 // Stratagem: 전함 ASC 의 스트라타젬 GA 를 깨우는 이벤트
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Orbital);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Eagle);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Event_Stratagem_Resupply);
 
 // Cooldown: 로드아웃 칸(1~4)의 재사용 대기(UHDGE_StratagemCooldown 이 Spec 에 붙인다)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Cooldown_Stratagem_Slot1);

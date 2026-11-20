@@ -41,6 +41,7 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Spawn_Projectile,                "Event.Spawn.P
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Reload,                          "Event.Reload");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Stratagem_Orbital,               "Event.Stratagem.Orbital");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Stratagem_Eagle,                 "Event.Stratagem.Eagle");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Event_Stratagem_Resupply,              "Event.Stratagem.Resupply");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Cooldown_Stratagem_Slot1,              "Cooldown.Stratagem.Slot1");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Cooldown_Stratagem_Slot2,              "Cooldown.Stratagem.Slot2");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Cooldown_Stratagem_Slot3,              "Cooldown.Stratagem.Slot3");

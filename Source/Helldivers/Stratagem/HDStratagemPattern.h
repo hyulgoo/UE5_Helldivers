@@ -11,7 +11,8 @@ struct FHDStratagemEffectData;
 // 월드와 무관한 순수 함수라 자동 테스트(Helldivers.Stratagem.Activation)로 고정한다
 namespace HDStratagemPattern
 {
-    // 전함 GA 를 깨우는 이벤트. bIsEagle 이면 Event.Stratagem.Eagle, 아니면 Event.Stratagem.Orbital
+    // 전함 GA 를 깨우는 이벤트. Kind 가 Resupply 면 Event.Stratagem.Resupply.
+    // Projectile 이면 bIsEagle 로 Event.Stratagem.Eagle, 아니면 Event.Stratagem.Orbital
     HELLDIVERS_API FGameplayTag GetActivationEventTag(const FHDStratagemEffectData& Data);
 
     // ProjectileDropLocation 이 있으면 그 개수, 없으면 SpecifyProjectileSpawnCount

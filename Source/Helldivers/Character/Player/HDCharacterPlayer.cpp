@@ -12,6 +12,7 @@
 #include "Component/HDStratagemComponent.h"
 #include "AbilitySystem/GameplayAbilityHelper.h"
 #include "Attribute/HDSpeedAttributeSet.h"
+#include "Attribute/HDWeaponAttributeSet.h"
 #include "Player/HDGASPlayerState.h"
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
 #include "GameData/HDCharacterControlData.h"
@@ -134,6 +135,11 @@ void AHDCharacterPlayer::EquipWeapon(AHDWeapon* NewWeapon)
 
     Combat->EquipWeapon(NewWeapon, ASC);
 
+    // GE 수정자는 Ammo 가 MaxAmmo 보다 먼저라, Max 가 0 인 첫 장착에서는 PreAttributeChange 가 Ammo·Capacity current 를 0 으로 자른다.
+    // 그래서 Max 를 무기 값으로 먼저 정한다(브리프 14 사용자 결정 (A))
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxAmmoAttribute(), Combat->GetWeaponMaxAmmoCount());
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxCapacityAttribute(), Combat->GetWeaponMaxCapacityCount());
+
     FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(WeaponAttributeSetEffect, 1.f, ASC->MakeEffectContext());
     CONDITION_CHECK(SpecHandle.IsValid());
 
@@ -146,6 +152,38 @@ void AHDCharacterPlayer::EquipWeapon(AHDWeapon* NewWeapon)
 
     // HUD 가 이 이벤트로 크로스헤어 위젯을 만든다(AHDHUD::OnEquipWeaponUIEventRecieved)
     FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
+}
+
+bool AHDCharacterPlayer::Resupply()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (ASC == nullptr || ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead))
+    {
+        return false;
+    }
+
+    NULL_CHECK_WITH_RETURNTYPE(WeaponAttributeSetEffect, false);
+
+    const float OldAmmo     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute());
+    const float OldCapacity = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute());
+    const float MaxAmmo     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxAmmoAttribute());
+    const float MaxCapacity = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxCapacityAttribute());
+
+    // EquipWeapon 과 같은 GE(BP 값 BPGE_EquipWeapon, SetByCaller 넷을 Override)에 지금 최대값을 넣는다. 수류탄은 채우지 않는다
+    FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(WeaponAttributeSetEffect, 1.f, ASC->MakeEffectContext());
+    CONDITION_CHECK_WITH_RETURNTYPE(SpecHandle.IsValid(), false);
+
+    SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_Ammo, MaxAmmo);
+    SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_MaxAmmo, MaxAmmo);
+    SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_Capacity, MaxCapacity);
+    SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_MaxCapacity, MaxCapacity);
+
+    ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] resupply Ammo %.0f->%.0f Capacity %.0f->%.0f"),
+        OldAmmo, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute()),
+        OldCapacity, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()));
+    return true;
 }
 
 UAnimMontage* AHDCharacterPlayer::GetCombatMontage(const EHDCombatMontage MontageType) const

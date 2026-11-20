@@ -28,6 +28,9 @@ void AHDWeapon::EquipWeapon(AActor* OwnerActor)
 
     SetOwner(OwnerActor);
     WeaponState = EWeaponState::Equip;
+
+    // 장착한 무기의 줍기 구는 끈다. 켜 두면 스트라타젬 투척 뒤 SetActorEnableCollision(true) 에서 주인 캡슐과 다시 겹쳐 EquipWeapon 이 또 불리고, 탄약이 AmmoData 처음 값으로 돌아간다
+    AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 const void AHDWeapon::TraceEndWithScatter(const FVector& HitTarget)
