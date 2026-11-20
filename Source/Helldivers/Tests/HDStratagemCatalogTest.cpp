@@ -6,6 +6,7 @@
 
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
+#include "Weapon/HDWeapon.h"
 #include "Misc/Paths.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHDStratagemCatalogTest, "Helldivers.Stratagem.Catalog", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
@@ -116,6 +117,19 @@ bool FHDStratagemCatalogTest::RunTest(const FString& Parameters)
             bAllHaveCommand &= (Definition && Definition->CommandSequence.Num() > 0);
         }
         TestTrue(TEXT("Project file: every entry has a command"), bAllHaveCommand);
+
+        // 클래스 경로 오타는 엔진이 문제로 남기지 않고 null 로 읽는다(브리프 12 기획 실측). 그래서 여기서 잡는다
+        bool bSupportWeaponsHaveClass = true;
+        for (const FName& Name : Project.GetNames())
+        {
+            const FHDStratagemDefinition* Definition = Project.Find(Name);
+            if (Definition && Definition->Kind == EHDStratagemKind::SupportWeapon && Definition->SupportWeaponClass == nullptr)
+            {
+                AddInfo(FString::Printf(TEXT("support weapon row without class: %s"), *Name.ToString()));
+                bSupportWeaponsHaveClass = false;
+            }
+        }
+        TestTrue(TEXT("Project file: support weapon rows have a class"), bSupportWeaponsHaveClass);
 
         const TArray<FConflict> ProjectConflicts = Project.FindCommandConflicts();
         AddInfo(FString::Printf(TEXT("project conflicts: %s"), *DescribeConflicts(ProjectConflicts)));

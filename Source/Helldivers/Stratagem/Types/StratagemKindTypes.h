@@ -7,5 +7,6 @@ enum class EHDStratagemKind : uint8
     Projectile,
     Resupply,
     Sentry,
+    SupportWeapon,
     Count,
 };

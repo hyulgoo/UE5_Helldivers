@@ -175,6 +175,14 @@ bool FHDStratagemActivationTest::RunTest(const FString& Parameters)
     }
 
     {
+        // Config/HDStratagems.json 의 AntiMaterielRifle 행과 같은 종류(브리프 17)
+        FHDStratagemEffectData SupportWeapon = FHDStratagemEffectData();
+        SupportWeapon.Kind = EHDStratagemKind::SupportWeapon;
+
+        TestTrue(TEXT("SupportWeapon: event SupportWeapon"), HDStratagemPattern::GetActivationEventTag(SupportWeapon) == Tag_Event_Stratagem_SupportWeapon.GetTag());
+    }
+
+    {
         FHDStratagemEffectData EmptyDrops = FHDStratagemEffectData();
         EmptyDrops.SpecifyProjectileSpawnCount = 4;
         FRandomStream Stream(1);

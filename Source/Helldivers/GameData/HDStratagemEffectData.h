@@ -7,6 +7,8 @@
 #include "Stratagem/Types/EagleAirStrikeDirectionTypes.h"
 #include "HDStratagemEffectData.generated.h"
 
+class AHDWeapon;
+
 USTRUCT(BlueprintType)
 struct FHDStratagemEffectData : public FTableRowBase
 {
@@ -31,6 +33,10 @@ public:
     // 포탑 최대 발사 수. 0 = 수명까지
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
     int32                       EffectMaxCount              = 0;
+
+    // 지원 무기 투하로 떨어뜨리는 무기 클래스
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SupportWeapon")
+    TSubclassOf<AHDWeapon>      SupportWeaponClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eagle")
     uint8                       bIsEagle : 1;

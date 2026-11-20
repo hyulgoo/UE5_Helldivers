@@ -67,5 +67,13 @@
 		"EffectRange": 4000,
 		"EffectInterval": 0.2,
 		"EffectMaxCount": 200
+	},
+	{
+		"Name": "AntiMaterielRifle",
+		"CommandSequence": ["Down", "Left", "Right", "Up", "Down"],
+		"ActivationDelay": 3,
+		"Cooldown": 120,
+		"Kind": "SupportWeapon",
+		"SupportWeaponClass": "/Script/Helldivers.HDSupportWeapon"
 	}
 ]
