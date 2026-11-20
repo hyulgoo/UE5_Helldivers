@@ -7,6 +7,7 @@
 #include "AbilitySystem/GameAbility/HDGA_StratagemOrbital.h"
 #include "AbilitySystem/GameAbility/HDGA_StratagemEagle.h"
 #include "AbilitySystem/GameAbility/HDGA_StratagemResupply.h"
+#include "AbilitySystem/GameAbility/HDGA_StratagemSentry.h"
 #include "Stratagem/HDStratagem.h"
 #include "Stratagem/HDStratagemPattern.h"
 #include "Stratagem/HDStratagemCatalog.h"
@@ -31,6 +32,7 @@ AHDBattleShip::AHDBattleShip(const FObjectInitializer& ObjectInitializer)
     StratagemAbilities.Add(UHDGA_StratagemOrbital::StaticClass());
     StratagemAbilities.Add(UHDGA_StratagemEagle::StaticClass());
     StratagemAbilities.Add(UHDGA_StratagemResupply::StaticClass());
+    StratagemAbilities.Add(UHDGA_StratagemSentry::StaticClass());
 }
 
 void AHDBattleShip::ActivateStratagem(const AHDStratagem* Beacon, const FTransform& TargetTransform)

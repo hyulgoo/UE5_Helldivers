@@ -55,5 +55,17 @@
 		"Kind": "Resupply",
 		"EffectLifetime": 60,
 		"EffectRange": 250
+	},
+	{
+		"Name": "MachineGunSentry",
+		"CommandSequence": ["Down", "Up", "Right", "Right", "Up"],
+		"ActivationDelay": 3,
+		"Cooldown": 90,
+		"Kind": "Sentry",
+		"StratagemProjectileType": "Bullet",
+		"EffectLifetime": 60,
+		"EffectRange": 4000,
+		"EffectInterval": 0.2,
+		"EffectMaxCount": 200
 	}
 ]

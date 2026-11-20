@@ -13,6 +13,11 @@ namespace HDStratagemPattern
             return Tag_Event_Stratagem_Resupply.GetTag();
         }
 
+        if (Data.Kind == EHDStratagemKind::Sentry)
+        {
+            return Tag_Event_Stratagem_Sentry.GetTag();
+        }
+
         // Projectile: bIsEagle 로 이글·궤도를 나눈다
         return Data.bIsEagle ? Tag_Event_Stratagem_Eagle.GetTag() : Tag_Event_Stratagem_Orbital.GetTag();
     }

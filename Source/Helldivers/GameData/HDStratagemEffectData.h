@@ -16,13 +16,21 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kind")
     EHDStratagemKind            Kind                        = EHDStratagemKind::Projectile;
 
-    // 보급 상자가 남아 있는 시간(초). 0 = 줍기 전까지
+    // 보급 상자·포탑이 남아 있는 시간(초). 0 = 보급: 줍기 전까지 / 포탑: 발사 수까지
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
     float                       EffectLifetime              = 0.f;
 
-    // 보급 상자를 줍는 반지름(cm)
+    // 보급: 줍는 반지름 / 포탑: 사거리(cm)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
     float                       EffectRange                 = 0.f;
+
+    // 포탑 발사 간격(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
+    float                       EffectInterval              = 0.f;
+
+    // 포탑 최대 발사 수. 0 = 수명까지
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deployable")
+    int32                       EffectMaxCount              = 0;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eagle")
     uint8                       bIsEagle : 1;

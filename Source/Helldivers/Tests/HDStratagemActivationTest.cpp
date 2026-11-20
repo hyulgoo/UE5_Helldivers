@@ -167,6 +167,14 @@ bool FHDStratagemActivationTest::RunTest(const FString& Parameters)
     }
 
     {
+        // Config/HDStratagems.json 의 MachineGunSentry 행과 같은 종류(브리프 15)
+        FHDStratagemEffectData Sentry = FHDStratagemEffectData();
+        Sentry.Kind = EHDStratagemKind::Sentry;
+
+        TestTrue(TEXT("Sentry: event Sentry"), HDStratagemPattern::GetActivationEventTag(Sentry) == Tag_Event_Stratagem_Sentry.GetTag());
+    }
+
+    {
         FHDStratagemEffectData EmptyDrops = FHDStratagemEffectData();
         EmptyDrops.SpecifyProjectileSpawnCount = 4;
         FRandomStream Stream(1);
