@@ -39,6 +39,11 @@ public:
     // 스트라타젬 화살표 하나(AHDPlayerController 가 원시 키 순서대로 넘긴다). 입력 모드가 아니면 무시
     void                                    InputStratagemCommand(const EHDCommandInput Command);
 
+    // 투척 GA(UHDGA_ThrowGrenade)가 AM_Throw 의 DetachStratagem 에서 부른다. 오른손에서 조준점 쪽으로 수류탄을 던지고 개수를 1 줄인다
+    void                                    ThrowGrenade();
+    // 투척 GA 가 끝날 때 부른다. 다 던졌고 수류탄 칸을 쓰는 중이면 마지막 총으로 돌아간다
+    void                                    OnGrenadeThrowFinished();
+
 protected:
 	virtual void							SetDead() override final;
     virtual void							Tick(float DeltaTime) override final;
@@ -88,8 +93,11 @@ private:
     void                                    ScheduleCodeMontageEvent(const EHDCombatMontage MontageType, const UAnimMontage* WeaponMontage, const FName SectionName);
     void                                    SendCodeMontageEvent(const FGameplayTag EventTag);
 
-    // 사격·재장전 GA(UHDGA_Fire·UHDGA_Reload)가 활성이면 참. 무기 칸 선택을 거부하는 데 쓴다
+    // 사격·재장전·수류탄 투척 GA(UHDGA_Fire·UHDGA_Reload·UHDGA_ThrowGrenade)가 활성이면 참. 무기 칸 선택을 거부하는 데 쓴다
     bool                                    IsWeaponActionActive() const;
+
+    // 수류탄 칸에서 마지막 총 칸으로 돌아간다(거부 검사 없음). Reason 은 로그용
+    void                                    LeaveGrenadeSlot(const TCHAR* Reason);
 
 private:
 	UPROPERTY(EditDefaultsOnly)

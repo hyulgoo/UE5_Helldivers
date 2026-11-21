@@ -37,11 +37,13 @@ protected:
 	UFUNCTION()
 	virtual void	                            OnBoxHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
+    // HitLocation 중심 반경 안의 Pawn(쏜 쪽 포함)에 거리 비례 피해와 넉백. 시한 신관 수류탄(AHDProjectileGrenade)도 쓴다
+    void                                        ApplyExplode(UAbilitySystemComponent* SourceAbiltySystemComponent, const FVector& HitLocation);
+
 private:
     void                                        InitializeBeginPlay();
     void			                            StartDestroyTimer();
     void                                        SpawnTrailSystem();
-    void                                        ApplyExplode(UAbilitySystemComponent* SourceAbiltySystemComponent, const FVector& HitLocation);
 
     void                                        ApplyDamageGameEffect(UAbilitySystemComponent* SourceAbiltySystemComponent, UAbilitySystemComponent* TargetAbiltySystemComponent, const float InterpImpactDamage);
 

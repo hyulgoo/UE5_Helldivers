@@ -95,7 +95,52 @@ bool FHDWeaponSlotsTest::RunTest(const FString& Parameters)
             && Slots.HasWeapon(EHDWeaponSlot::Support) == false && Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
     }
 
-    TestTrue(TEXT("Slot names"), FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Primary), TEXT("Primary")) == 0
+    // 수류탄 칸(브리프 3): 쓸 수 있을 때만 고르고, 마지막 총 칸은 그대로 둔다
+    {
+        FHDWeaponSlots Slots;
+        Slots.Pickup(EHDWeaponSlot::Primary, true);
+
+        TestTrue(TEXT("Grenade unavailable: Empty"), Slots.Select(EHDWeaponSlot::Grenade) == EHDWeaponSelectResult::Empty
+            && Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
+
+        Slots.SetGrenadeAvailable(true);
+        const EHDWeaponSelectResult GrenadeResult = Slots.Select(EHDWeaponSlot::Grenade);
+        TestTrue(TEXT("Grenade select"), GrenadeResult == EHDWeaponSelectResult::Selected
+            && Slots.GetActiveSlot() == EHDWeaponSlot::Grenade && Slots.GetLastGunSlot() == EHDWeaponSlot::Primary);
+
+        TestTrue(TEXT("Grenade select again: AlreadyActive"), Slots.Select(EHDWeaponSlot::Grenade) == EHDWeaponSelectResult::AlreadyActive);
+
+        Slots.Reset();
+        TestFalse(TEXT("Reset clears grenade"), Slots.HasWeapon(EHDWeaponSlot::Grenade));
+    }
+
+    {
+        FHDWeaponSlots Slots;
+        Slots.Pickup(EHDWeaponSlot::Primary, true);
+        Slots.Pickup(EHDWeaponSlot::Secondary, false);
+        Slots.Select(EHDWeaponSlot::Secondary);
+        Slots.SetGrenadeAvailable(true);
+        Slots.Select(EHDWeaponSlot::Grenade);
+
+        const EHDWeaponSlot LastGun = Slots.GetLastGunSlot();
+        const EHDWeaponSelectResult BackResult = Slots.Select(LastGun);
+        TestTrue(TEXT("Last gun kept through grenade"), LastGun == EHDWeaponSlot::Secondary
+            && BackResult == EHDWeaponSelectResult::Selected && Slots.GetActiveSlot() == EHDWeaponSlot::Secondary);
+    }
+
+    {
+        FHDWeaponSlots Slots;
+        Slots.Pickup(EHDWeaponSlot::Primary, true);
+        Slots.Pickup(EHDWeaponSlot::Secondary, false);
+        Slots.SetGrenadeAvailable(true);
+        Slots.Select(EHDWeaponSlot::Grenade);
+
+        const EHDWeaponSelectResult SecondaryResult = Slots.Select(EHDWeaponSlot::Secondary);
+        TestTrue(TEXT("Select gun from grenade"), SecondaryResult == EHDWeaponSelectResult::Selected
+            && Slots.GetActiveSlot() == EHDWeaponSlot::Secondary && Slots.GetLastGunSlot() == EHDWeaponSlot::Secondary);
+    }
+
+    TestTrue(TEXT("Slot names"),FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Primary), TEXT("Primary")) == 0
         && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Secondary), TEXT("Secondary")) == 0
         && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Support), TEXT("Support")) == 0
         && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Grenade), TEXT("Grenade")) == 0);

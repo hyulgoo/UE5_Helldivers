@@ -21,6 +21,7 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
         &Tag_Character_Action_ThrowEnd,
         &Tag_Character_Action_Dead,
         &Tag_Character_State_IsDead,
+        &Tag_Character_State_GrenadeReady,
 
         // Block
         &Tag_Block_All,
@@ -91,6 +92,7 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
 
         // GameplayCue
         &Tag_GameplayCue_Explode_BombHeavy,
+        &Tag_GameplayCue_Explode_BombLight,
     };
 
     const UGameplayTagsManager& TagsManager = UGameplayTagsManager::Get();

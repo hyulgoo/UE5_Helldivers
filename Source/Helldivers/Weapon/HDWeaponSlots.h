@@ -40,9 +40,11 @@ class HELLDIVERS_API FHDWeaponSlots
 public:
     // 총 칸(Grenade 제외)에 넣는다. bMakeActive 면 그 칸을 쓴다. Grenade 를 넘기면 아무것도 바꾸지 않고 bReplaced 거짓
     FHDWeaponPickupResult   Pickup(const EHDWeaponSlot Slot, const bool bMakeActive);
-    // Slot 이 지금 칸이면 AlreadyActive, 비었으면 Empty, 아니면 그 칸으로 바꾸고 Selected
+    // Slot 이 지금 칸이면 AlreadyActive, 비었으면 Empty, 아니면 그 칸으로 바꾸고 Selected. Grenade 를 골라도 LastGunSlot 은 그대로
     EHDWeaponSelectResult   Select(const EHDWeaponSlot Slot);
     bool                    HasWeapon(const EHDWeaponSlot Slot) const;
+    // 수류탄 칸을 고를 수 있는지. HasWeapon(Grenade) 가 이 값을 돌려준다
+    void                    SetGrenadeAvailable(const bool bAvailable);
     EHDWeaponSlot           GetActiveSlot() const { return ActiveSlot; }
     // 마지막으로 쓴 총 칸(지금 총 칸을 쓰는 중이면 그 칸). 수류탄에서 돌아갈 때 쓴다
     EHDWeaponSlot           GetLastGunSlot() const { return LastGunSlot; }
@@ -55,11 +57,13 @@ private:
     void                    SetActiveSlot(const EHDWeaponSlot Slot);
 
 private:
-    bool                    bHasPrimary     = false;
-    bool                    bHasSecondary   = false;
-    bool                    bHasSupport     = false;
-    EHDWeaponSlot           ActiveSlot      = EHDWeaponSlot::Primary;
-    EHDWeaponSlot           LastGunSlot     = EHDWeaponSlot::Primary;
+    bool                    bHasPrimary         = false;
+    bool                    bHasSecondary       = false;
+    bool                    bHasSupport         = false;
+    // 수류탄이 남아 있어 수류탄 칸을 고를 수 있다(캐릭터가 개수를 보고 정한다)
+    bool                    bGrenadeAvailable   = false;
+    EHDWeaponSlot           ActiveSlot          = EHDWeaponSlot::Primary;
+    EHDWeaponSlot           LastGunSlot         = EHDWeaponSlot::Primary;
 };
 
 namespace HDWeaponAmmo

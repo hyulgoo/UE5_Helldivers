@@ -61,17 +61,24 @@ bool FHDWeaponSlots::HasWeapon(const EHDWeaponSlot Slot) const
     case EHDWeaponSlot::Primary:    return bHasPrimary;
     case EHDWeaponSlot::Secondary:  return bHasSecondary;
     case EHDWeaponSlot::Support:    return bHasSupport;
+    case EHDWeaponSlot::Grenade:    return bGrenadeAvailable;
     default:                        return false;
     }
 }
 
+void FHDWeaponSlots::SetGrenadeAvailable(const bool bAvailable)
+{
+    bGrenadeAvailable = bAvailable;
+}
+
 void FHDWeaponSlots::Reset()
 {
-    bHasPrimary     = false;
-    bHasSecondary   = false;
-    bHasSupport     = false;
-    ActiveSlot      = EHDWeaponSlot::Primary;
-    LastGunSlot     = EHDWeaponSlot::Primary;
+    bHasPrimary         = false;
+    bHasSecondary       = false;
+    bHasSupport         = false;
+    bGrenadeAvailable   = false;
+    ActiveSlot          = EHDWeaponSlot::Primary;
+    LastGunSlot         = EHDWeaponSlot::Primary;
 }
 
 bool* FHDWeaponSlots::FindGunSlotFlag(const EHDWeaponSlot Slot)

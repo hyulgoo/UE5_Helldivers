@@ -7,6 +7,7 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_DetachStratagem,      "Character.Act
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_ThrowEnd,             "Character.Action.ThrowEnd");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_Dead,                 "Character.State.Dead");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_IsDead,                "Character.State.IsDead");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_GrenadeReady,          "Character.State.GrenadeReady");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_All,                             "Block.All");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Move,                            "Block.Move");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Fire,                            "Block.Fire");
@@ -61,3 +62,4 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Data_Knockback_Ragdoll,                "Data.Knockbac
 UE_DEFINE_GAMEPLAY_TAG(Tag_Cost_Stamina,                          "Cost.Stamina");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Regen_Stamina,                         "Regen.Stamina");
 UE_DEFINE_GAMEPLAY_TAG(Tag_GameplayCue_Explode_BombHeavy,         "GameplayCue.Explode.Bomb_Heavy");
+UE_DEFINE_GAMEPLAY_TAG(Tag_GameplayCue_Explode_BombLight,         "GameplayCue.Explode.Bomb_Light");

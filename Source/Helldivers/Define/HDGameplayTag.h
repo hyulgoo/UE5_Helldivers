@@ -11,6 +11,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_ThrowEnd);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_Dead);
 // BPGA_Dead 의 ActivationOwnedTags 가 쓰는 이름. C++ 은 쓰지 않고 등록만 한다(없으면 에셋 태그가 무효)
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_IsDead);
+// 4 로 수류탄을 든 상태(루즈 태그, 네이티브 전용). 투척 GA 의 필요 태그, 사격·재장전 GA 는 이 태그가 있으면 켜지지 않는다
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_GrenadeReady);
 
 // Block
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_All);
@@ -81,3 +83,4 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Regen_Stamina);
 
 // GameplayCue
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_GameplayCue_Explode_BombHeavy);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_GameplayCue_Explode_BombLight);

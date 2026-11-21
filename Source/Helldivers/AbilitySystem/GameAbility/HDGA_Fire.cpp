@@ -21,6 +21,8 @@ bool UHDGA_Fire::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, con
     // 스트라타젬을 든 동안 같은 입력(Trigger.Attack)은 투척 GA 몫이다. 사격 몽타주가 투척 몽타주를 끊지 않게 막는다
     const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
     CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(ASC && ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) == false, false);
+    // 수류탄을 든 동안의 좌클릭은 투척 GA(UHDGA_ThrowGrenade) 몫이다
+    CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(ASC->HasMatchingGameplayTag(Tag_Character_State_GrenadeReady) == false, false);
 
     return CheckCost(Handle, ActorInfo);
 }

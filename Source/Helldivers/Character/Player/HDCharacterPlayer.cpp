@@ -20,9 +20,21 @@
 #include "Weapon/HDSecondaryWeapon.h"
 #include "AbilitySystem/GameAbility/HDGA_Fire.h"
 #include "AbilitySystem/GameAbility/HDGA_Reload.h"
+#include "AbilitySystem/GameAbility/HDGA_ThrowGrenade.h"
+#include "Weapon/Projectile/HDProjectileGrenade.h"
+#include "Define/HDSocketNames.h"
 #include "TimerManager.h"
 #include "Game/HDGameMode.h"
 #include "Engine/World.h"
+
+namespace
+{
+    // 강하·증원 때 받는 수류탄 수(최대치)
+    constexpr float DefaultGrenadeCount = 4.f;
+    // 손에서 조준 방향보다 이만큼 위로 던진다(도)
+    constexpr float GrenadeThrowPitchOffset = 10.f;
+    constexpr float GrenadeThrowSpeed = 1800.f;
+}
 
 namespace HDCharacterPlayer
 {
@@ -73,6 +85,12 @@ void AHDCharacterPlayer::PossessedBy(AController* NewController)
 
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);
+
+    // 캐릭터 BP 의 Abilities 배열은 BP 값이 C++ 기본값을 덮으므로 투척 GA 는 여기서 준다. ASC 는 플레이어스테이트 것이라 증원 때 다시 주지 않는다
+    if (ASC->FindAbilitySpecFromClass(UHDGA_ThrowGrenade::StaticClass()) == nullptr)
+    {
+        ASC->GiveAbility(FGameplayAbilitySpec(UHDGA_ThrowGrenade::StaticClass()));
+    }
 
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Event_PlayerHUD_Initialize).AddUObject(this, &AHDCharacterPlayer::SpawnDefaultWeapon);
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Character_Action_HoldStratagem).AddUObject(this, &AHDCharacterPlayer::OnStratagemEventReceived, Tag_Character_Action_HoldStratagem.GetTag());
@@ -154,6 +172,8 @@ void AHDCharacterPlayer::EquipWeapon(AHDWeapon* NewWeapon)
     NULL_CHECK(ASC);
 
     Combat->EquipWeapon(NewWeapon, ASC);
+    // 수류탄을 든 채 지원 무기를 주우면 쓰는 칸이 Support 로 바뀐다. 태그가 남으면 사격·재장전이 막힌다
+    ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
     ApplyWeaponAttributes(Combat->GetWeapon());
 
     // HUD 가 이 이벤트로 크로스헤어 위젯을 만든다(AHDHUD::OnEquipWeaponUIEventRecieved)
@@ -210,6 +230,30 @@ void AHDCharacterPlayer::SelectWeaponSlot(const EHDWeaponSlot Slot)
         return;
     }
 
+    if (Slot == EHDWeaponSlot::Grenade)
+    {
+        const float GrenadeCount = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute());
+        if (GrenadeCount <= 0.f)
+        {
+            LogRefused(TEXT("no grenades"));
+            return;
+        }
+
+        Combat->SetGrenadeAvailable(true);
+        const EHDWeaponSelectResult GrenadeResult = Combat->SelectWeaponSlot(Slot, ASC);
+        if (GrenadeResult != EHDWeaponSelectResult::Selected)
+        {
+            LogRefused(GrenadeResult == EHDWeaponSelectResult::AlreadyActive ? TEXT("active") : TEXT("empty"));
+            return;
+        }
+
+        // 무기 Attribute 는 마지막 총 것으로 남긴다(돌아갈 때 그대로 쓴다)
+        ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 1);
+        UE_LOG(LogTemp, Display, TEXT("[HDWeapon] select Grenade -> grenades=%.0f/%.0f"),
+            GrenadeCount, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()));
+        return;
+    }
+
     const EHDWeaponSelectResult SelectResult = Combat->SelectWeaponSlot(Slot, ASC);
     if (SelectResult == EHDWeaponSelectResult::AlreadyActive)
     {
@@ -226,6 +270,8 @@ void AHDCharacterPlayer::SelectWeaponSlot(const EHDWeaponSlot Slot)
     const AHDWeapon* ActiveWeapon = Combat->GetWeapon();
     ApplyWeaponAttributes(ActiveWeapon);
     FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
+    // 수류탄을 들고 있었으면 총으로 돌아왔다
+    ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
 
     UE_LOG(LogTemp, Display, TEXT("[HDWeapon] select %s -> %s ammo=%.0f/%.0f capacity=%.0f"),
         GetWeaponSlotName(Slot),
@@ -247,13 +293,73 @@ bool AHDCharacterPlayer::IsWeaponActionActive() const
             continue;
         }
 
-        if (Spec.Ability->IsA<UHDGA_Fire>() || Spec.Ability->IsA<UHDGA_Reload>())
+        if (Spec.Ability->IsA<UHDGA_Fire>() || Spec.Ability->IsA<UHDGA_Reload>() || Spec.Ability->IsA<UHDGA_ThrowGrenade>())
         {
             return true;
         }
     }
 
     return false;
+}
+
+void AHDCharacterPlayer::LeaveGrenadeSlot(const TCHAR* Reason)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK(ASC);
+
+    const EHDWeaponSlot GunSlot = Combat->GetLastGunSlot();
+    Combat->SelectWeaponSlot(GunSlot, ASC);
+    ApplyWeaponAttributes(Combat->GetWeapon());
+    FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
+    ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] leave Grenade -> %s (%s)"), GetWeaponSlotName(GunSlot), Reason);
+}
+
+void AHDCharacterPlayer::ThrowGrenade()
+{
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK(ASC);
+
+    const FVector ThrowStart = GetMesh()->GetSocketLocation(HDSOCKETNAME_RIGRHTHAND);
+    const FVector& HitTarget = Combat->GetHitTarget();
+
+    FVector ThrowDirection = HitTarget.IsZero() ? FVector::ZeroVector : (HitTarget - ThrowStart).GetSafeNormal();
+    if (ThrowDirection.IsZero())
+    {
+        ThrowDirection = GetBaseAimRotation().Vector();
+    }
+
+    FRotator ThrowRotation = ThrowDirection.Rotation();
+    ThrowRotation.Pitch += GrenadeThrowPitchOffset;
+    const FVector ThrowVelocity = ThrowRotation.Vector() * GrenadeThrowSpeed;
+
+    // 회전 없이 만든다. ProjectileMovement 는 bInitialVelocityInLocalSpace 라 생성 회전으로 속도를 한 번 더 돌린다
+    const FTransform SpawnTransform(ThrowStart);
+    AHDProjectileGrenade* Grenade = World->SpawnActorDeferred<AHDProjectileGrenade>(AHDProjectileGrenade::StaticClass(), SpawnTransform, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    NULL_CHECK(Grenade);
+
+    Grenade->SetThrowVelocity(ThrowVelocity);
+    Grenade->FinishSpawning(SpawnTransform);
+
+    const float GrenadeCount = FMath::Max(ASC->GetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute()) - 1.f, 0.f);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), GrenadeCount);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDGrenade] thrown left=%.0f"), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute()));
+}
+
+void AHDCharacterPlayer::OnGrenadeThrowFinished()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK_WITHOUT_LOG(ASC);
+
+    if (ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute()) <= 0.f && Combat->IsGrenadeSlotActive())
+    {
+        LeaveGrenadeSlot(TEXT("empty"));
+    }
 }
 
 bool AHDCharacterPlayer::Resupply()
@@ -268,10 +374,11 @@ bool AHDCharacterPlayer::Resupply()
 
     const float OldAmmo     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute());
     const float OldCapacity = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute());
+    const float OldGrenade  = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute());
     const float MaxAmmo     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxAmmoAttribute());
     const float MaxCapacity = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxCapacityAttribute());
 
-    // EquipWeapon 과 같은 GE(BP 값 BPGE_EquipWeapon, SetByCaller 넷을 Override)에 지금 최대값을 넣는다. 수류탄은 채우지 않는다
+    // EquipWeapon 과 같은 GE(BP 값 BPGE_EquipWeapon, SetByCaller 넷을 Override)에 지금 최대값을 넣는다. 수류탄은 아래에서 MaxGrenade 로 채운다
     FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(WeaponAttributeSetEffect, 1.f, ASC->MakeEffectContext());
     CONDITION_CHECK_WITH_RETURNTYPE(SpecHandle.IsValid(), false);
 
@@ -282,9 +389,12 @@ bool AHDCharacterPlayer::Resupply()
 
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
-    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] resupply Ammo %.0f->%.0f Capacity %.0f->%.0f"),
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()));
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] resupply Ammo %.0f->%.0f Capacity %.0f->%.0f Grenade %.0f->%.0f"),
         OldAmmo, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute()),
-        OldCapacity, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()));
+        OldCapacity, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()),
+        OldGrenade, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute()));
     return true;
 }
 
@@ -446,6 +556,11 @@ void AHDCharacterPlayer::SpawnDefaultWeapon(const FGameplayEventData* Payload)
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);
     ASC->GenericGameplayEventCallbacks.Remove(Tag_Event_PlayerHUD_Initialize);
+
+    // 강하·증원마다 수류탄을 채운다. PreAttributeChange 가 Grenade 를 MaxGrenade 로 자르므로 Max 를 먼저 정한다
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxGrenadeAttribute(), DefaultGrenadeCount);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), DefaultGrenadeCount);
+    ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
 }
 
 void AHDCharacterPlayer::SetShouldering(const bool bShoulder)
@@ -551,24 +666,45 @@ void AHDCharacterPlayer::OnStratagemEventReceived(const FGameplayEventData* Payl
     }
     else if (EventTag == Tag_Character_Action_DetachStratagem)
     {
+        UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+        NULL_CHECK(ASC);
+
+        // 수류탄 투척(UHDGA_ThrowGrenade)도 같은 AM_Throw 라 이 이벤트가 온다. 스트라타젬을 들고 있을 때만 처리한다
+        if (ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) == false)
+        {
+            return;
+        }
+
         Stratagem->ThrowFinished();
 
         // 손을 떠났으므로 든 상태를 푼다. 사격은 투척 GA 가 끝날 때까지 그 GA 의 Block.Fire 로 막혀 있다
-        UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-        NULL_CHECK(ASC);
         ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
     }
     else if (EventTag == Tag_Character_Action_ThrowEnd)
     {
+        // 수류탄을 든 채면 총을 보이지 않는다
+        const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+        if (ASC && ASC->HasMatchingGameplayTag(Tag_Character_State_GrenadeReady))
+        {
+            return;
+        }
+
         SetWeaponActive(true);
     }
 }
 
 void AHDCharacterPlayer::TryHoldStratagem()
-{   
+{
     const bool CanHoldStrategem = Stratagem->IsSelectedStratagemExist();
     if (CanHoldStrategem)
     {
+        // 수류탄을 든 채면 먼저 총으로 돌아간다. 아래에서 총을 숨기고, 던진 뒤 ThrowEnd 가 다시 보인다
+        const UAbilitySystemComponent* GrenadeCheckASC = GetAbilitySystemComponent();
+        if (GrenadeCheckASC && GrenadeCheckASC->HasMatchingGameplayTag(Tag_Character_State_GrenadeReady))
+        {
+            LeaveGrenadeSlot(TEXT("stratagem"));
+        }
+
         Stratagem->HoldStratagem(GetMesh(), Combat->GetHitTarget());
         SetWeaponActive(false);
         UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
@@ -615,6 +751,8 @@ void AHDCharacterPlayer::SetDead()
     if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
     {
         ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
+        // 수류탄을 든 상태도 푼다(같은 이유로 증원 뒤에도 남는다)
+        ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
     }
 
     APlayerController* PlayerController = GetController<APlayerController>();

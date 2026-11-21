@@ -35,8 +35,12 @@ public:
     void                                    EquipWeapon(AHDWeapon* NewWeapon, UAbilitySystemComponent* ASC);
     // NewWeapon 을 그 종류의 칸에 넣되 쓰지 않는다(손에 붙인 채 숨김). 같은 칸에 있던 무기는 앞에 버린다. 쓰는 무기와 조준 값은 그대로
     void                                    StowWeapon(AHDWeapon* NewWeapon);
-    // Slot 의 무기로 바꾼다. Selected 가 아니면 아무것도 바꾸지 않는다. 쓰던 무기의 탄약은 ASC 의 지금 값으로 적어 둔다
+    // Slot 의 무기로 바꾼다. Selected 가 아니면 아무것도 바꾸지 않는다. 쓰던 무기의 탄약은 ASC 의 지금 값으로 적어 둔다.
+    // Grenade 면 쓰던 총을 숨기기만 하고 Weapon 은 마지막 총으로 남긴다
     EHDWeaponSelectResult                   SelectWeaponSlot(const EHDWeaponSlot Slot, UAbilitySystemComponent* ASC);
+    // 수류탄 칸을 고를 수 있는지(FHDWeaponSlots 에 넘긴다)
+    void                                    SetGrenadeAvailable(const bool bAvailable);
+    bool                                    IsGrenadeSlotActive() const;
     EHDWeaponSlot                           GetActiveWeaponSlot() const;
     EHDWeaponSlot                           GetLastGunSlot() const;
     // 총 칸의 무기(비어 있는 칸은 뺀다)
@@ -91,7 +95,7 @@ private:
     TObjectPtr<AHDWeapon>*                  GetSlotWeapon(const EHDWeaponSlot Slot);
     // NewWeapon 을 칸에 넣고(같은 칸의 옛 무기는 버린다) 손 소켓에 붙인다. 보이기·쓰는 무기는 부르는 쪽이 정한다
     bool                                    PutWeaponInSlot(AHDWeapon* NewWeapon, const bool bMakeActive);
-    // 쓰는 칸의 무기를 보이고 쓰는 무기로 둔다. 쓰던 무기는 탄약을 적어 두고 숨긴다
+    // 쓰는 칸의 무기를 보이고 쓰는 무기로 둔다. 쓰던 무기는 탄약을 적어 두고 숨긴다(수류탄에서 같은 총으로 돌아오면 적지 않는다)
     void                                    ActivateSlotWeapon(UAbilitySystemComponent* ASC);
 
     UFUNCTION()

@@ -7,6 +7,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/GameplayAbilityHelper.h"
 #include "Attribute/HDHealthAttributeSet.h"
+#include "Attribute/HDWeaponAttributeSet.h"
 #include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Character/NPC/HDEnemyCharger.h"
 #include "Character/NPC/HDEnemyShooter.h"
@@ -507,6 +508,24 @@ void UHDCheatManager::HDSelectWeapon(int32 SlotNumber)
 
     // 1~4 는 EHDWeaponSlot 의 Primary~Grenade 순서다
     PlayerCharacter->SelectWeaponSlot(static_cast<EHDWeaponSlot>(SlotNumber - 1));
+}
+
+void UHDCheatManager::HDSetGrenades(int32 Count)
+{
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* Pawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(Pawn);
+    if (ASC == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDGrenade] No player pawn or ability system component"));
+        return;
+    }
+
+    const int32 MaxGrenade = FMath::RoundToInt32(ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()));
+    const int32 NewCount = FMath::Clamp(Count, 0, MaxGrenade);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), static_cast<float>(NewCount));
+
+    UE_LOG(LogTemp, Display, TEXT("[HDGrenade] set %d/%d"), NewCount, MaxGrenade);
 }
 
 void UHDCheatManager::HDSimulateKeys(const FString& Sequence)

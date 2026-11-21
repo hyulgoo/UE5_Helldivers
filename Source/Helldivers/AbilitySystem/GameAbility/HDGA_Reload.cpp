@@ -15,6 +15,9 @@ bool UHDGA_Reload::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
     NULL_CHECK_WITH_RETURNTYPE(ASC, false);
 
+    // 수류탄을 든 동안에는 재장전하지 않는다
+    CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(ASC->HasMatchingGameplayTag(Tag_Character_State_GrenadeReady) == false, false);
+
     const UHDWeaponAttributeSet* WeaponAttributeSet = ASC->GetSet<UHDWeaponAttributeSet>();
     NULL_CHECK_WITH_RETURNTYPE(WeaponAttributeSet, false);
 

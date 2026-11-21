@@ -324,8 +324,8 @@ bool UHDCombatComponent::PutWeaponInSlot(AHDWeapon* NewWeapon, const bool bMakeA
 
 EHDWeaponSelectResult UHDCombatComponent::SelectWeaponSlot(const EHDWeaponSlot Slot, UAbilitySystemComponent* ASC)
 {
-    // 무기 액터가 없을 때 되돌리려고 기억해 둔다
-    const EHDWeaponSlot PreviousSlot = WeaponSlots.GetActiveSlot();
+    // 무기 액터가 없을 때 되돌리려고 칸 상태 전체를 복사해 둔다(쓰는 칸과 LastGunSlot 을 함께 되돌린다)
+    const FHDWeaponSlots PreviousSlots = WeaponSlots;
 
     const EHDWeaponSelectResult SelectResult = WeaponSlots.Select(Slot);
     if (SelectResult != EHDWeaponSelectResult::Selected)
@@ -333,16 +333,39 @@ EHDWeaponSelectResult UHDCombatComponent::SelectWeaponSlot(const EHDWeaponSlot S
         return SelectResult;
     }
 
+    // 수류탄 칸에는 무기 액터가 없다. 쓰던 총은 탄약을 적어 두고 숨기되 Weapon 은 그대로 둔다(여러 getter 가 Weapon 을 본다)
+    if (Slot == EHDWeaponSlot::Grenade)
+    {
+        if (IsValid(Weapon))
+        {
+            Weapon->AmmoData = HDWeaponAmmo::ReadFromAttributes(ASC);
+            HDCombatWeaponSlot::SetWeaponShown(Weapon, false);
+        }
+
+        bIsEquipped = false;
+        return EHDWeaponSelectResult::Selected;
+    }
+
     TObjectPtr<AHDWeapon>* SlotWeapon = GetSlotWeapon(Slot);
     if (SlotWeapon == nullptr || IsValid(*SlotWeapon) == false)
     {
-        // 칸은 찼다고 하는데 무기 액터가 없다. 쓰는 칸을 되돌린다
-        WeaponSlots.Select(PreviousSlot);
+        // 칸은 찼다고 하는데 무기 액터가 없다. 칸 상태를 되돌린다
+        WeaponSlots = PreviousSlots;
         return EHDWeaponSelectResult::Empty;
     }
 
     ActivateSlotWeapon(ASC);
     return EHDWeaponSelectResult::Selected;
+}
+
+void UHDCombatComponent::SetGrenadeAvailable(const bool bAvailable)
+{
+    WeaponSlots.SetGrenadeAvailable(bAvailable);
+}
+
+bool UHDCombatComponent::IsGrenadeSlotActive() const
+{
+    return WeaponSlots.GetActiveSlot() == EHDWeaponSlot::Grenade;
 }
 
 void UHDCombatComponent::ActivateSlotWeapon(UAbilitySystemComponent* ASC)
@@ -353,10 +376,15 @@ void UHDCombatComponent::ActivateSlotWeapon(UAbilitySystemComponent* ASC)
     NULL_CHECK(SlotWeapon);
     VALID_CHECK(*SlotWeapon);
 
+    // 수류탄에서 같은 총으로 돌아와도 탄약은 다시 적는다. 수류탄을 든 동안 Attribute 는 마지막 총의 값이고, 그 사이 받은 보급이 여기 남아 있다
     if (IsValid(Weapon))
     {
         Weapon->AmmoData = HDWeaponAmmo::ReadFromAttributes(ASC);
-        SetWeaponShown(Weapon, false);
+
+        if (Weapon != *SlotWeapon)
+        {
+            SetWeaponShown(Weapon, false);
+        }
     }
 
     Weapon = *SlotWeapon;
