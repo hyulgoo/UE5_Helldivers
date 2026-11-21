@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Character/HDCharacterBase.h"
 #include "Character/NPC/HDEnemyTypes.h"
+#include "Weapon/HDArmorRules.h"
 #include "HDCharacterNonPlayer.generated.h"
 
 class AHDCharacterNonPlayer;
@@ -23,6 +24,9 @@ public:
     const FHDEnemyStats&                    GetEnemyStats() const { return Stats; }
     bool                                    IsDead() const { return bIsDead; }
 
+    // 부위별 장갑 등급과 피해 배율. 투사체가 맞을 때 읽는다(HDArmor::ResolveHit)
+    const FHDArmorProfile&                  GetArmorProfile() const { return ArmorProfile; }
+
 protected:
     virtual void                            BeginPlay() override final;
     virtual void                            SetDead() override final;
@@ -34,6 +38,10 @@ public:
 protected:
     UPROPERTY(EditDefaultsOnly, Category = "Enemy")
     FHDEnemyStats                           Stats;
+
+    // 기본: 장갑 0, 머리만 2배(생성자). 자식이 생성자에서 바꾼다
+    UPROPERTY(EditDefaultsOnly, Category = "Enemy")
+    FHDArmorProfile                         ArmorProfile;
 
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<USkeletalMeshComponent>      EnemyWeaponMesh;

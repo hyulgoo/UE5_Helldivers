@@ -31,6 +31,12 @@ public:
     // 같은 투사체 BP 를 쓰되 쏘는 쪽에 따라 충돌 피해만 바꿀 때(예: 원거리형 적)
     void                                        SetImpactDamage(const float NewImpactDamage) { ImpactDamage = NewImpactDamage; }
 
+    // 관통 등급(HDArmor). 0 을 넣으면 자동으로 돌아간다. 판정은 맞을 때 읽으므로 BeginPlay 뒤에 불러도 된다
+    void                                        SetArmorPenetration(const int32 NewArmorPenetration) { ArmorPenetration = NewArmorPenetration; }
+
+    // ArmorPenetration 이 0 이하면 자동: 폭발(EImpactType::Explode) 4, 그 밖 2. 결과는 1 이상
+    int32                                       GetEffectiveArmorPenetration() const;
+
 protected:
 	virtual void	                            BeginPlay() override;
 	
@@ -71,6 +77,10 @@ protected:
     
     UPROPERTY(EditDefaultsOnly, Category = "Info|Default")
     float                                       ImpactDamage;
+
+    // 관통 등급. 0 = 자동(GetEffectiveArmorPenetration)
+    UPROPERTY(EditDefaultsOnly, Category = "Info|Default")
+    int32                                       ArmorPenetration = 0;
 
     UPROPERTY(EditDefaultsOnly, Category = "Info|Default")
     FGameplayTag                                ImpactBlocklCueTag;

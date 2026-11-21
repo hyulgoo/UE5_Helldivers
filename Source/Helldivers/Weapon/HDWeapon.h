@@ -87,6 +87,10 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Weapon|Default")
     FHDWeaponUIData                     UIData;
 
+    // 쏘는 탄의 관통 등급(HDArmor). SpawnProjectile 이 탄에 넘긴다
+    UPROPERTY(EditDefaultsOnly, Category = "Weapon|Default")
+    int32                               ArmorPenetration = 2;
+
     EWeaponState                        WeaponState = EWeaponState::Drop;
 
 private:

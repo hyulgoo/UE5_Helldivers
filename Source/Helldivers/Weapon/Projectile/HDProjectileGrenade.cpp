@@ -42,6 +42,7 @@ AHDProjectileGrenade::AHDProjectileGrenade(const FObjectInitializer& ObjectIniti
     KnockbackTag            = Tag_Data_Knockback_Ragdoll;
     KnockbackImpulse        = 6000.f;
     ImpactHitCueTag         = Tag_GameplayCue_Explode_BombLight;
+    ArmorPenetration        = 3;
 
     static ConstructorHelpers::FClassFinder<UGameplayEffect> DamageEffectClassRef(TEXT("/Game/Helldivers/Blueprint/GameAbility/Effect/BPGE_Damage"));
     if (DamageEffectClassRef.Succeeded())

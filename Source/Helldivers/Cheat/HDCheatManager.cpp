@@ -27,6 +27,7 @@
 #include "UI/HDHUD.h"
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Weapon/HDSupportWeapon.h"
+#include "Weapon/Projectile/HDProjectileBase.h"
 #include "Controller/HDPlayerController.h"
 #include "Controller/HDDirectKeyRules.h"
 
@@ -599,4 +600,82 @@ void UHDCheatManager::HDStopMontage()
 
     // Montage_Stop 은 끊김(bInterrupted)으로 끝낸다
     AnimInstance->Montage_Stop(0.f);
+}
+
+void UHDCheatManager::HDShootEnemy(const FString& BoneName, int32 Penetration)
+{
+    constexpr float MuzzleForwardOffset = 150.f;
+
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UWorld* World = GetWorld();
+    if (PlayerPawn == nullptr || World == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat: no player pawn"));
+        return;
+    }
+
+    // 살아 있는 가장 가까운 적
+    const FVector EyeLocation = PlayerPawn->GetPawnViewLocation();
+    AHDCharacterNonPlayer* NearestEnemy = nullptr;
+    double NearestDistanceSquared = TNumericLimits<double>::Max();
+    for (TActorIterator<AHDCharacterNonPlayer> It(World); It; ++It)
+    {
+        AHDCharacterNonPlayer* Enemy = *It;
+        if (IsValid(Enemy) == false || Enemy->IsDead())
+        {
+            continue;
+        }
+
+        const double DistanceSquared = FVector::DistSquared(EyeLocation, Enemy->GetActorLocation());
+        if (DistanceSquared < NearestDistanceSquared)
+        {
+            NearestEnemy = Enemy;
+            NearestDistanceSquared = DistanceSquared;
+        }
+    }
+
+    if (NearestEnemy == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat: no living enemy"));
+        return;
+    }
+
+    const FName TargetBoneName(*BoneName);
+    const USkeletalMeshComponent* EnemyMesh = NearestEnemy->GetMesh();
+    if (EnemyMesh == nullptr || EnemyMesh->GetBoneIndex(TargetBoneName) == INDEX_NONE)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat: %s has no bone '%s'"), *NearestEnemy->GetName(), *BoneName);
+        return;
+    }
+
+    UClass* BulletClass = LoadClass<AHDProjectileBase>(nullptr, TEXT("/Game/Helldivers/Blueprint/Projectile/BPP_Bullet_Light.BPP_Bullet_Light_C"));
+    if (BulletClass == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat: failed to load BPP_Bullet_Light"));
+        return;
+    }
+
+    const FVector ToBone = (EnemyMesh->GetBoneLocation(TargetBoneName) - EyeLocation).GetSafeNormal();
+    const FVector SpawnLocation = EyeLocation + ToBone * MuzzleForwardOffset;
+
+    // 소유자의 ASC 로 피해 GE 를 걸고, Instigator 를 넘겨야 탄이 쏜 캐릭터를 무시한다(AHDWeapon::SpawnProjectile 과 같다)
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = PlayerPawn;
+    SpawnParams.Instigator = PlayerPawn;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    AHDProjectileBase* Bullet = World->SpawnActor<AHDProjectileBase>(BulletClass, SpawnLocation, ToBone.Rotation(), SpawnParams);
+    if (Bullet == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat: failed to spawn bullet"));
+        return;
+    }
+
+    if (Penetration > 0)
+    {
+        Bullet->SetArmorPenetration(Penetration);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat shot at %s bone=%s pen=%d"), *NearestEnemy->GetName(), *BoneName, Bullet->GetEffectiveArmorPenetration());
 }

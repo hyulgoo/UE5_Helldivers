@@ -93,4 +93,9 @@ public:
     // 플레이어 폰의 몸 몽타주를 끊는다(검증용, GA 가 끊김을 처리하는지 본다). 무기 메시의 몽타주는 건드리지 않는다
     UFUNCTION(Exec)
     void        HDStopMontage();
+
+    // 살아 있는 가장 가까운 적의 BoneName 본을 겨눠 플레이어 눈앞 150 에서 BPP_Bullet_Light 한 발을 쏜다(소유자 = 플레이어 폰).
+    // Penetration 이 0 이면 탄의 자동 관통 등급(2), 1 이상이면 그 값. 판정은 로그 [HDArmor] hit 줄로 본다
+    UFUNCTION(Exec)
+    void        HDShootEnemy(const FString& BoneName = TEXT("spine_03"), int32 Penetration = 0);
 };

@@ -28,6 +28,9 @@ AHDCharacterNonPlayer::AHDCharacterNonPlayer(const FObjectInitializer& ObjectIni
     EnemyWeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("EnemyWeaponMesh"));
     EnemyWeaponMesh->SetupAttachment(GetMesh(), HDSOCKETNAME_RIGRHTHAND);
     EnemyWeaponMesh->SetCollisionProfileName(HDCOLLISION_PROFILE_NOCOLLISION);
+
+    // Armor: 모든 적은 머리가 약점이다. 장갑 등급은 자식이 정한다
+    ArmorProfile.HeadDamageMultiplier = 2.f;
 }
 
 void AHDCharacterNonPlayer::BeginPlay()

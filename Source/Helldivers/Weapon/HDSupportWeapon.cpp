@@ -54,4 +54,7 @@ AHDSupportWeapon::AHDSupportWeapon(const FObjectInitializer& ObjectInitializer)
     ErgoData.ZoomedFOV          = 25.f;
     ErgoData.ZoomInterpSpeed    = 10.f;
     ErgoData.ErgonomicFactor    = 5.f;
+
+    // BP_Rifle 은 2
+    ArmorPenetration = 4;
 }

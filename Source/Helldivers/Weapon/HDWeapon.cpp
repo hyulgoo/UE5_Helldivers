@@ -90,6 +90,9 @@ void AHDWeapon::SpawnProjectile(const FVector& HitTarget)
     AHDProjectileBase* SpawnedProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform, SpawnParams);
     NULL_CHECK(SpawnedProjectile);
 
+    // 판정은 맞을 때 읽으므로 BeginPlay 뒤에 넣어도 된다
+    SpawnedProjectile->SetArmorPenetration(ArmorPenetration);
+
     const FTransform& EjectSocketTransform = WeaponMesh->GetSocketTransform(HDSOCKETNAME_AMMOEJECT);
     CONDITION_CHECK(EjectSocketTransform.IsValid());
 

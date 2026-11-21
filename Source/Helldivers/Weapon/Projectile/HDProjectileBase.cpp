@@ -12,6 +12,8 @@
 #include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Mission/HDObjectiveFacility.h"
 #include "Weapon/WeaponTypes.h"
+#include "Weapon/HDArmorRules.h"
+#include "Attribute/HDHealthAttributeSet.h"
 
 AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer) 
@@ -55,6 +57,19 @@ bool AHDProjectileBase::CanApplyImpactDamage(const AActor* OwnerActor, const AAc
     return true;
 }
 
+int32 AHDProjectileBase::GetEffectiveArmorPenetration() const
+{
+    constexpr int32 AutoBulletPenetration   = 2;
+    constexpr int32 AutoExplodePenetration  = 4;
+
+    if (ArmorPenetration > 0)
+    {
+        return ArmorPenetration;
+    }
+
+    return ImpactType == EImpactType::Explode ? AutoExplodePenetration : AutoBulletPenetration;
+}
+
 void AHDProjectileBase::BeginPlay()
 {
 	Super::BeginPlay();
@@ -86,12 +101,39 @@ void AHDProjectileBase::OnBoxHit(UPrimitiveComponent* HitComp, AActor* OtherActo
 	{
         // 적이 쏜 탄은 시설을 다치게 하지 않는다(막힘 큐와 Destroy 는 그대로)
         UAbilitySystemComponent* TargetASC = CanApplyImpactDamage(OwnerActor, OtherActor) ? FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(OtherActor) : nullptr;
+        bool bDamaged = false;
 		if (TargetASC)
 		{
-			ApplyDamageGameEffect(OwnerASC, TargetASC, ImpactDamage);
+            // 장갑 표는 적만 갖는다. 그 밖(플레이어·시설·포탑)은 기본 표라 피해가 ImpactDamage 그대로다
+            const AHDCharacterNonPlayer* TargetEnemy = Cast<AHDCharacterNonPlayer>(OtherActor);
+            const FHDArmorProfile ArmorProfile = TargetEnemy ? TargetEnemy->GetArmorProfile() : FHDArmorProfile();
+
+            // 투사체는 속도 방향으로 돈다(bRotationFollowsVelocity). 정면이면 1, 비스듬할수록 0 에 가깝다
+            const float CosIncidence = FVector::DotProduct(-GetActorForwardVector(), Hit.ImpactNormal);
+            const FHDHitResolution Resolution = HDArmor::ResolveHit(ArmorProfile, Hit.BoneName, HDArmor::ApplyIncidence(GetEffectiveArmorPenetration(), CosIncidence), ImpactDamage);
+
+            // 도탄이면 피해 GE 를 걸지 않는다(상태 효과도 ApplyDamageGameEffect 안에 있어 함께 빠진다)
+            bDamaged = Resolution.Outcome != EHDHitOutcome::Ricochet;
+            if (bDamaged)
+            {
+                ApplyDamageGameEffect(OwnerASC, TargetASC, Resolution.Damage);
+            }
+
+            if (TargetEnemy)
+            {
+                UE_LOG(LogTemp, Display, TEXT("[HDArmor] hit %s bone=%s zone=%s pen=%d armor=%d -> %s damage=%.1f health=%.0f"),
+                    *TargetEnemy->GetName(),
+                    *Hit.BoneName.ToString(),
+                    HDArmor::GetZoneName(Resolution.Zone),
+                    Resolution.Penetration,
+                    Resolution.Armor,
+                    HDArmor::GetOutcomeName(Resolution.Outcome),
+                    Resolution.Damage,
+                    TargetASC->GetNumericAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute()));
+            }
 		}
 
-        FGameplayAbilityHelper::ExcuteGameplayCue(TargetASC ? ImpactHitCueTag : ImpactBlocklCueTag, Hit.ImpactPoint, Hit.ImpactNormal, OwnerASC);
+        FGameplayAbilityHelper::ExcuteGameplayCue(bDamaged ? ImpactHitCueTag : ImpactBlocklCueTag, Hit.ImpactPoint, Hit.ImpactNormal, OwnerASC);
 	}
 
 	Destroy();
@@ -192,7 +234,25 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 		if (Distance <= ExplodeDamageRange)
 		{
 			const float Damage = ImpactDamage * (1.f - (Distance / ExplodeDamageRange));
-			ApplyDamageGameEffect(SourceASC, TargetASC, Damage);
+
+            // 폭발은 몸통 장갑으로 판정한다. 도탄이면 피해 없이 아래 넉백만 간다
+            const AHDCharacterNonPlayer* TargetEnemy = Cast<AHDCharacterNonPlayer>(Target);
+            const FHDHitResolution Resolution = HDArmor::ResolveExplosion(TargetEnemy ? TargetEnemy->GetArmorProfile() : FHDArmorProfile(), GetEffectiveArmorPenetration(), Damage);
+            if (Resolution.Outcome != EHDHitOutcome::Ricochet)
+            {
+                ApplyDamageGameEffect(SourceASC, TargetASC, Resolution.Damage);
+            }
+
+            if (TargetEnemy)
+            {
+                UE_LOG(LogTemp, Display, TEXT("[HDArmor] explosion %s pen=%d armor=%d -> %s damage=%.1f"),
+                    *TargetEnemy->GetName(),
+                    Resolution.Penetration,
+                    Resolution.Armor,
+                    HDArmor::GetOutcomeName(Resolution.Outcome),
+                    Resolution.Damage);
+            }
+
 			UE_LOG(LogTemp, Error, TEXT("Distance : %f, ExplodeDamageRange : %f, ImpactDamage : %f"), Damage, ExplodeDamageRange, ImpactDamage);
 		}
 

@@ -22,6 +22,9 @@ AHDEnemyShooter::AHDEnemyShooter(const FObjectInitializer& ObjectInitializer)
     Stats.BurstInterval     = 0.15f;
     Stats.AimSpreadDegrees  = 3.f;
 
+    // Armor: 몸통만 1(권총과 같은 등급). 머리·팔다리는 0
+    ArmorProfile.BodyArmor  = 1;
+
     // Mesh
     USkeletalMeshComponent* SkeletalMeshComponent = GetMesh();
     static ConstructorHelpers::FObjectFinder<USkeletalMesh> CharacterMeshRef(TEXT("/Script/Engine.SkeletalMesh'/Game/Asset/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));

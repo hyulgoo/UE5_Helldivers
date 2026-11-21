@@ -54,4 +54,7 @@ AHDSecondaryWeapon::AHDSecondaryWeapon(const FObjectInitializer& ObjectInitializ
     ErgoData.ZoomedFOV          = 40.f;
     ErgoData.ZoomInterpSpeed    = 12.f;
     ErgoData.ErgonomicFactor    = 3.f;
+
+    // BP_Rifle 은 2
+    ArmorPenetration = 1;
 }
