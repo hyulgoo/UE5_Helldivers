@@ -30,6 +30,9 @@ private:
     UFUNCTION()
     void                            OnMontageFinished(FGameplayEventData Payload);
 
+    UFUNCTION()
+    void                            OnMontageInterrupted(FGameplayEventData Payload);
+
 private:
     UPROPERTY()
     TObjectPtr<UAnimMontage>        ThrowMontage;

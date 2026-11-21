@@ -2,6 +2,10 @@
 
 #include "Cheat/HDCheatManager.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/Character.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "AbilitySystemComponent.h"
@@ -546,4 +550,22 @@ void UHDCheatManager::HDSimulateKeys(const FString& Sequence)
     }
 
     PlayerController->SimulateKeyFrames(MoveTemp(Frames));
+}
+
+void UHDCheatManager::HDStopMontage()
+{
+    APlayerController* PlayerController = GetPlayerController();
+    const ACharacter* PlayerCharacter = PlayerController ? Cast<ACharacter>(PlayerController->GetPawn()) : nullptr;
+    UAnimInstance* AnimInstance = (PlayerCharacter && PlayerCharacter->GetMesh()) ? PlayerCharacter->GetMesh()->GetAnimInstance() : nullptr;
+    if (AnimInstance == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDCheat] No player pawn or anim instance"));
+        return;
+    }
+
+    const UAnimMontage* CurrentMontage = AnimInstance->GetCurrentActiveMontage();
+    UE_LOG(LogTemp, Display, TEXT("[HDCheat] stop montage %s"), *GetNameSafe(CurrentMontage));
+
+    // Montage_Stop 은 끊김(bInterrupted)으로 끝낸다
+    AnimInstance->Montage_Stop(0.f);
 }

@@ -140,7 +140,7 @@ bool FHDWeaponSlotsTest::RunTest(const FString& Parameters)
             && Slots.GetActiveSlot() == EHDWeaponSlot::Secondary && Slots.GetLastGunSlot() == EHDWeaponSlot::Secondary);
     }
 
-    TestTrue(TEXT("Slot names"),FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Primary), TEXT("Primary")) == 0
+    TestTrue(TEXT("Slot names"), FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Primary), TEXT("Primary")) == 0
         && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Secondary), TEXT("Secondary")) == 0
         && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Support), TEXT("Support")) == 0
         && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Grenade), TEXT("Grenade")) == 0);

@@ -108,9 +108,13 @@ void UHDAT_PlayMontageAndWaitForEvent::OnDestroy(bool AbilityEnded)
 
 void UHDAT_PlayMontageAndWaitForEvent::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-    if (!bInterrupted)
+    if (ShouldBroadcastAbilityTaskDelegates())
     {
-        if (ShouldBroadcastAbilityTaskDelegates())
+        if (bInterrupted)
+        {
+            OnInterrupted.Broadcast(FGameplayEventData());
+        }
+        else
         {
             OnCompleted.Broadcast(FGameplayEventData());
         }

@@ -47,7 +47,7 @@ void UHDGA_ThrowGrenade::ActivateAbility(const FGameplayAbilitySpecHandle Handle
         return;
     }
 
-    // AM_Throw 는 0.427초에 DetachStratagem 을 한 번 보낸다. 끝까지 재생되면 OnCompleted 로 끝낸다.
+    // AM_Throw 는 0.427초에 DetachStratagem 을 한 번 보낸다. 끝까지 재생되면 OnCompleted 로 끝낸다. 끊기면 OnInterrupted 로 끝낸다.
     // OnlyTriggerOnce 를 켜면 이벤트 직후 태스크가 지워져 OnCompleted 가 오지 않으므로 끈다.
     // 노티파이(Send Gameplay Event to Actor)는 Payload->EventTag 를 채우지 않아 OnlyMatchExact 경로는 이벤트를 버린다. 태그 컨테이너 경로를 쓴다
     UHDAT_PlayMontageAndWaitForEvent* PlayMontageAndWaitEventTask = UHDAT_PlayMontageAndWaitForEvent::PlayMontageAndWaitEvent(
@@ -63,6 +63,7 @@ void UHDGA_ThrowGrenade::ActivateAbility(const FGameplayAbilitySpecHandle Handle
 
     PlayMontageAndWaitEventTask->OnEventReceived.AddDynamic(this, &UHDGA_ThrowGrenade::OnDetach);
     PlayMontageAndWaitEventTask->OnCompleted.AddDynamic(this, &UHDGA_ThrowGrenade::OnMontageFinished);
+    PlayMontageAndWaitEventTask->OnInterrupted.AddDynamic(this, &UHDGA_ThrowGrenade::OnMontageInterrupted);
     PlayMontageAndWaitEventTask->ReadyForActivation();
 }
 
@@ -100,5 +101,14 @@ void UHDGA_ThrowGrenade::OnMontageFinished(FGameplayEventData Payload)
 {
     const bool bReplicateEndAbility = true;
     const bool bWasCancelled = false;
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void UHDGA_ThrowGrenade::OnMontageInterrupted(FGameplayEventData Payload)
+{
+    UE_LOG(LogTemp, Display, TEXT("[HDGrenade] throw interrupted"));
+
+    const bool bReplicateEndAbility = true;
+    const bool bWasCancelled = true;
     EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

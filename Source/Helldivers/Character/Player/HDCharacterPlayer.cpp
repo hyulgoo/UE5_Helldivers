@@ -5,7 +5,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "AbilitySystemComponent.h"
-#include "EnhancedInputSubsystems.h"
 #include "Component/HDCombatComponent.h"
 #include "Component/HDMovementStateComponent.h"
 #include "Component/HDStratagemComponent.h"
@@ -356,6 +355,12 @@ void AHDCharacterPlayer::OnGrenadeThrowFinished()
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK_WITHOUT_LOG(ASC);
 
+    // 죽는 순간 투척 GA 가 끝나도(몽타주 끊김) 시체가 총을 다시 꺼내지 않는다
+    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead))
+    {
+        return;
+    }
+
     if (ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute()) <= 0.f && Combat->IsGrenadeSlotActive())
     {
         LeaveGrenadeSlot(TEXT("empty"));
@@ -613,7 +618,13 @@ void AHDCharacterPlayer::UpdateSpeed(const EHDCharacterStanceState StanceState, 
     }
 
     CONDITION_CHECK(Attribute.IsValid());
-    float Speed = GetAbilitySystemComponent()->GetNumericAttribute(Attribute);
+
+    // PIE 종료·맵 이동 때 플레이어스테이트 ASC 가 사라지면서 켜져 있던 엎드리기·앉기·달리기 GA 를 취소하고,
+    // 그 EndAbility 가 ASC 가 이미 빈 캐릭터의 이 함수를 부른다
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK_WITHOUT_LOG(ASC);
+
+    float Speed = ASC->GetNumericAttribute(Attribute);
     if (bSprint && StanceState == EHDCharacterStanceState::Crouch)
     {
         Speed *= 1.5f;

@@ -37,6 +37,10 @@ public:
 	UPROPERTY(BlueprintAssignable)
     FPlayMontageAndWaitGameplayEventDelegate	OnEventReceived;
 
+    // 몽타주가 끝까지 가지 못하고 끊겼을 때 온다(다른 몽타주 재생, Montage_Stop). OnCompleted 와 둘 중 하나만 온다
+	UPROPERTY(BlueprintAssignable)
+    FPlayMontageAndWaitGameplayEventDelegate	OnInterrupted;
+
 protected:
     FDelegateHandle                             EventHandle;
     FOnMontageEnded                             MontageEndedDelegate;

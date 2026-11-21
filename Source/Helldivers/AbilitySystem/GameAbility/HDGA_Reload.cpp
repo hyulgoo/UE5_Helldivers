@@ -7,6 +7,14 @@
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
 #include "Attribute/HDWeaponAttributeSet.h"
 #include "Define/HDMontageSectionNames.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
+
+namespace
+{
+    // 몸 몽타주가 끝난 뒤 Event.Reload 를 더 기다리는 시간(초). 소총 엎드려 재장전은 약 0.5초 뒤에 온다
+    constexpr float ReloadEventGraceTime = 2.f;
+}
 
 bool UHDGA_Reload::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags /*= nullptr*/, const FGameplayTagContainer* TargetTags /*= nullptr*/, OUT FGameplayTagContainer* OptionalRelevantTags /*= nullptr*/) const
 {
@@ -28,13 +36,25 @@ void UHDGA_Reload::ActivateAbility(const FGameplayAbilitySpecHandle Handle, cons
 {
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
+    const bool bReplicateEndAbility = true;
+    const bool bWasCancelled = true;
+
+    // NULL_CHECK 는 return 만 해서 어빌리티가 끝나지 않으므로 직접 끝낸다
     TScriptInterface<IHDWeaponInterface> WeaponInterface = ActorInfo->AvatarActor.Get();
-    NULL_CHECK(WeaponInterface);
+    if (WeaponInterface == nullptr)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+        return;
+    }
 
     WeaponInterface->PlayWeaponMontage(EHDCombatMontage::Reload);
 
     UAnimMontage* CombatMontage = WeaponInterface->GetCombatMontage(EHDCombatMontage::Reload);
-    NULL_CHECK(CombatMontage);
+    if (CombatMontage == nullptr)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+        return;
+    }
 
     UHDAT_PlayMontageAndWaitForEvent* PlayMontageAndWaitEventTask = UHDAT_PlayMontageAndWaitForEvent::PlayMontageAndWaitEvent(
         this,
@@ -42,7 +62,10 @@ void UHDGA_Reload::ActivateAbility(const FGameplayAbilitySpecHandle Handle, cons
         FGameplayTagContainer(Tag_Event_Reload)
     );
 
+    // Event.Reload 가 오면 탄약을 채우고 끝낸다. 몸 몽타주가 먼저 끝나면 이벤트를 따로 더 기다리고, 끊기면 채우지 않고 끝낸다
     PlayMontageAndWaitEventTask->OnEventReceived.AddDynamic(this, &UHDGA_Reload::OnEventRecieved);
+    PlayMontageAndWaitEventTask->OnCompleted.AddDynamic(this, &UHDGA_Reload::OnBodyMontageCompleted);
+    PlayMontageAndWaitEventTask->OnInterrupted.AddDynamic(this, &UHDGA_Reload::OnBodyMontageInterrupted);
     PlayMontageAndWaitEventTask->ReadyForActivation();
 }               
 
@@ -64,4 +87,35 @@ void UHDGA_Reload::OnEventRecieved(FGameplayEventData Payload)
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
     EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, true);
+}
+
+void UHDGA_Reload::OnBodyMontageCompleted(FGameplayEventData Payload)
+{
+    // 몸 몽타주(첫 섹션)가 끝나면 태스크가 끝나면서 이벤트 듣기도 풀린다.
+    // 무기 몽타주의 Event.Reload 가 그 뒤에 오는 자세(엎드림)가 있어 따로 더 기다린다
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, Tag_Event_Reload, nullptr, true, true);
+    WaitEventTask->EventReceived.AddDynamic(this, &UHDGA_Reload::OnEventRecieved);
+    WaitEventTask->ReadyForActivation();
+
+    UAbilityTask_WaitDelay* WaitDelayTask = UAbilityTask_WaitDelay::WaitDelay(this, ReloadEventGraceTime);
+    WaitDelayTask->OnFinish.AddDynamic(this, &UHDGA_Reload::OnReloadEventTimeout);
+    WaitDelayTask->ReadyForActivation();
+}
+
+void UHDGA_Reload::OnBodyMontageInterrupted(FGameplayEventData Payload)
+{
+    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] reload interrupted"));
+
+    const bool bReplicateEndAbility = true;
+    const bool bWasCancelled = true;
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void UHDGA_Reload::OnReloadEventTimeout()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[HDWeapon] reload ended without Event.Reload"));
+
+    const bool bReplicateEndAbility = true;
+    const bool bWasCancelled = true;
+    EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, bReplicateEndAbility, bWasCancelled);
 }

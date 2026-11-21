@@ -22,6 +22,18 @@ private:
     UFUNCTION()
     void 	                        OnEventRecieved(FGameplayEventData Payload);
 
+    // 몸 몽타주가 Event.Reload 보다 먼저 끝났다(엎드려 재장전). 이벤트를 잠깐 더 기다린다
+    UFUNCTION()
+    void                            OnBodyMontageCompleted(FGameplayEventData Payload);
+
+    // 몸 몽타주가 끊겼다. 탄약을 채우지 않고 끝낸다
+    UFUNCTION()
+    void                            OnBodyMontageInterrupted(FGameplayEventData Payload);
+
+    // 몸 몽타주가 끝난 뒤에도 Event.Reload 가 오지 않았다. 탄약을 채우지 않고 끝낸다
+    UFUNCTION()
+    void                            OnReloadEventTimeout();
+
 private:
     UPROPERTY(EditDefaultsOnly)
     TSubclassOf<UGameplayEffect>    ReloadEffectClass; 

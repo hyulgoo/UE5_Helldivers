@@ -95,7 +95,7 @@ private:
     TObjectPtr<AHDWeapon>*                  GetSlotWeapon(const EHDWeaponSlot Slot);
     // NewWeapon 을 칸에 넣고(같은 칸의 옛 무기는 버린다) 손 소켓에 붙인다. 보이기·쓰는 무기는 부르는 쪽이 정한다
     bool                                    PutWeaponInSlot(AHDWeapon* NewWeapon, const bool bMakeActive);
-    // 쓰는 칸의 무기를 보이고 쓰는 무기로 둔다. 쓰던 무기는 탄약을 적어 두고 숨긴다(수류탄에서 같은 총으로 돌아오면 적지 않는다)
+    // 쓰는 칸의 무기를 보이고 쓰는 무기로 둔다. 쓰던 무기는 탄약을 적어 두고 숨긴다(수류탄에서 같은 총으로 돌아와도 적는다. 든 동안 받은 보급이 남는다)
     void                                    ActivateSlotWeapon(UAbilitySystemComponent* ASC);
 
     UFUNCTION()

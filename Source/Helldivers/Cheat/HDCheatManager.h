@@ -81,4 +81,8 @@ public:
     // 누른 채 남지 않게 끝에 누른 키를 모두 떼는 토큰을 넣는다. 문자열이 틀리면 아무 키도 보내지 않는다
     UFUNCTION(Exec)
     void        HDSimulateKeys(const FString& Sequence);
+
+    // 플레이어 폰의 몸 몽타주를 끊는다(검증용, GA 가 끊김을 처리하는지 본다). 무기 메시의 몽타주는 건드리지 않는다
+    UFUNCTION(Exec)
+    void        HDStopMontage();
 };
