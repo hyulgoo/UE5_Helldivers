@@ -61,6 +61,12 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
         PendingStratagemCommands.Add(Command);
     }
 
+    EHDWeaponSlot WeaponSlot = EHDWeaponSlot::Primary;
+    if (HDDirectKey::TryGetWeaponSlot(Params.Key, Params.Event, WeaponSlot))
+    {
+        PendingWeaponSlots.Add(WeaponSlot);
+    }
+
     return bResult;
 }
 
@@ -68,7 +74,7 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
 
-    if (PendingStratagemCommands.IsEmpty())
+    if (PendingStratagemCommands.IsEmpty() && PendingWeaponSlots.IsEmpty())
     {
         return;
     }
@@ -81,9 +87,15 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
         {
             HDPlayer->InputStratagemCommand(Command);
         }
+
+        for (const EHDWeaponSlot WeaponSlot : PendingWeaponSlots)
+        {
+            HDPlayer->SelectWeaponSlot(WeaponSlot);
+        }
     }
 
     PendingStratagemCommands.Reset();
+    PendingWeaponSlots.Reset();
 }
 
 void AHDPlayerController::SimulateKeyFrames(TArray<TArray<FHDSimulatedKeyEvent>> Frames)

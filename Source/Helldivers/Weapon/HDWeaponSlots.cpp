@@ -4,41 +4,94 @@
 #include "AbilitySystemComponent.h"
 #include "Attribute/HDWeaponAttributeSet.h"
 
-FHDWeaponPickupResult FHDWeaponSlots::Pickup(const bool bIsSupportWeapon)
+const TCHAR* GetWeaponSlotName(const EHDWeaponSlot Slot)
+{
+    switch (Slot)
+    {
+    case EHDWeaponSlot::Primary:    return TEXT("Primary");
+    case EHDWeaponSlot::Secondary:  return TEXT("Secondary");
+    case EHDWeaponSlot::Support:    return TEXT("Support");
+    case EHDWeaponSlot::Grenade:    return TEXT("Grenade");
+    default:                        return TEXT("None");
+    }
+}
+
+FHDWeaponPickupResult FHDWeaponSlots::Pickup(const EHDWeaponSlot Slot, const bool bMakeActive)
 {
     FHDWeaponPickupResult Result;
-    Result.Slot = bIsSupportWeapon ? EHDWeaponSlot::Support : EHDWeaponSlot::Primary;
+    Result.Slot = Slot;
 
-    bool& bHasSlotWeapon = bIsSupportWeapon ? bHasSupport : bHasPrimary;
-    Result.bReplaced    = bHasSlotWeapon;
-    bHasSlotWeapon      = true;
+    bool* bHasSlotWeapon = FindGunSlotFlag(Slot);
+    if (bHasSlotWeapon == nullptr)
+    {
+        return Result;
+    }
 
-    ActiveSlot = Result.Slot;
+    Result.bReplaced    = *bHasSlotWeapon;
+    *bHasSlotWeapon     = true;
+
+    if (bMakeActive)
+    {
+        SetActiveSlot(Slot);
+    }
+
     return Result;
 }
 
-bool FHDWeaponSlots::Swap()
+EHDWeaponSelectResult FHDWeaponSlots::Select(const EHDWeaponSlot Slot)
 {
-    const EHDWeaponSlot OtherSlot = ActiveSlot == EHDWeaponSlot::Primary ? EHDWeaponSlot::Support : EHDWeaponSlot::Primary;
-    if (HasWeapon(OtherSlot) == false)
+    if (Slot == ActiveSlot)
     {
-        return false;
+        return EHDWeaponSelectResult::AlreadyActive;
     }
 
-    ActiveSlot = OtherSlot;
-    return true;
+    if (HasWeapon(Slot) == false)
+    {
+        return EHDWeaponSelectResult::Empty;
+    }
+
+    SetActiveSlot(Slot);
+    return EHDWeaponSelectResult::Selected;
 }
 
 bool FHDWeaponSlots::HasWeapon(const EHDWeaponSlot Slot) const
 {
-    return Slot == EHDWeaponSlot::Primary ? bHasPrimary : bHasSupport;
+    switch (Slot)
+    {
+    case EHDWeaponSlot::Primary:    return bHasPrimary;
+    case EHDWeaponSlot::Secondary:  return bHasSecondary;
+    case EHDWeaponSlot::Support:    return bHasSupport;
+    default:                        return false;
+    }
 }
 
 void FHDWeaponSlots::Reset()
 {
-    bHasPrimary = false;
-    bHasSupport = false;
-    ActiveSlot  = EHDWeaponSlot::Primary;
+    bHasPrimary     = false;
+    bHasSecondary   = false;
+    bHasSupport     = false;
+    ActiveSlot      = EHDWeaponSlot::Primary;
+    LastGunSlot     = EHDWeaponSlot::Primary;
+}
+
+bool* FHDWeaponSlots::FindGunSlotFlag(const EHDWeaponSlot Slot)
+{
+    switch (Slot)
+    {
+    case EHDWeaponSlot::Primary:    return &bHasPrimary;
+    case EHDWeaponSlot::Secondary:  return &bHasSecondary;
+    case EHDWeaponSlot::Support:    return &bHasSupport;
+    default:                        return nullptr;
+    }
+}
+
+void FHDWeaponSlots::SetActiveSlot(const EHDWeaponSlot Slot)
+{
+    ActiveSlot = Slot;
+    if (Slot != EHDWeaponSlot::Grenade)
+    {
+        LastGunSlot = Slot;
+    }
 }
 
 namespace HDWeaponAmmo

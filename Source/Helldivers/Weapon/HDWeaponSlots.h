@@ -7,11 +7,24 @@
 
 class UAbilitySystemComponent;
 
+// 숫자 키 1~4 순서
 enum class EHDWeaponSlot : uint8
 {
     Primary,
+    Secondary,
     Support,
+    Grenade,
 };
+
+enum class EHDWeaponSelectResult : uint8
+{
+    Selected,
+    AlreadyActive,
+    Empty,
+};
+
+// 로그용 칸 이름: "Primary" "Secondary" "Support" "Grenade"
+HELLDIVERS_API const TCHAR* GetWeaponSlotName(const EHDWeaponSlot Slot);
 
 struct FHDWeaponPickupResult
 {
@@ -20,23 +33,33 @@ struct FHDWeaponPickupResult
     bool                    bReplaced   = false;
 };
 
-// 주무기·지원 무기 두 칸의 교체 규칙. 무기 액터는 UHDCombatComponent 가 들고, 이 클래스는 어느 칸이 찼고 어느 칸을 쓰는지만 정한다.
+// 주무기·보조무기·지원무기·수류탄 네 칸의 규칙. 무기 액터는 UHDCombatComponent 가 들고, 이 클래스는 어느 칸이 찼고 어느 칸을 쓰는지만 정한다.
 // 월드와 무관한 순수 로직이라 자동 테스트(Helldivers.Combat.WeaponSlots)로 고정한다
 class HELLDIVERS_API FHDWeaponSlots
 {
 public:
-    // 지원 무기는 Support 칸, 아니면 Primary 칸에 넣고 그 칸을 쓴다
-    FHDWeaponPickupResult   Pickup(const bool bIsSupportWeapon);
-    // 다른 칸에 무기가 있으면 쓰는 칸을 바꾸고 참
-    bool                    Swap();
+    // 총 칸(Grenade 제외)에 넣는다. bMakeActive 면 그 칸을 쓴다. Grenade 를 넘기면 아무것도 바꾸지 않고 bReplaced 거짓
+    FHDWeaponPickupResult   Pickup(const EHDWeaponSlot Slot, const bool bMakeActive);
+    // Slot 이 지금 칸이면 AlreadyActive, 비었으면 Empty, 아니면 그 칸으로 바꾸고 Selected
+    EHDWeaponSelectResult   Select(const EHDWeaponSlot Slot);
     bool                    HasWeapon(const EHDWeaponSlot Slot) const;
     EHDWeaponSlot           GetActiveSlot() const { return ActiveSlot; }
+    // 마지막으로 쓴 총 칸(지금 총 칸을 쓰는 중이면 그 칸). 수류탄에서 돌아갈 때 쓴다
+    EHDWeaponSlot           GetLastGunSlot() const { return LastGunSlot; }
     void                    Reset();
 
 private:
-    bool                    bHasPrimary = false;
-    bool                    bHasSupport = false;
-    EHDWeaponSlot           ActiveSlot  = EHDWeaponSlot::Primary;
+    // 총 칸의 무기 유무. Grenade 는 nullptr
+    bool*                   FindGunSlotFlag(const EHDWeaponSlot Slot);
+    // 쓰는 칸을 바꾼다. 총 칸이면 LastGunSlot 도 그 칸으로
+    void                    SetActiveSlot(const EHDWeaponSlot Slot);
+
+private:
+    bool                    bHasPrimary     = false;
+    bool                    bHasSecondary   = false;
+    bool                    bHasSupport     = false;
+    EHDWeaponSlot           ActiveSlot      = EHDWeaponSlot::Primary;
+    EHDWeaponSlot           LastGunSlot     = EHDWeaponSlot::Primary;
 };
 
 namespace HDWeaponAmmo

@@ -15,7 +15,7 @@ class HELLDIVERS_API AHDSupportWeapon : public AHDWeapon
 public:
     AHDSupportWeapon(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-    virtual bool                        IsSupportWeapon() const override { return true; }
+    virtual EHDWeaponSlot               GetWeaponSlot() const override { return EHDWeaponSlot::Support; }
 
     // SK_AM_SniperRifle 에는 노티파이가 하나도 없어(SK_AM_Rifle 과 달리) 발사·재장전 이벤트를 캐릭터가 C++ 로 보낸다(브리프 16 개발 1회차 「결과」)
     virtual bool                        SendsMontageEventsFromCode() const override { return true; }

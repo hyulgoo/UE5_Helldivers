@@ -38,9 +38,9 @@ public:
 		
     UHDAbilitySystemComponent*              GetAbilitySystemComponent();
 
-    // 키 이벤트는 하나씩 누른 순서대로 온다. Super(Enhanced Input) 를 먼저 부르고, 화살표 누름은 스트라타젬 명령 큐에 넣는다
+    // 키 이벤트는 하나씩 누른 순서대로 온다. Super(Enhanced Input) 를 먼저 부르고, 화살표 누름은 스트라타젬 명령 큐에, 숫자 키 1~4 누름은 무기 칸 큐에 넣는다
     virtual bool                            InputKey(const FInputKeyEventArgs& Params) override;
-    // Super 의 입력 처리(여기서 Ctrl 입력 모드 GA 가 켜진다) 뒤에 명령 큐를 순서대로 폰에 넘긴다
+    // Super 의 입력 처리(여기서 Ctrl 입력 모드 GA 가 켜진다) 뒤에 명령 큐, 이어서 무기 칸 큐를 순서대로 폰에 넘긴다
     virtual void                            PlayerTick(float DeltaTime) override;
 
     // 치트 HDSimulateKeys 용. 첫 프레임을 바로 보내고 남은 프레임은 한 틱에 한 프레임씩 InputKey 로 보낸다. 보내는 중이면 무시
@@ -85,6 +85,9 @@ private:
 
     // InputKey 가 받은 화살표 누름. PlayerTick 이 비운다
     TArray<EHDCommandInput>                 PendingStratagemCommands;
+
+    // InputKey 가 받은 숫자 키 누름. PlayerTick 이 명령 큐 다음에 비운다
+    TArray<EHDWeaponSlot>                   PendingWeaponSlots;
 
     // HDSimulateKeys 가 아직 보내지 않은 프레임과 다음에 보낼 프레임 번호
     TArray<TArray<FHDSimulatedKeyEvent>>    SimulatedKeyFrames;

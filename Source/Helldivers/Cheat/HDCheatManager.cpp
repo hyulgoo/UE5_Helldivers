@@ -489,17 +489,24 @@ void UHDCheatManager::HDGiveSupportWeapon()
     UE_LOG(LogTemp, Display, TEXT("[HDGiveSupportWeapon] spawned at %s"), *SupportWeapon->GetActorLocation().ToString());
 }
 
-void UHDCheatManager::HDSwapWeapon()
+void UHDCheatManager::HDSelectWeapon(int32 SlotNumber)
 {
+    if (SlotNumber < 1 || SlotNumber > 4)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSelectWeapon] use 1-4"));
+        return;
+    }
+
     APlayerController* PlayerController = GetPlayerController();
     AHDCharacterPlayer* PlayerCharacter = PlayerController ? Cast<AHDCharacterPlayer>(PlayerController->GetPawn()) : nullptr;
     if (PlayerCharacter == nullptr)
     {
-        UE_LOG(LogTemp, Display, TEXT("[HDSwapWeapon] No player character"));
+        UE_LOG(LogTemp, Display, TEXT("[HDSelectWeapon] No player character"));
         return;
     }
 
-    PlayerCharacter->SwapWeapon();
+    // 1~4 는 EHDWeaponSlot 의 Primary~Grenade 순서다
+    PlayerCharacter->SelectWeaponSlot(static_cast<EHDWeaponSlot>(SlotNumber - 1));
 }
 
 void UHDCheatManager::HDSimulateKeys(const FString& Sequence)

@@ -279,44 +279,79 @@ void UHDCombatComponent::EquipWeapon(AHDWeapon* NewWeapon, UAbilitySystemCompone
         SetWeaponShown(Weapon, false);
     }
 
-    // 같은 칸에 있던 무기는 앞에 버린다
-    const FHDWeaponPickupResult PickupResult = WeaponSlots.Pickup(NewWeapon->IsSupportWeapon());
-    TObjectPtr<AHDWeapon>& SlotWeapon = PickupResult.Slot == EHDWeaponSlot::Support ? SupportWeapon : PrimaryWeapon;
-    if (PickupResult.bReplaced && IsValid(SlotWeapon) && SlotWeapon != NewWeapon)
-    {
-        SlotWeapon->DropAt(GetWeaponDropLocation());
-    }
+    CONDITION_CHECK(PutWeaponInSlot(NewWeapon, true));
 
-    SlotWeapon = NewWeapon;
     Weapon = NewWeapon;
-    Weapon->EquipWeapon(GetOwner());
     ErgonomicFactor = Weapon->ErgoData.ErgonomicFactor;
     ZoomedFOV = Weapon->ErgoData.ZoomedFOV;
     ZoomInterpSpeed = Weapon->ErgoData.ZoomInterpSpeed;
     bIsEquipped = true;
-
-    USkeletalMeshComponent* SkeletalMesh = GetOwner()->GetComponentByClass<USkeletalMeshComponent>();
-    NULL_CHECK(SkeletalMesh);
-
-    const USkeletalMeshSocket* RightHandSocket = SkeletalMesh->GetSocketByName(HDSOCKETNAME_RIGRHTHAND);
-    NULL_CHECK(RightHandSocket);
-    RightHandSocket->AttachActor(NewWeapon, SkeletalMesh);
     SetWeaponShown(NewWeapon, true);
 }
 
-bool UHDCombatComponent::SwapWeapon(UAbilitySystemComponent* ASC)
+void UHDCombatComponent::StowWeapon(AHDWeapon* NewWeapon)
 {
-    CONDITION_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(WeaponSlots.Swap(), false);
+    VALID_CHECK(NewWeapon);
 
-    using namespace HDCombatWeaponSlot;
+    CONDITION_CHECK(PutWeaponInSlot(NewWeapon, false));
+    HDCombatWeaponSlot::SetWeaponShown(NewWeapon, false);
+}
 
-    AHDWeapon* NextWeapon = WeaponSlots.GetActiveSlot() == EHDWeaponSlot::Support ? SupportWeapon : PrimaryWeapon;
-    if (IsValid(NextWeapon) == false)
+bool UHDCombatComponent::PutWeaponInSlot(AHDWeapon* NewWeapon, const bool bMakeActive)
+{
+    const EHDWeaponSlot Slot = NewWeapon->GetWeaponSlot();
+    TObjectPtr<AHDWeapon>* SlotWeapon = GetSlotWeapon(Slot);
+    NULL_CHECK_WITH_RETURNTYPE(SlotWeapon, false);
+
+    // 같은 칸에 있던 무기는 앞에 버린다
+    const FHDWeaponPickupResult PickupResult = WeaponSlots.Pickup(Slot, bMakeActive);
+    if (PickupResult.bReplaced && IsValid(*SlotWeapon) && *SlotWeapon != NewWeapon)
+    {
+        (*SlotWeapon)->DropAt(GetWeaponDropLocation());
+    }
+
+    *SlotWeapon = NewWeapon;
+    NewWeapon->EquipWeapon(GetOwner());
+
+    USkeletalMeshComponent* SkeletalMesh = GetOwner()->GetComponentByClass<USkeletalMeshComponent>();
+    NULL_CHECK_WITH_RETURNTYPE(SkeletalMesh, false);
+
+    const USkeletalMeshSocket* RightHandSocket = SkeletalMesh->GetSocketByName(HDSOCKETNAME_RIGRHTHAND);
+    NULL_CHECK_WITH_RETURNTYPE(RightHandSocket, false);
+    RightHandSocket->AttachActor(NewWeapon, SkeletalMesh);
+    return true;
+}
+
+EHDWeaponSelectResult UHDCombatComponent::SelectWeaponSlot(const EHDWeaponSlot Slot, UAbilitySystemComponent* ASC)
+{
+    // 무기 액터가 없을 때 되돌리려고 기억해 둔다
+    const EHDWeaponSlot PreviousSlot = WeaponSlots.GetActiveSlot();
+
+    const EHDWeaponSelectResult SelectResult = WeaponSlots.Select(Slot);
+    if (SelectResult != EHDWeaponSelectResult::Selected)
+    {
+        return SelectResult;
+    }
+
+    TObjectPtr<AHDWeapon>* SlotWeapon = GetSlotWeapon(Slot);
+    if (SlotWeapon == nullptr || IsValid(*SlotWeapon) == false)
     {
         // 칸은 찼다고 하는데 무기 액터가 없다. 쓰는 칸을 되돌린다
-        WeaponSlots.Swap();
-        return false;
+        WeaponSlots.Select(PreviousSlot);
+        return EHDWeaponSelectResult::Empty;
     }
+
+    ActivateSlotWeapon(ASC);
+    return EHDWeaponSelectResult::Selected;
+}
+
+void UHDCombatComponent::ActivateSlotWeapon(UAbilitySystemComponent* ASC)
+{
+    using namespace HDCombatWeaponSlot;
+
+    TObjectPtr<AHDWeapon>* SlotWeapon = GetSlotWeapon(WeaponSlots.GetActiveSlot());
+    NULL_CHECK(SlotWeapon);
+    VALID_CHECK(*SlotWeapon);
 
     if (IsValid(Weapon))
     {
@@ -324,13 +359,33 @@ bool UHDCombatComponent::SwapWeapon(UAbilitySystemComponent* ASC)
         SetWeaponShown(Weapon, false);
     }
 
-    Weapon = NextWeapon;
+    Weapon = *SlotWeapon;
     SetWeaponShown(Weapon, true);
     ErgonomicFactor = Weapon->ErgoData.ErgonomicFactor;
     ZoomedFOV = Weapon->ErgoData.ZoomedFOV;
     ZoomInterpSpeed = Weapon->ErgoData.ZoomInterpSpeed;
     bIsEquipped = true;
-    return true;
+}
+
+TObjectPtr<AHDWeapon>* UHDCombatComponent::GetSlotWeapon(const EHDWeaponSlot Slot)
+{
+    switch (Slot)
+    {
+    case EHDWeaponSlot::Primary:    return &PrimaryWeapon;
+    case EHDWeaponSlot::Secondary:  return &SecondaryWeapon;
+    case EHDWeaponSlot::Support:    return &SupportWeapon;
+    default:                        return nullptr;
+    }
+}
+
+EHDWeaponSlot UHDCombatComponent::GetActiveWeaponSlot() const
+{
+    return WeaponSlots.GetActiveSlot();
+}
+
+EHDWeaponSlot UHDCombatComponent::GetLastGunSlot() const
+{
+    return WeaponSlots.GetLastGunSlot();
 }
 
 void UHDCombatComponent::GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const
@@ -340,6 +395,11 @@ void UHDCombatComponent::GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const
     if (IsValid(PrimaryWeapon))
     {
         OutWeapons.Add(PrimaryWeapon);
+    }
+
+    if (IsValid(SecondaryWeapon))
+    {
+        OutWeapons.Add(SecondaryWeapon);
     }
 
     if (IsValid(SupportWeapon))

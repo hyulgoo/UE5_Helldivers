@@ -6,6 +6,7 @@
 #include "InputCoreTypes.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
+#include "Weapon/HDWeaponSlots.h"
 
 // 치트 HDSimulateKeys 가 한 프레임에 보내는 원시 키 이벤트 하나
 struct FHDSimulatedKeyEvent
@@ -19,6 +20,9 @@ namespace HDDirectKey
 {
     // 화살표 Up/Down/Left/Right 의 IE_Pressed 만 참. IE_Repeat·IE_Released·다른 키는 거짓
     HELLDIVERS_API bool     TryGetCommand(const FKey& Key, const EInputEvent Event, EHDCommandInput& OutCommand);
+
+    // 숫자 키 One~Four 의 IE_Pressed 만 참(Primary·Secondary·Support·Grenade). 숫자 패드·IE_Repeat·IE_Released·다른 키는 거짓
+    HELLDIVERS_API bool     TryGetWeaponSlot(const FKey& Key, const EInputEvent Event, EHDWeaponSlot& OutSlot);
 
     // "LeftControl+ | Up+ Right+ | Up- Right-" → 프레임 배열.
     // '|' 로 프레임을 나누고 프레임 안은 공백으로 나눈 토큰이다. 빈 프레임은 한 틱 기다림이다.

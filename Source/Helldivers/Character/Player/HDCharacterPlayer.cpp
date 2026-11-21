@@ -6,9 +6,6 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "AbilitySystemComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "EnhancedInputComponent.h"
-#include "InputAction.h"
-#include "UObject/ConstructorHelpers.h"
 #include "Component/HDCombatComponent.h"
 #include "Component/HDMovementStateComponent.h"
 #include "Component/HDStratagemComponent.h"
@@ -20,6 +17,9 @@
 #include "GameData/HDCharacterControlData.h"
 #include "Weapon\HDWeapon.h"
 #include "Weapon/HDWeaponSlots.h"
+#include "Weapon/HDSecondaryWeapon.h"
+#include "AbilitySystem/GameAbility/HDGA_Fire.h"
+#include "AbilitySystem/GameAbility/HDGA_Reload.h"
 #include "TimerManager.h"
 #include "Game/HDGameMode.h"
 #include "Engine/World.h"
@@ -58,13 +58,6 @@ AHDCharacterPlayer::AHDCharacterPlayer(const FObjectInitializer& ObjectInitializ
     Combat              = CreateDefaultSubobject<UHDCombatComponent>(TEXT("Combat"));
     MovementStateComp   = CreateDefaultSubobject<UHDMovementStateComponent>(TEXT("MovementState"));
     Stratagem           = CreateDefaultSubobject<UHDStratagemComponent>(TEXT("Stratagem"));
-
-    // DA_Input·C++ 어디에서도 쓰지 않던 IA_Equipped(E)를 무기 교체에 쓴다
-    static ConstructorHelpers::FObjectFinder<UInputAction> SwapWeaponInputActionRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Helldivers/Input/Action/IA_Equipped.IA_Equipped'"));
-    if (SwapWeaponInputActionRef.Succeeded())
-    {
-        SwapWeaponInputAction = SwapWeaponInputActionRef.Object;
-    }
 }
 
 void AHDCharacterPlayer::Tick(float DeltaTime)
@@ -139,12 +132,7 @@ void AHDCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-    UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-    NULL_CHECK(EnhancedInputComponent);
-
-    // 스트라타젬 화살표는 묶지 않는다. AHDPlayerController::InputKey 가 원시 키 순서대로 InputStratagemCommand 를 부른다
-    NULL_CHECK(SwapWeaponInputAction);
-    EnhancedInputComponent->BindAction(SwapWeaponInputAction, ETriggerEvent::Started, this, &AHDCharacterPlayer::SwapWeapon);
+    // 스트라타젬 화살표와 무기 숫자 키는 묶지 않는다. AHDPlayerController::InputKey 가 원시 키 순서대로 InputStratagemCommand·SelectWeaponSlot 을 부른다
 }
 
 void AHDCharacterPlayer::SetRagdoll(const bool bRagdoll, const FVector& Impulse)
@@ -196,27 +184,76 @@ void AHDCharacterPlayer::ApplyWeaponAttributes(const AHDWeapon* InWeapon)
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 }
 
-void AHDCharacterPlayer::SwapWeapon()
+void AHDCharacterPlayer::SelectWeaponSlot(const EHDWeaponSlot Slot)
 {
-    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-    NULL_CHECK_WITHOUT_LOG(ASC);
-
-    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) || ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead))
+    const auto LogRefused = [Slot](const TCHAR* Reason)
     {
+        UE_LOG(LogTemp, Display, TEXT("[HDWeapon] select %s refused (%s)"), GetWeaponSlotName(Slot), Reason);
+    };
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (ASC == nullptr || ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead))
+    {
+        LogRefused(TEXT("dead"));
         return;
     }
 
-    CONDITION_CHECK_WITHOUT_LOG(Combat->SwapWeapon(ASC));
+    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) || ASC->HasMatchingGameplayTag(Tag_Character_Action_StratagemInputMode))
+    {
+        LogRefused(TEXT("stratagem"));
+        return;
+    }
+
+    if (IsWeaponActionActive())
+    {
+        LogRefused(TEXT("busy"));
+        return;
+    }
+
+    const EHDWeaponSelectResult SelectResult = Combat->SelectWeaponSlot(Slot, ASC);
+    if (SelectResult == EHDWeaponSelectResult::AlreadyActive)
+    {
+        LogRefused(TEXT("active"));
+        return;
+    }
+
+    if (SelectResult == EHDWeaponSelectResult::Empty)
+    {
+        LogRefused(TEXT("empty"));
+        return;
+    }
 
     const AHDWeapon* ActiveWeapon = Combat->GetWeapon();
     ApplyWeaponAttributes(ActiveWeapon);
     FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Event_PlayerHUD_EquipWeapon, ASC);
 
-    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] swap -> %s ammo=%.0f/%.0f capacity=%.0f"),
-        (ActiveWeapon && ActiveWeapon->IsSupportWeapon()) ? TEXT("Support") : TEXT("Primary"),
+    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] select %s -> %s ammo=%.0f/%.0f capacity=%.0f"),
+        GetWeaponSlotName(Slot),
+        ActiveWeapon ? *ActiveWeapon->GetClass()->GetName() : TEXT("None"),
         ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute()),
         ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxAmmoAttribute()),
         ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()));
+}
+
+bool AHDCharacterPlayer::IsWeaponActionActive() const
+{
+    const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(ASC, false);
+
+    for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+    {
+        if (Spec.IsActive() == false || Spec.Ability == nullptr)
+        {
+            continue;
+        }
+
+        if (Spec.Ability->IsA<UHDGA_Fire>() || Spec.Ability->IsA<UHDGA_Reload>())
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool AHDCharacterPlayer::Resupply()
@@ -282,6 +319,13 @@ void AHDCharacterPlayer::PlayWeaponMontage(const EHDCombatMontage MontageType)
 
     UAnimMontage* WeaponMontage = Combat->GetWeaponMontage();
     NULL_CHECK(WeaponMontage);
+
+    // 권총 몽타주(SK_AM_Pistol)에는 Reload_Shoulder·Reload_Prone 이 없다. 없는 재장전 섹션은 Reload_Hip 으로 바꾼다
+    if (MontageType == EHDCombatMontage::Reload && WeaponMontage->IsValidSectionName(SectionName) == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDWeapon] reload section %s missing, using %s"), *SectionName.ToString(), *HDMONTAGE_SECTIONNAME_WEAPON_RELOAD_HIP.ToString());
+        SectionName = HDMONTAGE_SECTIONNAME_WEAPON_RELOAD_HIP;
+    }
 
     float PlayRate = 1.f;
 
@@ -393,6 +437,11 @@ void AHDCharacterPlayer::SpawnDefaultWeapon(const FGameplayEventData* Payload)
     AHDWeapon* Weapon = Combat->SpawnDefaultWeapon();
     NULL_CHECK(Weapon);
     EquipWeapon(Weapon);
+
+    // 보조무기(권총)는 집어넣은 채로 지급한다. 주무기가 쓰는 칸으로 남는다
+    AHDSecondaryWeapon* SecondaryWeapon = GetWorld()->SpawnActor<AHDSecondaryWeapon>(AHDSecondaryWeapon::StaticClass());
+    NULL_CHECK(SecondaryWeapon);
+    Combat->StowWeapon(SecondaryWeapon);
 
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);

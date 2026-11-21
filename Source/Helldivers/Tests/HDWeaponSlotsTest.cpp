@@ -53,37 +53,52 @@ bool FHDWeaponSlotsTest::RunTest(const FString& Parameters)
 {
     using namespace HDWeaponSlotsTest;
 
-    // 칸 규칙
+    // 칸 규칙: 한 칸 묶음에 차례로 적용한다
     {
         FHDWeaponSlots Slots;
 
-        const FHDWeaponPickupResult PrimaryResult = Slots.Pickup(false);
-        TestTrue(TEXT("Pickup primary: slot Primary"), PrimaryResult.Slot == EHDWeaponSlot::Primary);
-        TestFalse(TEXT("Pickup primary: not replaced"), PrimaryResult.bReplaced);
-        TestTrue(TEXT("Pickup primary: active Primary"), Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
+        const FHDWeaponPickupResult PrimaryResult = Slots.Pickup(EHDWeaponSlot::Primary, true);
+        TestTrue(TEXT("Pickup primary: active Primary"), Slots.GetActiveSlot() == EHDWeaponSlot::Primary && PrimaryResult.bReplaced == false);
 
-        const FHDWeaponPickupResult SupportResult = Slots.Pickup(true);
-        TestTrue(TEXT("Pickup support: slot Support"), SupportResult.Slot == EHDWeaponSlot::Support);
+        Slots.Pickup(EHDWeaponSlot::Secondary, false);
+        TestTrue(TEXT("Stow secondary: stays Primary"), Slots.GetActiveSlot() == EHDWeaponSlot::Primary && Slots.HasWeapon(EHDWeaponSlot::Secondary));
+
+        const EHDWeaponSelectResult SecondaryResult = Slots.Select(EHDWeaponSlot::Secondary);
+        TestTrue(TEXT("Select secondary"), SecondaryResult == EHDWeaponSelectResult::Selected
+            && Slots.GetActiveSlot() == EHDWeaponSlot::Secondary && Slots.GetLastGunSlot() == EHDWeaponSlot::Secondary);
+
+        TestTrue(TEXT("Select same: AlreadyActive"), Slots.Select(EHDWeaponSlot::Secondary) == EHDWeaponSelectResult::AlreadyActive);
+
+        const EHDWeaponSelectResult SupportEmptyResult = Slots.Select(EHDWeaponSlot::Support);
+        TestTrue(TEXT("Select support empty"), SupportEmptyResult == EHDWeaponSelectResult::Empty && Slots.GetActiveSlot() == EHDWeaponSlot::Secondary);
+
+        TestTrue(TEXT("Select grenade empty"), Slots.Select(EHDWeaponSlot::Grenade) == EHDWeaponSelectResult::Empty);
+
+        Slots.Pickup(EHDWeaponSlot::Support, true);
         TestTrue(TEXT("Pickup support: active Support"), Slots.GetActiveSlot() == EHDWeaponSlot::Support);
-        TestFalse(TEXT("Pickup support: not replaced"), SupportResult.bReplaced);
 
-        const FHDWeaponPickupResult SupportAgainResult = Slots.Pickup(true);
+        const FHDWeaponPickupResult SupportAgainResult = Slots.Pickup(EHDWeaponSlot::Support, true);
         TestTrue(TEXT("Pickup support again: replaced"), SupportAgainResult.bReplaced);
 
-        const bool bSwappedToPrimary = Slots.Swap();
-        TestTrue(TEXT("Swap: to Primary"), bSwappedToPrimary && Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
+        const EHDWeaponSelectResult PrimaryBackResult = Slots.Select(EHDWeaponSlot::Primary);
+        TestTrue(TEXT("Select back to primary"), PrimaryBackResult == EHDWeaponSelectResult::Selected && Slots.GetLastGunSlot() == EHDWeaponSlot::Primary);
 
-        const bool bSwappedToSupport = Slots.Swap();
-        TestTrue(TEXT("Swap: back to Support"), bSwappedToSupport && Slots.GetActiveSlot() == EHDWeaponSlot::Support);
+        const FHDWeaponPickupResult StowAgainResult = Slots.Pickup(EHDWeaponSlot::Secondary, false);
+        TestTrue(TEXT("Stow keeps active slot"), StowAgainResult.bReplaced
+            && Slots.GetActiveSlot() == EHDWeaponSlot::Primary && Slots.GetLastGunSlot() == EHDWeaponSlot::Primary);
+
+        Slots.Pickup(EHDWeaponSlot::Grenade, true);
+        TestTrue(TEXT("Pickup grenade ignored"), Slots.HasWeapon(EHDWeaponSlot::Grenade) == false && Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
+
+        Slots.Reset();
+        TestTrue(TEXT("Reset"), Slots.HasWeapon(EHDWeaponSlot::Primary) == false && Slots.HasWeapon(EHDWeaponSlot::Secondary) == false
+            && Slots.HasWeapon(EHDWeaponSlot::Support) == false && Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
     }
 
-    {
-        FHDWeaponSlots Slots;
-        Slots.Pickup(false);
-
-        const bool bSwapped = Slots.Swap();
-        TestTrue(TEXT("Swap with one weapon: refused"), bSwapped == false && Slots.GetActiveSlot() == EHDWeaponSlot::Primary);
-    }
+    TestTrue(TEXT("Slot names"), FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Primary), TEXT("Primary")) == 0
+        && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Secondary), TEXT("Secondary")) == 0
+        && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Support), TEXT("Support")) == 0
+        && FCString::Strcmp(GetWeaponSlotName(EHDWeaponSlot::Grenade), TEXT("Grenade")) == 0);
 
     // 코드 이벤트 시점(노티파이 없는 무기 몽타주)
     TestEqual(TEXT("ReloadDelay: weapon section"), HDWeaponMontageEvent::GetReloadEventDelay(2.5f, 3.f), 2.5f, KINDA_SMALL_NUMBER);

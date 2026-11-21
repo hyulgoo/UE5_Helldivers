@@ -14,11 +14,11 @@ class UHDCombatComponent;
 class UHDMovementStateComponent;
 class UHDStratagemComponent;
 class UHDCharacterControlData;
-class UInputAction;
 struct FGameplayEventData;
 enum class EHDCharacterMovementState : uint8;
 enum class EHDCharacterStanceState : uint8;
 enum class EHDCommandInput : uint8;
+enum class EHDWeaponSlot : uint8;
 
 UCLASS()
 class HELLDIVERS_API AHDCharacterPlayer : public AHDCharacterBase, public IHDCharacterMovementInterface, public IHDWeaponInterface
@@ -33,8 +33,8 @@ public:
     // 탄창과 예비 탄약을 최대로 채운다(보급 상자). 죽었거나 ASC 가 없으면 거짓
     bool                                    Resupply();
 
-    // 주무기·지원 무기 칸을 바꾼다(E, IA_Equipped). ASC 가 없거나 스트라타젬을 들고 있거나 죽었으면 무시
-    void                                    SwapWeapon();
+    // Slot 의 무기를 든다(숫자 키 1~4, AHDPlayerController 가 원시 키로 넘긴다). 죽음·스트라타젬·사격/재장전 중·같은 칸·빈 칸이면 거부 로그만 남긴다
+    void                                    SelectWeaponSlot(const EHDWeaponSlot Slot);
 
     // 스트라타젬 화살표 하나(AHDPlayerController 가 원시 키 순서대로 넘긴다). 입력 모드가 아니면 무시
     void                                    InputStratagemCommand(const EHDCommandInput Command);
@@ -46,7 +46,7 @@ protected:
     // PossessedBy 가 PlayerState ASC 에 묶은 이벤트 콜백 4개를 푼다
     virtual void                            UnPossessed() override;
     virtual void                            SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override final;
-    // 두 칸의 무기 액터도 같이 지운다
+    // 총 칸의 무기 액터도 같이 지운다
     virtual void                            EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	// RagdollInterface
@@ -88,6 +88,9 @@ private:
     void                                    ScheduleCodeMontageEvent(const EHDCombatMontage MontageType, const UAnimMontage* WeaponMontage, const FName SectionName);
     void                                    SendCodeMontageEvent(const FGameplayTag EventTag);
 
+    // 사격·재장전 GA(UHDGA_Fire·UHDGA_Reload)가 활성이면 참. 무기 칸 선택을 거부하는 데 쓴다
+    bool                                    IsWeaponActionActive() const;
+
 private:
 	UPROPERTY(EditDefaultsOnly)
 	TObjectPtr<USpringArmComponent>			SpringArm;
@@ -106,10 +109,6 @@ private:
     
     UPROPERTY(EditAnywhere)
     TSubclassOf<UGameplayEffect>            WeaponAttributeSetEffect;
-
-    // 무기 교체 입력. IMC_ThirdPerson 에 E 로 매핑돼 있다
-    UPROPERTY(EditDefaultsOnly)
-    TObjectPtr<UInputAction>                SwapWeaponInputAction;
 
     FTimerHandle                            CodeReloadEventTimerHandle;
     // 직전 코드 발사 이벤트 시각(월드 초). 아직 없으면 음수

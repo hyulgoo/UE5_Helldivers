@@ -33,9 +33,13 @@ public:
     AHDWeapon*                              SpawnDefaultWeapon();
     // NewWeapon 을 그 종류의 칸에 넣고 쓴다. 쓰던 무기는 지금 탄약 Attribute 를 적어 두고 숨기며, 같은 칸에 있던 무기는 앞에 버린다
     void                                    EquipWeapon(AHDWeapon* NewWeapon, UAbilitySystemComponent* ASC);
-    // 다른 칸에 무기가 있으면 그 무기로 바꾸고 참. 쓰던 무기의 탄약은 ASC 의 지금 값으로 적어 둔다
-    bool                                    SwapWeapon(UAbilitySystemComponent* ASC);
-    // 두 칸의 무기(비어 있는 칸은 뺀다)
+    // NewWeapon 을 그 종류의 칸에 넣되 쓰지 않는다(손에 붙인 채 숨김). 같은 칸에 있던 무기는 앞에 버린다. 쓰는 무기와 조준 값은 그대로
+    void                                    StowWeapon(AHDWeapon* NewWeapon);
+    // Slot 의 무기로 바꾼다. Selected 가 아니면 아무것도 바꾸지 않는다. 쓰던 무기의 탄약은 ASC 의 지금 값으로 적어 둔다
+    EHDWeaponSelectResult                   SelectWeaponSlot(const EHDWeaponSlot Slot, UAbilitySystemComponent* ASC);
+    EHDWeaponSlot                           GetActiveWeaponSlot() const;
+    EHDWeaponSlot                           GetLastGunSlot() const;
+    // 총 칸의 무기(비어 있는 칸은 뺀다)
     void                                    GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const;
     void                                    SpawnProjectile();
 
@@ -83,6 +87,12 @@ private:
     void									TurnInPlace(const float DeltaTime);
     // 주인 앞 150 의 지면
     FVector                                 GetWeaponDropLocation() const;
+    // 칸 → 무기 포인터 멤버. Grenade 는 nullptr
+    TObjectPtr<AHDWeapon>*                  GetSlotWeapon(const EHDWeaponSlot Slot);
+    // NewWeapon 을 칸에 넣고(같은 칸의 옛 무기는 버린다) 손 소켓에 붙인다. 보이기·쓰는 무기는 부르는 쪽이 정한다
+    bool                                    PutWeaponInSlot(AHDWeapon* NewWeapon, const bool bMakeActive);
+    // 쓰는 칸의 무기를 보이고 쓰는 무기로 둔다. 쓰던 무기는 탄약을 적어 두고 숨긴다
+    void                                    ActivateSlotWeapon(UAbilitySystemComponent* ASC);
 
     UFUNCTION()
     void                                    OnSpringArmLengthUpdate(const float Value);
@@ -134,6 +144,9 @@ private:
 
     UPROPERTY()
     TObjectPtr<AHDWeapon>                   PrimaryWeapon;
+
+    UPROPERTY()
+    TObjectPtr<AHDWeapon>                   SecondaryWeapon;
 
     UPROPERTY()
     TObjectPtr<AHDWeapon>                   SupportWeapon;

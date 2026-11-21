@@ -36,6 +36,40 @@ bool HDDirectKey::TryGetCommand(const FKey& Key, const EInputEvent Event, EHDCom
     return false;
 }
 
+bool HDDirectKey::TryGetWeaponSlot(const FKey& Key, const EInputEvent Event, EHDWeaponSlot& OutSlot)
+{
+    if (Event != IE_Pressed)
+    {
+        return false;
+    }
+
+    if (Key == EKeys::One)
+    {
+        OutSlot = EHDWeaponSlot::Primary;
+        return true;
+    }
+
+    if (Key == EKeys::Two)
+    {
+        OutSlot = EHDWeaponSlot::Secondary;
+        return true;
+    }
+
+    if (Key == EKeys::Three)
+    {
+        OutSlot = EHDWeaponSlot::Support;
+        return true;
+    }
+
+    if (Key == EKeys::Four)
+    {
+        OutSlot = EHDWeaponSlot::Grenade;
+        return true;
+    }
+
+    return false;
+}
+
 bool HDDirectKey::ParseSimulatedKeys(const FString& Text, TArray<TArray<FHDSimulatedKeyEvent>>& OutFrames, FString& OutError)
 {
     OutFrames.Reset();

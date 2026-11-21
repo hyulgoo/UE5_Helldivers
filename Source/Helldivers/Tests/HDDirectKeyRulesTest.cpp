@@ -42,6 +42,39 @@ bool FHDDirectKeyRulesTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Command: other key ignored"), HDDirectKey::TryGetCommand(EKeys::W, IE_Pressed, Command));
     }
 
+    // 숫자 키 → 무기 칸
+    {
+        struct FSlotCase
+        {
+            const TCHAR*        Message;
+            FKey                Key;
+            EHDWeaponSlot       Expected;
+        };
+
+        const FSlotCase SlotCases[] =
+        {
+            { TEXT("Slot: One is Primary"),     EKeys::One,     EHDWeaponSlot::Primary },
+            { TEXT("Slot: Two is Secondary"),   EKeys::Two,     EHDWeaponSlot::Secondary },
+            { TEXT("Slot: Three is Support"),   EKeys::Three,   EHDWeaponSlot::Support },
+            { TEXT("Slot: Four is Grenade"),    EKeys::Four,    EHDWeaponSlot::Grenade },
+        };
+
+        for (const FSlotCase& SlotCase : SlotCases)
+        {
+            // 기대값과 다른 값에서 시작해 실제로 채웠는지 본다
+            EHDWeaponSlot Slot = EHDWeaponSlot::Grenade == SlotCase.Expected ? EHDWeaponSlot::Primary : EHDWeaponSlot::Grenade;
+            const bool bResult = HDDirectKey::TryGetWeaponSlot(SlotCase.Key, IE_Pressed, Slot);
+            TestTrue(SlotCase.Message, bResult && Slot == SlotCase.Expected);
+        }
+    }
+
+    {
+        EHDWeaponSlot Slot = EHDWeaponSlot::Primary;
+        TestFalse(TEXT("Slot: repeat ignored"), HDDirectKey::TryGetWeaponSlot(EKeys::One, IE_Repeat, Slot));
+        TestFalse(TEXT("Slot: Five ignored"), HDDirectKey::TryGetWeaponSlot(EKeys::Five, IE_Pressed, Slot));
+        TestFalse(TEXT("Slot: numpad ignored"), HDDirectKey::TryGetWeaponSlot(EKeys::NumPadOne, IE_Pressed, Slot));
+    }
+
     // 치트 문자열
     {
         TArray<TArray<FHDSimulatedKeyEvent>> Frames;

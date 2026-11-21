@@ -68,9 +68,9 @@ public:
     UFUNCTION(Exec)
     void        HDGiveSupportWeapon();
 
-    // 플레이어 폰의 무기 칸을 바꾼다(E 키와 같은 경로)
+    // 플레이어 폰의 무기 칸을 고른다. 1~4 = 주무기·보조무기·지원무기·수류탄(숫자 키와 같은 AHDCharacterPlayer::SelectWeaponSlot 경로)
     UFUNCTION(Exec)
-    void        HDSwapWeapon();
+    void        HDSelectWeapon(int32 SlotNumber);
 
     // 원시 키 이벤트를 프레임별로 PlayerController::InputKey 에 보낸다(실제 키보드와 같은 경로). 공백이 있으니 따옴표로 감싼다.
     // '|' 로 프레임을 나누고, 토큰은 <키 이름>+(누름) / <키 이름>-(뗌), 빈 프레임은 한 틱 기다림. 예: HDSimulateKeys "LeftControl+ | | Up+ | Up- | LeftControl-"
