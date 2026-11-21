@@ -532,6 +532,37 @@ void UHDCheatManager::HDSetGrenades(int32 Count)
     UE_LOG(LogTemp, Display, TEXT("[HDGrenade] set %d/%d"), NewCount, MaxGrenade);
 }
 
+void UHDCheatManager::HDSetStims(int32 Count)
+{
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* Pawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(Pawn);
+    if (ASC == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDStim] No player pawn or ability system component"));
+        return;
+    }
+
+    const int32 MaxStim = FMath::RoundToInt32(ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxStimAttribute()));
+    const int32 NewCount = FMath::Clamp(Count, 0, MaxStim);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetStimAttribute(), static_cast<float>(NewCount));
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStim] set %d/%d"), NewCount, MaxStim);
+}
+
+void UHDCheatManager::HDUseStim()
+{
+    APlayerController* PlayerController = GetPlayerController();
+    AHDCharacterPlayer* HDPlayer = PlayerController ? Cast<AHDCharacterPlayer>(PlayerController->GetPawn()) : nullptr;
+    if (HDPlayer == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDStim] No player character"));
+        return;
+    }
+
+    HDPlayer->UseStim();
+}
+
 void UHDCheatManager::HDSimulateKeys(const FString& Sequence)
 {
     TArray<TArray<FHDSimulatedKeyEvent>> Frames;

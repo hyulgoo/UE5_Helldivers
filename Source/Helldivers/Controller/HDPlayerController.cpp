@@ -67,6 +67,11 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
         PendingWeaponSlots.Add(WeaponSlot);
     }
 
+    if (HDDirectKey::IsStimKey(Params.Key, Params.Event))
+    {
+        bPendingStim = true;
+    }
+
     return bResult;
 }
 
@@ -74,7 +79,7 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
 
-    if (PendingStratagemCommands.IsEmpty() && PendingWeaponSlots.IsEmpty())
+    if (PendingStratagemCommands.IsEmpty() && PendingWeaponSlots.IsEmpty() && bPendingStim == false)
     {
         return;
     }
@@ -92,10 +97,16 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
         {
             HDPlayer->SelectWeaponSlot(WeaponSlot);
         }
+
+        if (bPendingStim)
+        {
+            HDPlayer->UseStim();
+        }
     }
 
     PendingStratagemCommands.Reset();
     PendingWeaponSlots.Reset();
+    bPendingStim = false;
 }
 
 void AHDPlayerController::SimulateKeyFrames(TArray<TArray<FHDSimulatedKeyEvent>> Frames)

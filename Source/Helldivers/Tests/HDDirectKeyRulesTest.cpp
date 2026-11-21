@@ -75,6 +75,14 @@ bool FHDDirectKeyRulesTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Slot: numpad ignored"), HDDirectKey::TryGetWeaponSlot(EKeys::NumPadOne, IE_Pressed, Slot));
     }
 
+    // Q → 스팀
+    {
+        TestTrue(TEXT("Stim: Q pressed"), HDDirectKey::IsStimKey(EKeys::Q, IE_Pressed));
+        TestFalse(TEXT("Stim: Q repeat ignored"), HDDirectKey::IsStimKey(EKeys::Q, IE_Repeat));
+        TestFalse(TEXT("Stim: Q release ignored"), HDDirectKey::IsStimKey(EKeys::Q, IE_Released));
+        TestFalse(TEXT("Stim: V ignored"), HDDirectKey::IsStimKey(EKeys::V, IE_Pressed));
+    }
+
     // 치트 문자열
     {
         TArray<TArray<FHDSimulatedKeyEvent>> Frames;

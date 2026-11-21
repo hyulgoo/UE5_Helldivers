@@ -24,6 +24,9 @@ namespace HDDirectKey
     // 숫자 키 One~Four 의 IE_Pressed 만 참(Primary·Secondary·Support·Grenade). 숫자 패드·IE_Repeat·IE_Released·다른 키는 거짓
     HELLDIVERS_API bool     TryGetWeaponSlot(const FKey& Key, const EInputEvent Event, EHDWeaponSlot& OutSlot);
 
+    // 스팀 키 Q 의 IE_Pressed 만 참. IE_Repeat·IE_Released·다른 키는 거짓
+    HELLDIVERS_API bool     IsStimKey(const FKey& Key, const EInputEvent Event);
+
     // "LeftControl+ | Up+ Right+ | Up- Right-" → 프레임 배열.
     // '|' 로 프레임을 나누고 프레임 안은 공백으로 나눈 토큰이다. 빈 프레임은 한 틱 기다림이다.
     // 토큰은 <키 이름>+(누름) 또는 <키 이름>-(뗌). 잘못된 토큰·잘못된 키 이름·토큰이 하나도 없으면 OutError 를 채우고 거짓

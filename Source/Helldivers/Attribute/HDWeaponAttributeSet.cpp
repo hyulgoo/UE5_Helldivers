@@ -18,6 +18,10 @@ void UHDWeaponAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribu
     {
         NewValue = FMath::Clamp(NewValue, 0.f, GetMaxGrenade());
     }
+    else if (Attribute == GetStimAttribute())
+    {
+        NewValue = FMath::Clamp(NewValue, 0.f, GetMaxStim());
+    }
 }
 
 void UHDWeaponAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)

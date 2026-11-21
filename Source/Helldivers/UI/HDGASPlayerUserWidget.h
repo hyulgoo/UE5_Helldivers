@@ -26,6 +26,7 @@ private:
     void                        RefreshHealthBar();
     void                        OnCapacityCountChanged(const int32 NewCapacityCount);
     void                        RefreshGrenadeCount();
+    void                        RefreshStimCount();
 
     void                        UpdateProgressbar(UProgressBar* Progressbar, const float Value);
     void                        UpdateTextblock(UTextBlock* TextBlock, const FText& Text);
@@ -47,6 +48,8 @@ protected:
 
     float                       CurrentHealth = 0.f;
     float                       CurrentMaxHealth = 0.f;
+    int32                       CurrentStimCount = 0;
+    int32                       MaxStimCount = 1;
 
     // Equip Section
     UPROPERTY(meta = (BindWidget))

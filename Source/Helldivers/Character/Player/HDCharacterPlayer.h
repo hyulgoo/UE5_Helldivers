@@ -44,6 +44,9 @@ public:
     // 투척 GA 가 끝날 때 부른다. 다 던졌고 수류탄 칸을 쓰는 중이면 마지막 총으로 돌아간다
     void                                    OnGrenadeThrowFinished();
 
+    // 스팀 하나를 쓴다(Q 키, AHDPlayerController 가 원시 키로 넘긴다. 치트 HDUseStim 도 같은 경로). 회복 GA(UHDGA_Stim)가 켜지지 않으면 거부 사유를 로그로 남긴다
+    void                                    UseStim();
+
 protected:
 	virtual void							SetDead() override final;
     virtual void							Tick(float DeltaTime) override final;

@@ -74,6 +74,16 @@ void UHDGASPlayerUserWidget::OnWeaponAttributeChangeds(const FOnAttributeChangeD
         MaxGrenadeCount = static_cast<int32>(ChangeData.NewValue);
         RefreshGrenadeCount();
     }
+    else if (ChangeData.Attribute == UHDWeaponAttributeSet::GetStimAttribute())
+    {
+        CurrentStimCount = static_cast<int32>(ChangeData.NewValue);
+        RefreshStimCount();
+    }
+    else if (ChangeData.Attribute == UHDWeaponAttributeSet::GetMaxStimAttribute())
+    {
+        MaxStimCount = static_cast<int32>(ChangeData.NewValue);
+        RefreshStimCount();
+    }
 }
 
 void UHDGASPlayerUserWidget::OnCapacityCountChanged(const int32 NewCapacityCount)
@@ -88,6 +98,13 @@ void UHDGASPlayerUserWidget::RefreshGrenadeCount()
     const FText GrenadeCountText = FText::Format(NSLOCTEXT("Grenade", "GrenadeForamt", "{0}/{1}"),
         FText::AsNumber(CurrentGrenadeCount), FText::AsNumber(MaxGrenadeCount));
     UpdateTextblock(Text_GrenadeCount, GrenadeCountText);
+}
+
+void UHDGASPlayerUserWidget::RefreshStimCount()
+{
+    const FText StimCountText = FText::Format(NSLOCTEXT("Stim", "StimFormat", "{0}/{1}"),
+        FText::AsNumber(CurrentStimCount), FText::AsNumber(MaxStimCount));
+    UpdateTextblock(Text_SteamCount, StimCountText);
 }
 
 void UHDGASPlayerUserWidget::UpdateProgressbar(UProgressBar* Progressbar, const float Value)

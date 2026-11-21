@@ -25,6 +25,8 @@ public:
 	ATTRIBUTE_ACCESSORS(ThisClass, MaxCapacity);
 	ATTRIBUTE_ACCESSORS(ThisClass, Grenade);
 	ATTRIBUTE_ACCESSORS(ThisClass, MaxGrenade);
+	ATTRIBUTE_ACCESSORS(ThisClass, Stim);
+	ATTRIBUTE_ACCESSORS(ThisClass, MaxStim);
 
 	virtual void            PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
     virtual void            PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) override;
@@ -49,4 +51,11 @@ public:
 
 	UPROPERTY(BlueprintReadOnly)
 	FGameplayAttributeData MaxGrenade;
+
+	// 스팀(회복 주사) 개수. 다 써도 Block.* 태그는 없다(UHDGA_Stim 이 개수를 직접 본다)
+	UPROPERTY(BlueprintReadOnly)
+	FGameplayAttributeData Stim;
+
+	UPROPERTY(BlueprintReadOnly)
+	FGameplayAttributeData MaxStim;
 };

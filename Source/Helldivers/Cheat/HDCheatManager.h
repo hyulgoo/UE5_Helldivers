@@ -76,6 +76,14 @@ public:
     UFUNCTION(Exec)
     void        HDSetGrenades(int32 Count);
 
+    // 플레이어 스팀 수(Stim base)를 Count 로. [0, MaxStim] 으로 자른다
+    UFUNCTION(Exec)
+    void        HDSetStims(int32 Count);
+
+    // 플레이어 폰이 스팀을 쓴다(Q 키와 같은 AHDCharacterPlayer::UseStim 경로)
+    UFUNCTION(Exec)
+    void        HDUseStim();
+
     // 원시 키 이벤트를 프레임별로 PlayerController::InputKey 에 보낸다(실제 키보드와 같은 경로). 공백이 있으니 따옴표로 감싼다.
     // '|' 로 프레임을 나누고, 토큰은 <키 이름>+(누름) / <키 이름>-(뗌), 빈 프레임은 한 틱 기다림. 예: HDSimulateKeys "LeftControl+ | | Up+ | Up- | LeftControl-"
     // 누른 채 남지 않게 끝에 누른 키를 모두 떼는 토큰을 넣는다. 문자열이 틀리면 아무 키도 보내지 않는다

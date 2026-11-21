@@ -13,6 +13,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_Action_Dead);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_IsDead);
 // 4 로 수류탄을 든 상태(루즈 태그, 네이티브 전용). 투척 GA 의 필요 태그, 사격·재장전 GA 는 이 태그가 있으면 켜지지 않는다
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_GrenadeReady);
+// 스팀으로 회복하는 중(UHDGA_Stim 의 ActivationOwnedTags, 네이티브 전용). 있는 동안 스팀을 또 쓰지 못한다
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_Stimmed);
 
 // Block
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_All);

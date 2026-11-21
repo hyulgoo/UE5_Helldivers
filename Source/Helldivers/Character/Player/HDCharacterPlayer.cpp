@@ -20,6 +20,9 @@
 #include "AbilitySystem/GameAbility/HDGA_Fire.h"
 #include "AbilitySystem/GameAbility/HDGA_Reload.h"
 #include "AbilitySystem/GameAbility/HDGA_ThrowGrenade.h"
+#include "AbilitySystem/GameAbility/HDGA_Stim.h"
+#include "Attribute/HDHealthAttributeSet.h"
+#include "Character/Player/HDStimRules.h"
 #include "Weapon/Projectile/HDProjectileGrenade.h"
 #include "Define/HDSocketNames.h"
 #include "TimerManager.h"
@@ -30,6 +33,8 @@ namespace
 {
     // 강하·증원 때 받는 수류탄 수(최대치)
     constexpr float DefaultGrenadeCount = 4.f;
+    // 강하·증원 때 받는 스팀 수(최대치)
+    constexpr float DefaultStimCount = 4.f;
     // 손에서 조준 방향보다 이만큼 위로 던진다(도)
     constexpr float GrenadeThrowPitchOffset = 10.f;
     constexpr float GrenadeThrowSpeed = 1800.f;
@@ -89,6 +94,12 @@ void AHDCharacterPlayer::PossessedBy(AController* NewController)
     if (ASC->FindAbilitySpecFromClass(UHDGA_ThrowGrenade::StaticClass()) == nullptr)
     {
         ASC->GiveAbility(FGameplayAbilitySpec(UHDGA_ThrowGrenade::StaticClass()));
+    }
+
+    // 스팀 GA 도 같은 이유로 여기서 준다
+    if (ASC->FindAbilitySpecFromClass(UHDGA_Stim::StaticClass()) == nullptr)
+    {
+        ASC->GiveAbility(FGameplayAbilitySpec(UHDGA_Stim::StaticClass()));
     }
 
     ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Event_PlayerHUD_Initialize).AddUObject(this, &AHDCharacterPlayer::SpawnDefaultWeapon);
@@ -367,6 +378,30 @@ void AHDCharacterPlayer::OnGrenadeThrowFinished()
     }
 }
 
+void AHDCharacterPlayer::UseStim()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (ASC == nullptr)
+    {
+        return;
+    }
+
+    if (ASC->TryActivateAbilityByClass(UHDGA_Stim::StaticClass()))
+    {
+        return;
+    }
+
+    const EHDStimRefusal Refusal = HDStim::CheckUse(
+        ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetStimAttribute()),
+        ASC->GetNumericAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute()),
+        ASC->GetNumericAttribute(UHDHealthAttributeSet::GetMaxHealthAttribute()),
+        ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead),
+        ASC->HasMatchingGameplayTag(Tag_Character_State_Stimmed));
+
+    // 규칙으로는 쓸 수 있는데 켜지지 않았으면 다른 태그(Block.All 등)에 막힌 것이다
+    UE_LOG(LogTemp, Display, TEXT("[HDStim] refused (%s)"), Refusal == EHDStimRefusal::None ? TEXT("blocked") : HDStim::GetRefusalName(Refusal));
+}
+
 bool AHDCharacterPlayer::Resupply()
 {
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
@@ -380,6 +415,7 @@ bool AHDCharacterPlayer::Resupply()
     const float OldAmmo     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute());
     const float OldCapacity = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute());
     const float OldGrenade  = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute());
+    const float OldStim     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetStimAttribute());
     const float MaxAmmo     = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxAmmoAttribute());
     const float MaxCapacity = ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxCapacityAttribute());
 
@@ -395,11 +431,13 @@ bool AHDCharacterPlayer::Resupply()
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
     ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()));
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetStimAttribute(), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxStimAttribute()));
 
-    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] resupply Ammo %.0f->%.0f Capacity %.0f->%.0f Grenade %.0f->%.0f"),
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] resupply Ammo %.0f->%.0f Capacity %.0f->%.0f Grenade %.0f->%.0f Stim %.0f->%.0f"),
         OldAmmo, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute()),
         OldCapacity, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()),
-        OldGrenade, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute()));
+        OldGrenade, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetGrenadeAttribute()),
+        OldStim, ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetStimAttribute()));
     return true;
 }
 
@@ -565,6 +603,9 @@ void AHDCharacterPlayer::SpawnDefaultWeapon(const FGameplayEventData* Payload)
     // 강하·증원마다 수류탄을 채운다. PreAttributeChange 가 Grenade 를 MaxGrenade 로 자르므로 Max 를 먼저 정한다
     ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxGrenadeAttribute(), DefaultGrenadeCount);
     ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), DefaultGrenadeCount);
+    // 스팀도 같은 순서로 채운다
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxStimAttribute(), DefaultStimCount);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetStimAttribute(), DefaultStimCount);
     ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
 }
 
@@ -771,6 +812,14 @@ void AHDCharacterPlayer::SetDead()
         {
             UE_LOG(LogTemp, Display, TEXT("[HDGrenade] throw cancelled (dead)"));
             ASC->CancelAbilityHandle(ThrowSpec->Handle);
+        }
+
+        // 회복 중에 죽으면 남은 회복이 시체의 체력을 다시 올린다. 스팀 GA 를 취소한다
+        const FGameplayAbilitySpec* StimSpec = ASC->FindAbilitySpecFromClass(UHDGA_Stim::StaticClass());
+        if (StimSpec && StimSpec->IsActive())
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDStim] cancelled (dead)"));
+            ASC->CancelAbilityHandle(StimSpec->Handle);
         }
     }
 

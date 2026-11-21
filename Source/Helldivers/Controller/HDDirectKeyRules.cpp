@@ -70,6 +70,11 @@ bool HDDirectKey::TryGetWeaponSlot(const FKey& Key, const EInputEvent Event, EHD
     return false;
 }
 
+bool HDDirectKey::IsStimKey(const FKey& Key, const EInputEvent Event)
+{
+    return Event == IE_Pressed && Key == EKeys::Q;
+}
+
 bool HDDirectKey::ParseSimulatedKeys(const FString& Text, TArray<TArray<FHDSimulatedKeyEvent>>& OutFrames, FString& OutError)
 {
     OutFrames.Reset();
