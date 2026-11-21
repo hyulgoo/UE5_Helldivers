@@ -21,6 +21,9 @@ public:
     // SpawnActorDeferred 와 FinishSpawning 사이에 부른다(월드 기준 속도)
     void                    SetThrowVelocity(const FVector& InVelocity);
 
+    // 치트 HDExplodeAtEnemy 가 신관을 기다리지 않고 부른다
+    void                    Explode();
+
 protected:
 	virtual void	        BeginPlay() override final;
 
@@ -29,9 +32,6 @@ protected:
 
 	UFUNCTION()
 	void			        OnBounce(const FHitResult& ImpactResult, const FVector& ImpactVelocity);
-
-private:
-    void                    Explode();
 
 private:
     UPROPERTY(EditAnywhere)

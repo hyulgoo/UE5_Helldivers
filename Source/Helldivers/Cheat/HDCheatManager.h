@@ -98,4 +98,9 @@ public:
     // Penetration 이 0 이면 탄의 자동 관통 등급(2), 1 이상이면 그 값. 판정은 로그 [HDArmor] hit 줄로 본다
     UFUNCTION(Exec)
     void        HDShootEnemy(const FString& BoneName = TEXT("spine_03"), int32 Penetration = 0);
+
+    // 살아 있는 가장 가까운 적의 몸 위치에서 플레이어 쪽 수평으로 Offset 떨어진 자리에 수류탄(AHDProjectileGrenade)을 놓고 바로 터뜨린다(소유자 = 플레이어 폰).
+    // 로그 [HDExplode] target=<적> body=<몸까지> capsule=<액터 위치까지> ragdoll=0|1, 판정은 [HDArmor] explosion 줄로 본다
+    UFUNCTION(Exec)
+    void        HDExplodeAtEnemy(float Offset = 150.f);
 };

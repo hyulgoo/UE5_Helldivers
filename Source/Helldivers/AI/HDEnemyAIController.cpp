@@ -132,11 +132,13 @@ void AHDEnemyAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus 
         return;
     }
 
-    AHDCharacterPlayer* Player = Cast<AHDCharacterPlayer>(Actor);
-    if (Player == nullptr || IsTargetDead(Player))
+    // 증원 뒤 남은 시체(빙의가 풀린 플레이어 캐릭터)는 대상이 아니다
+    if (IsValidTarget(Actor) == false)
     {
         return;
     }
+
+    AHDCharacterPlayer* Player = Cast<AHDCharacterPlayer>(Actor);
 
     const bool bHeard = UAIPerceptionSystem::GetSenseClassForStimulus(this, Stimulus) == UAISense_Hearing::StaticClass();
     if (bHeard)
@@ -155,6 +157,7 @@ void AHDEnemyAIController::AcquireTarget(APawn* NewTarget, const TCHAR* Reason)
     if (Target.Get() != NewTarget)
     {
         Target = NewTarget;
+        UE_LOG(LogTemp, Display, TEXT("[HDEnemy] %s target -> %s (%s)"), *GetNameSafe(GetPawn()), *GetNameSafe(NewTarget), Reason);
 
         // 새 대상은 이번 Tick 에 바로 시야 선을 쏜다
         LineOfSightElapsed = LineOfSightInterval;
@@ -211,7 +214,7 @@ void AHDEnemyAIController::UpdateTarget(const AHDCharacterNonPlayer& Enemy)
 
     // AutoAwareRadius 안의 살아 있는 플레이어는 시야 밖이어도 안다
     AHDCharacterPlayer* Player = Cast<AHDCharacterPlayer>(UGameplayStatics::GetPlayerPawn(this, 0));
-    if (Player && IsTargetDead(Player) == false && FVector::Dist(Enemy.GetActorLocation(), Player->GetActorLocation()) <= Stats.AutoAwareRadius)
+    if (IsValidTarget(Player) && FVector::Dist(Enemy.GetActorLocation(), Player->GetActorLocation()) <= Stats.AutoAwareRadius)
     {
         AcquireTarget(Player, TEXT("Proximity"));
     }
@@ -224,10 +227,10 @@ void AHDEnemyAIController::UpdateTarget(const AHDCharacterNonPlayer& Enemy)
         LastSensedTime = Now;
     }
 
-    // 감지가 LoseTargetTime 넘게 없거나, LoseTargetRadius 밖이거나, 대상이 죽으면 놓는다
+    // 감지가 LoseTargetTime 넘게 없거나, LoseTargetRadius 밖이거나, 대상이 죽거나 빙의가 풀리면 놓는다
     const bool bSenseTimedOut = Now - LastSensedTime > Stats.LoseTargetTime;
     const bool bTooFar = FVector::Dist(Enemy.GetActorLocation(), Target->GetActorLocation()) > Stats.LoseTargetRadius;
-    if (bSenseTimedOut || bTooFar || IsTargetDead(Target.Get()))
+    if (bSenseTimedOut || bTooFar || IsValidTarget(Target.Get()) == false)
     {
         Target.Reset();
         bHasLineOfSight = false;
@@ -407,4 +410,10 @@ bool AHDEnemyAIController::IsTargetDead(AActor* Actor)
 {
     UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(Actor);
     return ASC && ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead);
+}
+
+bool AHDEnemyAIController::IsValidTarget(AActor* Actor)
+{
+    const AHDCharacterPlayer* Player = Cast<AHDCharacterPlayer>(Actor);
+    return HDEnemyAI::IsValidTarget(Player != nullptr, Player && Player->IsPlayerControlled(), IsTargetDead(Actor));
 }

@@ -31,3 +31,8 @@ EHDEnemyAIState HDEnemyAI::DecideState(const FHDEnemyAIInput& Input)
 
     return EHDEnemyAIState::Chase;
 }
+
+bool HDEnemyAI::IsValidTarget(const bool bIsPlayerCharacter, const bool bPlayerControlled, const bool bDead)
+{
+    return bIsPlayerCharacter && bPlayerControlled && bDead == false;
+}

@@ -54,6 +54,9 @@ private:
 
     static bool                 IsTargetDead(AActor* Actor);
 
+    // 대상으로 삼아도 되는가(HDEnemyAI::IsValidTarget): 플레이어가 조종 중인 살아 있는 플레이어 캐릭터만
+    static bool                 IsValidTarget(AActor* Actor);
+
 private:
     UPROPERTY(VisibleAnywhere)
     TObjectPtr<UAIPerceptionComponent>  Perception;

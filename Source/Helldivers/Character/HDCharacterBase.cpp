@@ -85,6 +85,20 @@ void AHDCharacterBase::SetDead()
 	GetCharacterMovement()->DisableMovement();
     PlayAnimMontage(DeadMontage, 1.f);
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    // 죽은 몸은 탄과 수류탄이 지나간다. 래그돌의 지형 충돌(WorldStatic)은 그대로다
+    GetMesh()->SetCollisionResponseToChannel(HDCOLLISION_CHANNEL_PROJECTILE, ECR_Ignore);
+}
+
+FVector AHDCharacterBase::GetBodyLocation() const
+{
+    const USkeletalMeshComponent* CharacterMesh = GetMesh();
+    if (CharacterMesh && CharacterMesh->IsSimulatingPhysics())
+    {
+        return CharacterMesh->GetBoneLocation(TEXT("pelvis"));
+    }
+
+    return GetActorLocation();
 }
 
 void AHDCharacterBase::SetRagdoll(const bool bRagdoll, const FVector& Impulse)

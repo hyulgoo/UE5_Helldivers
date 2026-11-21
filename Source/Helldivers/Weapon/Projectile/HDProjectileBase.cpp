@@ -227,7 +227,9 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 			continue;
 		}
 
-		float Distance = FVector::Distance(HitLocation, Target->GetActorLocation());
+		// 캐릭터는 몸 위치로 잰다. 래그돌 중에는 캡슐(액터 위치)이 제자리에 남아 날아간 몸과 거리가 다르다
+		const AHDCharacterBase* TargetCharacter = Cast<AHDCharacterBase>(Target);
+		float Distance = FVector::Distance(HitLocation, TargetCharacter ? TargetCharacter->GetBodyLocation() : Target->GetActorLocation());
 
 		// 시설은 400x400x600 상자라 중심(지면 위 3m)까지 재면 벽 바로 옆 폭발도 반경을 넘는다. 시설만 가장 가까운 표면까지 잰다
 		if (Target->IsA<AHDObjectiveFacility>())
@@ -241,12 +243,15 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 			}
 		}
 
-		if (Distance <= ExplodeDamageRange)
+		// 죽은 적은 피해·판정 로그·히트마커에서 빠진다. 아래 넉백은 그대로 받는다(시체가 날아간다)
+		const AHDCharacterNonPlayer* TargetEnemy = Cast<AHDCharacterNonPlayer>(Target);
+		const bool bDeadEnemy = TargetEnemy && TargetEnemy->IsDead();
+
+		if (bDeadEnemy == false && Distance <= ExplodeDamageRange)
 		{
 			const float Damage = ImpactDamage * (1.f - (Distance / ExplodeDamageRange));
 
             // 폭발은 몸통 장갑으로 판정한다. 도탄이면 피해 없이 아래 넉백만 간다
-            const AHDCharacterNonPlayer* TargetEnemy = Cast<AHDCharacterNonPlayer>(Target);
             const FHDHitResolution Resolution = HDArmor::ResolveExplosion(TargetEnemy ? TargetEnemy->GetArmorProfile() : FHDArmorProfile(), GetEffectiveArmorPenetration(), Damage);
             if (Resolution.Outcome != EHDHitOutcome::Ricochet)
             {
@@ -273,7 +278,7 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 			UE_LOG(LogTemp, Error, TEXT("Distance : %f, ExplodeDamageRange : %f, ImpactDamage : %f"), Damage, ExplodeDamageRange, ImpactDamage);
 		}
 
-        FGameplayAbilityHelper::SendGameplayEventToTarget(KnockbackTag, this, TargetASC, KnockbackImpulse * (1.f - (Distance / ExplodeKnockBackRange)));
+        FGameplayAbilityHelper::SendGameplayEventToTarget(KnockbackTag, this, TargetASC, KnockbackImpulse * FMath::Max(0.f, 1.f - (Distance / ExplodeKnockBackRange)));
 	}
 
     if (bHitEnemy)

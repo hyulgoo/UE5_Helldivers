@@ -29,6 +29,7 @@
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Weapon/HDSupportWeapon.h"
 #include "Weapon/Projectile/HDProjectileBase.h"
+#include "Weapon/Projectile/HDProjectileGrenade.h"
 #include "Controller/HDPlayerController.h"
 #include "Controller/HDDirectKeyRules.h"
 
@@ -47,6 +48,30 @@ namespace HDCheatManager
             { TEXT("Shooter"), AHDEnemyShooter::StaticClass() },
             { TEXT("Heavy"), AHDEnemyHeavy::StaticClass() },
         };
+    }
+
+    // From 에서 가장 가까운 살아 있는 적. 없으면 nullptr
+    AHDCharacterNonPlayer* FindNearestLivingEnemy(UWorld* World, const FVector& From)
+    {
+        AHDCharacterNonPlayer* NearestEnemy = nullptr;
+        double NearestDistanceSquared = TNumericLimits<double>::Max();
+        for (TActorIterator<AHDCharacterNonPlayer> It(World); It; ++It)
+        {
+            AHDCharacterNonPlayer* Enemy = *It;
+            if (IsValid(Enemy) == false || Enemy->IsDead())
+            {
+                continue;
+            }
+
+            const double DistanceSquared = FVector::DistSquared(From, Enemy->GetActorLocation());
+            if (DistanceSquared < NearestDistanceSquared)
+            {
+                NearestEnemy = Enemy;
+                NearestDistanceSquared = DistanceSquared;
+            }
+        }
+
+        return NearestEnemy;
     }
 }
 
@@ -619,24 +644,7 @@ void UHDCheatManager::HDShootEnemy(const FString& BoneName, int32 Penetration)
 
     // 살아 있는 가장 가까운 적
     const FVector EyeLocation = PlayerPawn->GetPawnViewLocation();
-    AHDCharacterNonPlayer* NearestEnemy = nullptr;
-    double NearestDistanceSquared = TNumericLimits<double>::Max();
-    for (TActorIterator<AHDCharacterNonPlayer> It(World); It; ++It)
-    {
-        AHDCharacterNonPlayer* Enemy = *It;
-        if (IsValid(Enemy) == false || Enemy->IsDead())
-        {
-            continue;
-        }
-
-        const double DistanceSquared = FVector::DistSquared(EyeLocation, Enemy->GetActorLocation());
-        if (DistanceSquared < NearestDistanceSquared)
-        {
-            NearestEnemy = Enemy;
-            NearestDistanceSquared = DistanceSquared;
-        }
-    }
-
+    AHDCharacterNonPlayer* NearestEnemy = HDCheatManager::FindNearestLivingEnemy(World, EyeLocation);
     if (NearestEnemy == nullptr)
     {
         UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat: no living enemy"));
@@ -680,4 +688,51 @@ void UHDCheatManager::HDShootEnemy(const FString& BoneName, int32 Penetration)
     }
 
     UE_LOG(LogTemp, Display, TEXT("[HDArmor] cheat shot at %s bone=%s pen=%d"), *NearestEnemy->GetName(), *BoneName, Bullet->GetEffectiveArmorPenetration());
+}
+
+void UHDCheatManager::HDExplodeAtEnemy(float Offset)
+{
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    UWorld* World = GetWorld();
+    if (PlayerPawn == nullptr || World == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDExplode] no player pawn"));
+        return;
+    }
+
+    // 살아 있는 가장 가까운 적(HDShootEnemy 와 같은 고르기)
+    const AHDCharacterNonPlayer* NearestEnemy = HDCheatManager::FindNearestLivingEnemy(World, PlayerPawn->GetPawnViewLocation());
+    if (NearestEnemy == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDExplode] no enemy"));
+        return;
+    }
+
+    // 래그돌 중에는 메시만 날아가고 캡슐(액터 위치)은 제자리에 남는다
+    const USkeletalMeshComponent* EnemyMesh = NearestEnemy->GetMesh();
+    const bool bRagdoll = EnemyMesh && EnemyMesh->IsSimulatingPhysics();
+    const FVector BodyLocation = NearestEnemy->GetBodyLocation();
+
+    // 터지는 자리 = 몸 위치에서 플레이어 쪽 수평 방향으로 Offset
+    const FVector ToPlayer = (PlayerPawn->GetActorLocation() - BodyLocation).GetSafeNormal2D();
+    const FVector ExplodeLocation = BodyLocation + ToPlayer * Offset;
+
+    // 소유자의 ASC 로 피해 GE 를 건다(AHDCharacterPlayer 의 수류탄 투척과 같다)
+    AHDProjectileGrenade* Grenade = World->SpawnActorDeferred<AHDProjectileGrenade>(AHDProjectileGrenade::StaticClass(), FTransform(ExplodeLocation), PlayerPawn, PlayerPawn, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (Grenade == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDExplode] failed to spawn grenade"));
+        return;
+    }
+
+    Grenade->FinishSpawning(FTransform(ExplodeLocation));
+
+    UE_LOG(LogTemp, Display, TEXT("[HDExplode] target=%s body=%.0f capsule=%.0f ragdoll=%d"),
+        *NearestEnemy->GetName(),
+        FVector::Dist(ExplodeLocation, BodyLocation),
+        FVector::Dist(ExplodeLocation, NearestEnemy->GetActorLocation()),
+        bRagdoll ? 1 : 0);
+
+    Grenade->Explode();
 }

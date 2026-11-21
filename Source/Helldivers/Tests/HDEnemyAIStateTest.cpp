@@ -108,6 +108,18 @@ bool FHDEnemyAIStateTest::RunTest(const FString& Parameters)
         TestEqual(TEXT("Melee never holds"), ToString(HDEnemyAI::DecideState(Input)), ToString(EHDEnemyAIState::Chase));
     }
 
+    // 대상 유효성: 플레이어 캐릭터 + 조종 중 + 살아 있음일 때만 참
+    TestTrue(TEXT("IsValidTarget(true, true, false)"), HDEnemyAI::IsValidTarget(true, true, false));
+
+    // 빙의가 풀린 시체(증원 뒤)
+    TestFalse(TEXT("IsValidTarget(true, false, false) unpossessed corpse"), HDEnemyAI::IsValidTarget(true, false, false));
+
+    // 죽은 직후, 증원 전
+    TestFalse(TEXT("IsValidTarget(true, true, true) dead before reinforce"), HDEnemyAI::IsValidTarget(true, true, true));
+
+    TestFalse(TEXT("IsValidTarget(false, true, false) not a player character"), HDEnemyAI::IsValidTarget(false, true, false));
+    TestFalse(TEXT("IsValidTarget(true, false, true)"), HDEnemyAI::IsValidTarget(true, false, true));
+
     return true;
 }
 

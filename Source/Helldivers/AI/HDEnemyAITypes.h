@@ -33,4 +33,8 @@ namespace HDEnemyAI
     // 위에서부터 먼저 맞는 규칙: 죽음 -> Dead, 공격 중 -> Attack, 대상 없음 -> Idle, 사거리 안 + 준비 + 시야 -> Attack,
     // 선호 거리(PreferredRange > 0) 안 + 시야 -> Hold, 그 밖 -> Chase
     HELLDIVERS_API EHDEnemyAIState DecideState(const FHDEnemyAIInput& Input);
+
+    // 대상으로 삼아도 되는가: 플레이어 캐릭터이고, 플레이어가 조종 중이고, 죽지 않았을 때만 참.
+    // 증원 뒤 빙의가 풀린 시체는 ASC 가 비어 사망 태그로는 가릴 수 없다
+    HELLDIVERS_API bool IsValidTarget(bool bIsPlayerCharacter, bool bPlayerControlled, bool bDead);
 }

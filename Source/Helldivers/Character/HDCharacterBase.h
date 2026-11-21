@@ -25,6 +25,10 @@ class HELLDIVERS_API AHDCharacterBase : public ACharacter, public IAbilitySystem
 public:
     AHDCharacterBase(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+    // 몸이 실제로 있는 자리. 래그돌(메시 물리 시뮬레이션) 중에는 메시만 날아가고 캡슐은 제자리에 남으므로
+    // pelvis 본 위치를, 그 밖에는 액터 위치를 돌려준다. 폭발 거리는 이 값으로 잰다
+    FVector                                 GetBodyLocation() const;
+
 protected:
     virtual UAbilitySystemComponent*        GetAbilitySystemComponent() const override final;
     void                                    SetAbilitySystemComponent(AActor* OwnerActor, UAbilitySystemComponent* ASC);
