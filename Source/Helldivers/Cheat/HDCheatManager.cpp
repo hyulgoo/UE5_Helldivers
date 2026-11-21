@@ -22,6 +22,8 @@
 #include "UI/HDHUD.h"
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Weapon/HDSupportWeapon.h"
+#include "Controller/HDPlayerController.h"
+#include "Controller/HDDirectKeyRules.h"
 
 namespace HDCheatManager
 {
@@ -498,4 +500,24 @@ void UHDCheatManager::HDSwapWeapon()
     }
 
     PlayerCharacter->SwapWeapon();
+}
+
+void UHDCheatManager::HDSimulateKeys(const FString& Sequence)
+{
+    TArray<TArray<FHDSimulatedKeyEvent>> Frames;
+    FString Error;
+    if (HDDirectKey::ParseSimulatedKeys(Sequence, Frames, Error) == false)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HDSimulateKeys] parse failed: %s"), *Error);
+        return;
+    }
+
+    AHDPlayerController* PlayerController = Cast<AHDPlayerController>(GetOuterAPlayerController());
+    if (PlayerController == nullptr)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HDSimulateKeys] No HDPlayerController"));
+        return;
+    }
+
+    PlayerController->SimulateKeyFrames(MoveTemp(Frames));
 }

@@ -24,6 +24,22 @@
 #include "Game/HDGameMode.h"
 #include "Engine/World.h"
 
+namespace HDCharacterPlayer
+{
+    // 로그용 방향 이름
+    const TCHAR* GetCommandName(const EHDCommandInput Command)
+    {
+        switch (Command)
+        {
+        case EHDCommandInput::Up:       return TEXT("Up");
+        case EHDCommandInput::Down:     return TEXT("Down");
+        case EHDCommandInput::Left:     return TEXT("Left");
+        case EHDCommandInput::Right:    return TEXT("Right");
+        default:                        return TEXT("None");
+        }
+    }
+}
+
 AHDCharacterPlayer::AHDCharacterPlayer(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
@@ -126,12 +142,7 @@ void AHDCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
     NULL_CHECK(EnhancedInputComponent);
 
-    UInputAction* CommandInput = Stratagem->GetCommandInputAction();
-    NULL_CHECK(CommandInput);
-
-    EnhancedInputComponent->BindAction(CommandInput, ETriggerEvent::Triggered, this, &AHDCharacterPlayer::InputStratagemCommand);
-
-    // 교체 입력이 없으면 교체만 묶지 않는다(위 입력은 이미 묶었다)
+    // 스트라타젬 화살표는 묶지 않는다. AHDPlayerController::InputKey 가 원시 키 순서대로 InputStratagemCommand 를 부른다
     NULL_CHECK(SwapWeaponInputAction);
     EnhancedInputComponent->BindAction(SwapWeaponInputAction, ETriggerEvent::Started, this, &AHDCharacterPlayer::SwapWeapon);
 }
@@ -447,29 +458,19 @@ void AHDCharacterPlayer::UpdateSpeed(const EHDCharacterStanceState StanceState, 
     GetCharacterMovement()->MaxWalkSpeed = Speed;
 }
 
-void AHDCharacterPlayer::InputStratagemCommand(const FInputActionValue& Value)
+void AHDCharacterPlayer::InputStratagemCommand(const EHDCommandInput Command)
 {
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
-    if (ASC && ASC->HasMatchingGameplayTag(Tag_Character_Action_StratagemInputMode))
+    if (ASC == nullptr || ASC->HasMatchingGameplayTag(Tag_Character_Action_StratagemInputMode) == false)
     {
-        EHDCommandInput NewCommand = EHDCommandInput::Count;
-        const FVector2D NewInput = Value.Get<FVector2D>();
-        if (FMath::Abs(NewInput.Y) > 0.5f)
-        {
-            NewCommand = NewInput.Y > 0.f ? EHDCommandInput::Up : EHDCommandInput::Down;
-        }
-        else if (FMath::Abs(NewInput.X) > 0.5f)
-        {
-            NewCommand = NewInput.X > 0.f ? EHDCommandInput::Right : EHDCommandInput::Left;
-        }
-
-        CONDITION_CHECK(NewCommand != EHDCommandInput::Count);
-
-        Stratagem->AddStratagemCommand(NewCommand);
-
-        // HUD 연동용 GAS Event
-        FGameplayAbilityHelper::SendGameplayEventToTarget(Tag_Event_StratagemHUD_AddCommand, this, ASC);
+        return;
     }
+
+    Stratagem->AddStratagemCommand(Command);
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] command %s count=%d"), HDCharacterPlayer::GetCommandName(Command), Stratagem->GetCurrentInputNum());
+
+    // HUD 연동용 GAS Event
+    FGameplayAbilityHelper::SendGameplayEventToTarget(Tag_Event_StratagemHUD_AddCommand, this, ASC);
 }
 
 void AHDCharacterPlayer::SetMovementState(const EHDCharacterMovementState NewState)

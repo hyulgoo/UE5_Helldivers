@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Character/HDCharacterBase.h"
-#include "InputActionValue.h"
 #include "Interface/HDCharacterMovementInterface.h"
 #include "Interface/HDWeaponInterface.h"
 #include "HDCharacterPlayer.generated.h"
@@ -19,6 +18,7 @@ class UInputAction;
 struct FGameplayEventData;
 enum class EHDCharacterMovementState : uint8;
 enum class EHDCharacterStanceState : uint8;
+enum class EHDCommandInput : uint8;
 
 UCLASS()
 class HELLDIVERS_API AHDCharacterPlayer : public AHDCharacterBase, public IHDCharacterMovementInterface, public IHDWeaponInterface
@@ -35,6 +35,9 @@ public:
 
     // 주무기·지원 무기 칸을 바꾼다(E, IA_Equipped). ASC 가 없거나 스트라타젬을 들고 있거나 죽었으면 무시
     void                                    SwapWeapon();
+
+    // 스트라타젬 화살표 하나(AHDPlayerController 가 원시 키 순서대로 넘긴다). 입력 모드가 아니면 무시
+    void                                    InputStratagemCommand(const EHDCommandInput Command);
 
 protected:
 	virtual void							SetDead() override final;
@@ -73,10 +76,7 @@ protected:
 	void							        TryHoldStratagem();
 
     void    								UpdateSpeed(const EHDCharacterStanceState StanceState, const EHDCharacterMovementState MoveState);
-    
-	UFUNCTION()
-	void									InputStratagemCommand(const FInputActionValue& Value);
-	
+
 private:
     void                                    InitAbilitySystemComponent();
 	void									InterpFOV(float DeltaSeconds);

@@ -13,6 +13,7 @@
 #include "GameData/HDCharacterControlData.h"
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Cheat/HDCheatManager.h"
+#include "TimerManager.h"
 
 static TAutoConsoleVariable<int32> CVarHDAbilitySystemDebugOnSpawn(
     TEXT("hd.Debug.AbilitySystemOnSpawn"),
@@ -47,6 +48,101 @@ UHDAbilitySystemComponent* AHDPlayerController::GetAbilitySystemComponent()
     }
 
     return AbilitySystemComponent;
+}
+
+bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+    // Enhanced Input 이 키 상태를 그대로 받게 먼저 부른다
+    const bool bResult = Super::InputKey(Params);
+
+    EHDCommandInput Command = EHDCommandInput::Count;
+    if (HDDirectKey::TryGetCommand(Params.Key, Params.Event, Command))
+    {
+        PendingStratagemCommands.Add(Command);
+    }
+
+    return bResult;
+}
+
+void AHDPlayerController::PlayerTick(float DeltaTime)
+{
+    Super::PlayerTick(DeltaTime);
+
+    if (PendingStratagemCommands.IsEmpty())
+    {
+        return;
+    }
+
+    // 헬포드 등 플레이어 캐릭터가 아니면 버린다
+    AHDCharacterPlayer* HDPlayer = GetPawn<AHDCharacterPlayer>();
+    if (HDPlayer)
+    {
+        for (const EHDCommandInput Command : PendingStratagemCommands)
+        {
+            HDPlayer->InputStratagemCommand(Command);
+        }
+    }
+
+    PendingStratagemCommands.Reset();
+}
+
+void AHDPlayerController::SimulateKeyFrames(TArray<TArray<FHDSimulatedKeyEvent>> Frames)
+{
+    if (SimulatedKeyFrames.IsEmpty() == false)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HDSimulateKeys] busy"));
+        return;
+    }
+
+    if (Frames.IsEmpty())
+    {
+        return;
+    }
+
+    SimulatedKeyFrames      = MoveTemp(Frames);
+    SimulatedKeyFrameIndex  = 0;
+    SendNextSimulatedKeyFrame();
+}
+
+void AHDPlayerController::SendNextSimulatedKeyFrame()
+{
+    if (SimulatedKeyFrames.IsEmpty())
+    {
+        return;
+    }
+
+    const TArray<FHDSimulatedKeyEvent> Frame = SimulatedKeyFrames[0];
+    SimulatedKeyFrames.RemoveAt(0);
+
+    FString Tokens;
+    for (const FHDSimulatedKeyEvent& KeyEvent : Frame)
+    {
+        if (Tokens.IsEmpty() == false)
+        {
+            Tokens += TEXT(" ");
+        }
+        Tokens += KeyEvent.Key.GetFName().ToString() + (KeyEvent.Event == IE_Pressed ? TEXT("+") : TEXT("-"));
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDSimulateKeys] frame %d: %s"), SimulatedKeyFrameIndex, Tokens.IsEmpty() ? TEXT("(wait)") : *Tokens);
+
+    for (const FHDSimulatedKeyEvent& KeyEvent : Frame)
+    {
+        InputKey(FInputKeyEventArgs::CreateSimulated(KeyEvent.Key, KeyEvent.Event, KeyEvent.Event == IE_Pressed ? 1.f : 0.f));
+    }
+
+    ++SimulatedKeyFrameIndex;
+
+    if (SimulatedKeyFrames.IsEmpty())
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSimulateKeys] done (%d frames)"), SimulatedKeyFrameIndex);
+        return;
+    }
+
+    GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+    {
+        SendNextSimulatedKeyFrame();
+    }));
 }
 
 void AHDPlayerController::BeginPlay()
