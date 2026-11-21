@@ -157,6 +157,84 @@ bool FHDStratagemLoadoutTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Uses: reset Eagle to 2"), ResetEagleSlot && ResetEagleSlot->UsesLeft == 2);
     }
 
+    // 3-1. 재무장. 마지막 한 번을 쓰면 횟수가 다시 차고 긴 대기(RearmTime)가 걸린다
+    {
+        const FName RearmEagle(TEXT("RearmEagle"));
+        const FName NoRearm(TEXT("NoRearm"));
+        const FName Unlimited(TEXT("Unlimited"));
+        const FName NegRearm(TEXT("NegRearm"));
+
+        const auto MakeRearmCatalog = [&]()
+        {
+            TArray<FHDStratagemEntry> Catalog;
+            Catalog.Add(MakeEntry(RearmEagle,   { Up },     0.f, 10.f, 2));
+            Catalog.Last().RearmTime = 120.f;
+            Catalog.Add(MakeEntry(NoRearm,      { Down },   0.f, 10.f, 2));
+            Catalog.Last().RearmTime = 0.f;
+            Catalog.Add(MakeEntry(Unlimited,    { Left },   0.f, 30.f, 0));
+            Catalog.Last().RearmTime = 120.f;
+            Catalog.Add(MakeEntry(NegRearm,     { Right },  0.f, 10.f, 2));
+            Catalog.Last().RearmTime = -5.f;
+            return Catalog;
+        };
+
+        FHDStratagemLoadout Loadout;
+        Loadout.Initialize({ RearmEagle, NoRearm, Unlimited, NegRearm }, MakeRearmCatalog());
+
+        // 한 번 쓰고 결과(참/거짓·대기·남은 횟수·재무장)를 기대값과 비교한다
+        const auto CheckUse = [&](const TCHAR* Label, const int32 SlotIndex, const bool bExpected, const float ExpectedCooldown, const int32 ExpectedUsesLeft, const bool bExpectedRearming)
+        {
+            float Cooldown = -1.f;
+            const bool bResult = Loadout.ConsumeUse(SlotIndex, &Cooldown);
+            const FHDStratagemSlot* Slot = Loadout.GetSlot(SlotIndex);
+            TestEqual(*FString::Printf(TEXT("%s: result"), Label), bResult, bExpected);
+            TestEqual(*FString::Printf(TEXT("%s: cooldown"), Label), Cooldown, ExpectedCooldown);
+            if (TestNotNull(*FString::Printf(TEXT("%s: slot"), Label), Slot))
+            {
+                TestEqual(*FString::Printf(TEXT("%s: uses left"), Label), Slot->UsesLeft, ExpectedUsesLeft);
+                TestEqual(*FString::Printf(TEXT("%s: rearming"), Label), Slot->bRearming, bExpectedRearming);
+            }
+        };
+
+        // A. 재무장
+        CheckUse(TEXT("Rearm A 1st"), 0, true, 10.f, 1, false);
+        CheckUse(TEXT("Rearm A 2nd"), 0, true, 120.f, 2, true);
+        CheckUse(TEXT("Rearm A 3rd"), 0, true, 10.f, 1, false);
+
+        // B. 재무장 없음. 거부되면 OutCooldown 은 넣어 둔 -1 그대로다
+        CheckUse(TEXT("Rearm B 1st"), 1, true, 10.f, 1, false);
+        CheckUse(TEXT("Rearm B 2nd"), 1, true, 10.f, 0, false);
+        CheckUse(TEXT("Rearm B 3rd"), 1, false, -1.f, 0, false);
+        TestFalse(TEXT("Rearm B: no uses left"), Loadout.HasUsesLeft(1));
+
+        // C. 무제한은 RearmTime 을 쓰지 않는다
+        for (int32 Count = 0; Count < 5; ++Count)
+        {
+            CheckUse(TEXT("Rearm C unlimited"), 2, true, 30.f, 0, false);
+        }
+
+        // D. 음수 RearmTime 은 0 으로 본다(B 와 같다)
+        const FHDStratagemSlot* NegSlot = Loadout.GetSlot(3);
+        TestTrue(TEXT("Rearm D: negative rearm clamped to 0"), NegSlot && NegSlot->RearmTime == 0.f);
+        CheckUse(TEXT("Rearm D 1st"), 3, true, 10.f, 1, false);
+        CheckUse(TEXT("Rearm D 2nd"), 3, true, 10.f, 0, false);
+        CheckUse(TEXT("Rearm D 3rd"), 3, false, -1.f, 0, false);
+        TestFalse(TEXT("Rearm D: no uses left"), Loadout.HasUsesLeft(3));
+
+        // E. 대기를 받지 않는 호출(둘째 인자 없음)
+        Loadout.Initialize({ RearmEagle }, MakeRearmCatalog());
+        TestTrue(TEXT("Rearm E: 1st without out param"), Loadout.ConsumeUse(0));
+        TestTrue(TEXT("Rearm E: 2nd without out param"), Loadout.ConsumeUse(0));
+        const FHDStratagemSlot* RearmedSlot = Loadout.GetSlot(0);
+        TestTrue(TEXT("Rearm E: refilled and rearming"), RearmedSlot && RearmedSlot->UsesLeft == 2 && RearmedSlot->bRearming);
+
+        // F. 초기화는 재무장 표시도 지운다(위에서 두 번 쓴 상태)
+        Loadout.ResetUses();
+        const FHDStratagemSlot* ResetSlot = Loadout.GetSlot(0);
+        TestTrue(TEXT("Rearm F: reset uses to 2"), ResetSlot && ResetSlot->UsesLeft == 2);
+        TestTrue(TEXT("Rearm F: reset clears rearming"), ResetSlot && ResetSlot->bRearming == false);
+    }
+
     // 4. 재사용 대기 GE (엔진 GameplayEffectTests.cpp 와 같은 월드 준비)
     {
         UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);

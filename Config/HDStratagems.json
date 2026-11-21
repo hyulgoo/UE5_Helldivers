@@ -5,6 +5,7 @@
 		"ActivationDelay": 3,
 		"Cooldown": 10,
 		"MaxUses": 2,
+		"RearmTime": 120,
 		"bIsEagle": true,
 		"EagleAirStrikeDirection": "Right",
 		"StratagemProjectileType": "Bomb",

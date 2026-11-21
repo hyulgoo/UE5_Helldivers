@@ -33,7 +33,8 @@ public:
     // 탄창과 예비 탄약을 최대로 채운다(보급 상자). 죽었거나 ASC 가 없으면 거짓
     bool                                    Resupply();
 
-    // Slot 의 무기를 든다(숫자 키 1~4, AHDPlayerController 가 원시 키로 넘긴다). 죽음·스트라타젬·사격/재장전 중·같은 칸·빈 칸이면 거부 로그만 남긴다
+    // Slot 의 무기를 든다(숫자 키 1~4, AHDPlayerController 가 원시 키로 넘긴다). 죽음·스트라타젬 입력 모드·사격/재장전/투척 중·같은 칸·빈 칸이면 거부 로그만 남긴다.
+    // 스트라타젬을 들고 있으면 던지지 않고 집어넣은 뒤(PutAwayStratagem) 그 칸을 든다
     void                                    SelectWeaponSlot(const EHDWeaponSlot Slot);
 
     // 스트라타젬 화살표 하나(AHDPlayerController 가 원시 키 순서대로 넘긴다). 입력 모드가 아니면 무시
@@ -101,6 +102,9 @@ private:
 
     // 수류탄 칸에서 마지막 총 칸으로 돌아간다(거부 검사 없음). Reason 은 로그용
     void                                    LeaveGrenadeSlot(const TCHAR* Reason);
+
+    // 든 스트라타젬을 던지지 않고 집어넣는다(횟수·대기를 쓰지 않는다). 든 상태를 풀고 총을 다시 보인다
+    void                                    PutAwayStratagem();
 
 private:
 	UPROPERTY(EditDefaultsOnly)

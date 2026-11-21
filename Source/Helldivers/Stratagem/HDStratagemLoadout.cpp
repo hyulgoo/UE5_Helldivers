@@ -28,6 +28,8 @@ void FHDStratagemLoadout::Initialize(const TArray<FName>& LoadoutNames, const TA
         Slot.Cooldown = FMath::Max(Entry->Cooldown, 0.f);
         Slot.MaxUses = FMath::Max(Entry->MaxUses, 0);
         Slot.UsesLeft = Slot.MaxUses;
+        Slot.RearmTime = FMath::Max(Entry->RearmTime, 0.f);
+        Slot.bRearming = false;
     }
 }
 
@@ -47,7 +49,7 @@ bool FHDStratagemLoadout::HasUsesLeft(const int32 SlotIndex) const
     return Slot && (Slot->MaxUses == 0 || Slot->UsesLeft > 0);
 }
 
-bool FHDStratagemLoadout::ConsumeUse(const int32 SlotIndex)
+bool FHDStratagemLoadout::ConsumeUse(const int32 SlotIndex, float* OutCooldown)
 {
     if (HasUsesLeft(SlotIndex) == false)
     {
@@ -55,9 +57,24 @@ bool FHDStratagemLoadout::ConsumeUse(const int32 SlotIndex)
     }
 
     FHDStratagemSlot& Slot = Slots[SlotIndex];
+    float Cooldown = Slot.Cooldown;
     if (Slot.MaxUses > 0)
     {
         --Slot.UsesLeft;
+        Slot.bRearming = false;
+
+        // 마지막 한 번을 썼으면 횟수를 되돌리고 긴 대기(재무장)를 건다. 대기가 끝나는 시점을 따로 지켜보지 않는다
+        if (Slot.UsesLeft == 0 && Slot.RearmTime > 0.f)
+        {
+            Slot.UsesLeft = Slot.MaxUses;
+            Slot.bRearming = true;
+            Cooldown = Slot.RearmTime;
+        }
+    }
+
+    if (OutCooldown)
+    {
+        *OutCooldown = Cooldown;
     }
 
     return true;
@@ -68,6 +85,7 @@ void FHDStratagemLoadout::ResetUses()
     for (FHDStratagemSlot& Slot : Slots)
     {
         Slot.UsesLeft = Slot.MaxUses;
+        Slot.bRearming = false;
     }
 }
 

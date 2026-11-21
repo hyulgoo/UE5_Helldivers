@@ -226,6 +226,7 @@ TArray<FHDStratagemEntry> UHDStratagemComponent::BuildCatalog() const
         Entry.ActivationDelay = Definition->ActivationDelay;
         Entry.Cooldown = Definition->Cooldown;
         Entry.MaxUses = Definition->MaxUses;
+        Entry.RearmTime = Definition->RearmTime;
     }
 
     return Entries;
@@ -252,8 +253,12 @@ void UHDStratagemComponent::CommitHeldSlot()
     const FHDStratagemSlot* Slot = Loadout ? Loadout->GetSlot(SlotIndex) : nullptr;
     NULL_CHECK_WITHOUT_LOG(Slot);
 
-    Loadout->ConsumeUse(SlotIndex);
-    UHDGE_StratagemCooldown::ApplyToSlot(GetOwnerAbilitySystemComponent(), SlotIndex, Slot->Cooldown);
+    // 마지막 한 번이면 ConsumeUse 가 횟수를 되돌리고 재무장 대기(RearmTime)를 돌려준다. 거짓이면 대기를 걸지 않는다
+    float CooldownSeconds = 0.f;
+    if (Loadout->ConsumeUse(SlotIndex, &CooldownSeconds))
+    {
+        UHDGE_StratagemCooldown::ApplyToSlot(GetOwnerAbilitySystemComponent(), SlotIndex, CooldownSeconds);
+    }
 
-    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] thrown %s slot=%d uses=%s cooldown=%.1f"), *Slot->StratagemName.ToString(), SlotIndex + 1, *Slot->GetUsesText(), Slot->Cooldown);
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] thrown %s slot=%d uses=%s cooldown=%.1f%s"), *Slot->StratagemName.ToString(), SlotIndex + 1, *Slot->GetUsesText(), CooldownSeconds, Slot->bRearming ? TEXT(" rearm") : TEXT(""));
 }

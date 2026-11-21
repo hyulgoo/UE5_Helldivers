@@ -228,10 +228,25 @@ void AHDCharacterPlayer::SelectWeaponSlot(const EHDWeaponSlot Slot)
         return;
     }
 
-    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem) || ASC->HasMatchingGameplayTag(Tag_Character_Action_StratagemInputMode))
+    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_StratagemInputMode))
     {
         LogRefused(TEXT("stratagem"));
         return;
+    }
+
+    // 스트라타젬을 들고 있으면 던지지 않고 집어넣은 뒤 칸 선택으로 이어 간다
+    bool bPutAwayStratagem = false;
+    if (ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem))
+    {
+        // 투척 몽타주가 도는 중(BPGA_ThrowStratagem 이 Block.Stratagem 을 갖는다)에는 손에서 떠날 때까지 기다린다
+        if (ASC->HasMatchingGameplayTag(Tag_Block_Stratagem))
+        {
+            LogRefused(TEXT("busy"));
+            return;
+        }
+
+        PutAwayStratagem();
+        bPutAwayStratagem = true;
     }
 
     if (IsWeaponActionActive())
@@ -267,7 +282,11 @@ void AHDCharacterPlayer::SelectWeaponSlot(const EHDWeaponSlot Slot)
     const EHDWeaponSelectResult SelectResult = Combat->SelectWeaponSlot(Slot, ASC);
     if (SelectResult == EHDWeaponSelectResult::AlreadyActive)
     {
-        LogRefused(TEXT("active"));
+        // 집어넣은 뒤라면 쓰던 총이 다시 보이는 것이 결과다
+        if (bPutAwayStratagem == false)
+        {
+            LogRefused(TEXT("active"));
+        }
         return;
     }
 
@@ -324,6 +343,19 @@ void AHDCharacterPlayer::LeaveGrenadeSlot(const TCHAR* Reason)
     ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
 
     UE_LOG(LogTemp, Display, TEXT("[HDWeapon] leave Grenade -> %s (%s)"), GetWeaponSlotName(GunSlot), Reason);
+}
+
+void AHDCharacterPlayer::PutAwayStratagem()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    NULL_CHECK(ASC);
+
+    // CancelStratagem 은 HeldSlotIndex 를 비우므로 횟수·대기를 쓰지 않는다
+    Stratagem->CancelStratagem();
+    ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
+    SetWeaponActive(true);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] put away"));
 }
 
 void AHDCharacterPlayer::ThrowGrenade()
@@ -766,7 +798,12 @@ void AHDCharacterPlayer::TryHoldStratagem()
     }
     else
     {
-        Stratagem->CancelStratagem();
+        // 선택된 것이 없으면(Ctrl 만 눌렀다 뗌) 든 것을 그대로 둔다. 집어넣기는 무기 키(SelectWeaponSlot)가 한다
+        const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+        if (ASC && ASC->HasMatchingGameplayTag(Tag_Character_Action_HoldStratagem))
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDStratagem] keep held"));
+        }
     }
 
     Stratagem->ClearCommand();

@@ -131,7 +131,7 @@ void UHDStratagemHUDUserWidget::NativeTick(const FGeometry& MyGeometry, float In
 {
     Super::NativeTick(MyGeometry, InDeltaTime);
 
-    // 칸 i <-> 위젯 i. 남은 횟수 0 이면 EMPTY, 아니면 남은 대기(올림 초)와 남은/최대 횟수, 둘 다 없으면 이름만
+    // 칸 i <-> 위젯 i. 남은 횟수 0 이면 EMPTY, 재무장 대기 중이면 REARM 과 남은 초, 아니면 남은 대기(올림 초)와 남은/최대 횟수, 둘 다 없으면 이름만
     const FHDStratagemLoadout* Loadout = StratagemComponent ? StratagemComponent->GetLoadout() : nullptr;
     if (Loadout)
     {
@@ -153,14 +153,22 @@ void UHDStratagemHUDUserWidget::NativeTick(const FGeometry& MyGeometry, float In
             else
             {
                 const float CooldownRemaining = StratagemComponent->GetSlotCooldownRemaining(SlotIndex);
-                if (CooldownRemaining > 0.f)
+                if (CooldownRemaining > 0.f && LoadoutSlot->bRearming)
                 {
-                    Status += FString::Printf(TEXT("  %ds"), FMath::CeilToInt(CooldownRemaining));
+                    // 횟수는 이미 다시 찼지만 대기가 끝나야 쓸 수 있어 횟수 글자는 붙이지 않는다
+                    Status = FString::Printf(TEXT("  REARM %ds"), FMath::CeilToInt(CooldownRemaining));
                 }
-
-                if (LoadoutSlot->MaxUses > 0)
+                else
                 {
-                    Status += FString::Printf(TEXT("  %d/%d"), LoadoutSlot->UsesLeft, LoadoutSlot->MaxUses);
+                    if (CooldownRemaining > 0.f)
+                    {
+                        Status += FString::Printf(TEXT("  %ds"), FMath::CeilToInt(CooldownRemaining));
+                    }
+
+                    if (LoadoutSlot->MaxUses > 0)
+                    {
+                        Status += FString::Printf(TEXT("  %d/%d"), LoadoutSlot->UsesLeft, LoadoutSlot->MaxUses);
+                    }
                 }
             }
 

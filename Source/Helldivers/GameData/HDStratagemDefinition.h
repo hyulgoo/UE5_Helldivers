@@ -31,4 +31,8 @@ public:
     // 한 판에 부를 수 있는 횟수. 0 = 무제한
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Call")
     int32                       MaxUses             = 0;
+
+    // 횟수(MaxUses)를 다 쓴 뒤 다시 채워질 때까지(초). 0 = 다시 채우지 않는다. MaxUses 가 0 이면 쓰지 않는다
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Call")
+    float                       RearmTime           = 0.f;
 };

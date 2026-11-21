@@ -15,6 +15,8 @@ struct FHDStratagemEntry
     float                   Cooldown            = 0.f;
     // 0 = 무제한
     int32                   MaxUses             = 0;
+    // 횟수를 다 쓴 뒤 다시 채워질 때까지(초). 0 = 다시 채우지 않는다. MaxUses 가 0 이면 쓰지 않는다
+    float                   RearmTime           = 0.f;
 };
 
 // 로드아웃 한 칸
@@ -26,6 +28,9 @@ struct FHDStratagemSlot
     float                   Cooldown            = 0.f;
     int32                   MaxUses             = 0;
     int32                   UsesLeft            = 0;
+    float                   RearmTime           = 0.f;
+    // 마지막 한 번을 써서 횟수가 다시 찼고 지금 걸린 대기가 재무장(RearmTime)이면 참. 다음에 쓰면 거짓
+    bool                    bRearming           = false;
 
     // 로그·치트용. 무제한이면 inf, 아니면 남은/최대
     FString                 GetUsesText() const { return MaxUses > 0 ? FString::Printf(TEXT("%d/%d"), UsesLeft, MaxUses) : FString(TEXT("inf")); }
@@ -48,7 +53,7 @@ class HELLDIVERS_API FHDStratagemLoadout
 public:
     static constexpr int32  MaxSlots = 4;
 
-    // LoadoutNames 순서대로 칸을 만든다. 카탈로그에 없는 이름·None·중복은 건너뛰고 MaxSlots 칸에서 자른다. 대기·횟수는 카탈로그 항목 값(음수는 0)
+    // LoadoutNames 순서대로 칸을 만든다. 카탈로그에 없는 이름·None·중복은 건너뛰고 MaxSlots 칸에서 자른다. 대기·횟수·재무장은 카탈로그 항목 값(음수는 0)
     void                        Initialize(const TArray<FName>& LoadoutNames, const TArray<FHDStratagemEntry>& Catalog);
 
     bool                        IsInitialized() const { return bInitialized; }
@@ -59,10 +64,12 @@ public:
     // 무제한이면 참
     bool                        HasUsesLeft(const int32 SlotIndex) const;
 
-    // 한 번 쓴다. 남은 횟수가 없거나 칸이 없으면 거짓이고 바뀌지 않는다. 무제한이면 참이고 그대로다
-    bool                        ConsumeUse(const int32 SlotIndex);
+    // 한 번 쓴다. 남은 횟수가 없거나 칸이 없으면 거짓이고 바뀌지 않는다(OutCooldown 도). 무제한이면 참이고 그대로다.
+    // 마지막 한 번을 썼고 RearmTime 이 있으면 횟수를 MaxUses 로 되돌리고 bRearming 을 켠다.
+    // OutCooldown 에는 이번에 걸 대기(초)를 넣는다: 재무장이면 RearmTime, 아니면 Cooldown
+    bool                        ConsumeUse(const int32 SlotIndex, float* OutCooldown = nullptr);
 
-    // 모든 칸의 남은 횟수를 MaxUses 로
+    // 모든 칸의 남은 횟수를 MaxUses 로, bRearming 을 거짓으로
     void                        ResetUses();
 
     // bAvailable[칸] 이 거짓인 칸(대기 중·다 씀)은 후보에서 뺀다. bAvailable 이 칸 수보다 짧으면 모자란 칸은 거짓. 입력이 비면 빈 결과
