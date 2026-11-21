@@ -13,6 +13,9 @@ namespace HDSpawnRules
     // 그룹 중 원거리형 수. 비율은 0~1 로 자른다
     HELLDIVERS_API int32    ShooterCount(int32 GroupSize, float ShooterRatio);
 
+    // 그룹 중 중장갑형 수. 비율은 0~1 로 자르고 반올림한다. 음수 그룹은 0
+    HELLDIVERS_API int32    HeavyCount(int32 GroupSize, float HeavyRatio);
+
     // 경보가 BreachDelay 이상 이어졌고 마지막 웨이브에서 BreachCooldown 이상 지났는가
     HELLDIVERS_API bool     ShouldBreach(float AlertedSeconds, float BreachDelay, float SecondsSinceLastBreach, float BreachCooldown);
 

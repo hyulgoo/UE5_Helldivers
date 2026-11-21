@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Weapon/HDArmorRules.h"
 #include "HDHUD.generated.h"
 
 class UAbilitySystemComponent;
@@ -30,9 +31,14 @@ public:
     // 왼쪽 위 미션 글자, 미완료 목표 표식(라벨·거리), 증원 대기 중이면 가운데 REINFORCING IN <초> 를 캔버스에 그린다
     virtual void                        DrawHUD() override;
 
+    // 플레이어가 쏜 탄이 적에 맞은 결과. 조준점에 히트마커를 잠깐 그린다(투사체가 부른다)
+    void                                NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint);
+
 private:
     void                                DrawMissionText();
     void                                DrawObjectiveMarkers();
+    // 마지막 알림 뒤 잠깐 화면 가운데 X. 전부 빨강(약점 주황), 감소 흰색, 도탄 회색 + DEFLECT
+    void                                DrawHitMarker();
 
 private:
     UPROPERTY()
@@ -59,5 +65,10 @@ private:
 	UPROPERTY()
     TObjectPtr<AHDWeapon>                   CurrentWeapon;
 
-    FDelegateHandle                         SpreadChangedHandle;  
+    FDelegateHandle                         SpreadChangedHandle;
+
+    // 마지막 히트마커 알림. 시각은 월드 시간(초), 음수면 아직 없음
+    EHDHitOutcome                           LastHitOutcome = EHDHitOutcome::Full;
+    bool                                    bLastHitWeakPoint = false;
+    double                                  LastHitTime = -1.0;
 };

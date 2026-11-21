@@ -14,6 +14,11 @@ namespace HDSpawnRules
         return FMath::RoundToInt(GroupSize * FMath::Clamp(ShooterRatio, 0.f, 1.f));
     }
 
+    int32 HeavyCount(int32 GroupSize, float HeavyRatio)
+    {
+        return FMath::Max(0, FMath::RoundToInt(GroupSize * FMath::Clamp(HeavyRatio, 0.f, 1.f)));
+    }
+
     bool ShouldBreach(float AlertedSeconds, float BreachDelay, float SecondsSinceLastBreach, float BreachCooldown)
     {
         return AlertedSeconds >= BreachDelay && SecondsSinceLastBreach >= BreachCooldown;

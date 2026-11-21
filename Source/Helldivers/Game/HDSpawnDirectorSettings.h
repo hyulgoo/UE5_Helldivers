@@ -56,6 +56,10 @@ public:
     UPROPERTY(Config, EditAnywhere, Category = "Director")
     float               ShooterRatio = 0.3f;
 
+    // 그룹 중 중장갑형 비율(0~1). 순찰조 3명은 0, 웨이브 8명은 1
+    UPROPERTY(Config, EditAnywhere, Category = "Director")
+    float               HeavyRatio = 0.1f;
+
     // 추출 중 강도(브리프 8 이 SetIntensity 로 쓴다)
     UPROPERTY(Config, EditAnywhere, Category = "Director")
     float               ExtractionIntensity = 2.f;

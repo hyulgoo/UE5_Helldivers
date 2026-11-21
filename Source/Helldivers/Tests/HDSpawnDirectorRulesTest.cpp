@@ -24,6 +24,15 @@ bool FHDSpawnDirectorRulesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("ShooterCount(4, 1.5) ratio clamped to 1"), HDSpawnRules::ShooterCount(4, 1.5f), 4);
     TestEqual(TEXT("ShooterCount(4, -0.2) ratio clamped to 0"), HDSpawnRules::ShooterCount(4, -0.2f), 0);
 
+    // HeavyCount(GroupSize, HeavyRatio)
+    TestEqual(TEXT("HeavyCount(8, 0.1)"), HDSpawnRules::HeavyCount(8, 0.1f), 1);
+    TestEqual(TEXT("HeavyCount(3, 0.1)"), HDSpawnRules::HeavyCount(3, 0.1f), 0);
+    TestEqual(TEXT("HeavyCount(16, 0.1)"), HDSpawnRules::HeavyCount(16, 0.1f), 2);
+    TestEqual(TEXT("HeavyCount(8, 0)"), HDSpawnRules::HeavyCount(8, 0.f), 0);
+    TestEqual(TEXT("HeavyCount(8, -1) ratio clamped to 0"), HDSpawnRules::HeavyCount(8, -1.f), 0);
+    TestEqual(TEXT("HeavyCount(0, 0.5)"), HDSpawnRules::HeavyCount(0, 0.5f), 0);
+    TestEqual(TEXT("HeavyCount(8, 2) ratio clamped to 1"), HDSpawnRules::HeavyCount(8, 2.f), 8);
+
     // ShouldBreach(AlertedSeconds, BreachDelay, SecondsSinceLastBreach, BreachCooldown)
     TestFalse(TEXT("ShouldBreach(5.9, 6, large, 40)"), HDSpawnRules::ShouldBreach(5.9f, 6.f, LargeSeconds, 40.f));
     TestTrue(TEXT("ShouldBreach(6.0, 6, large, 40)"), HDSpawnRules::ShouldBreach(6.0f, 6.f, LargeSeconds, 40.f));

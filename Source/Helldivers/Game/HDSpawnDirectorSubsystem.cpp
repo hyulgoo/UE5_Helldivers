@@ -15,6 +15,7 @@
 #include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Character/NPC/HDEnemyCharger.h"
 #include "Character/NPC/HDEnemyShooter.h"
+#include "Character/NPC/HDEnemyHeavy.h"
 #include "Define/HDDefine.h"
 
 static TAutoConsoleVariable<int32> CVarHDDirectorDebug(
@@ -216,6 +217,7 @@ int32 UHDSpawnDirectorSubsystem::SpawnGroup(const FVector& Center, const int32 C
     NULL_CHECK_WITH_RETURNTYPE(World, 0);
 
     const UHDSpawnDirectorSettings* Settings = GetDefault<UHDSpawnDirectorSettings>();
+    const int32 HeavyCount = HDSpawnRules::HeavyCount(Count, Settings->HeavyRatio);
     const int32 ShooterCount = HDSpawnRules::ShooterCount(Count, Settings->ShooterRatio);
     const bool bDebug = CVarHDDirectorDebug.GetValueOnGameThread() == 1;
 
@@ -223,10 +225,22 @@ int32 UHDSpawnDirectorSubsystem::SpawnGroup(const FVector& Center, const int32 C
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
     int32 SpawnedCount = 0;
+    int32 SpawnedHeavyCount = 0;
+    int32 SpawnedShooterCount = 0;
     for (int32 Index = 0; Index < Count; ++Index)
     {
-        // 앞의 ShooterCount 명은 원거리형, 나머지는 돌격형
-        const TSubclassOf<AHDCharacterNonPlayer> EnemyClass = Index < ShooterCount ? TSubclassOf<AHDCharacterNonPlayer>(AHDEnemyShooter::StaticClass()) : TSubclassOf<AHDCharacterNonPlayer>(AHDEnemyCharger::StaticClass());
+        // 앞의 HeavyCount 명은 중장갑형, 그 다음 ShooterCount 명은 원거리형, 나머지는 돌격형
+        const bool bHeavy = Index < HeavyCount;
+        const bool bShooter = bHeavy == false && Index < HeavyCount + ShooterCount;
+        TSubclassOf<AHDCharacterNonPlayer> EnemyClass = AHDEnemyCharger::StaticClass();
+        if (bHeavy)
+        {
+            EnemyClass = AHDEnemyHeavy::StaticClass();
+        }
+        else if (bShooter)
+        {
+            EnemyClass = AHDEnemyShooter::StaticClass();
+        }
 
         FVector GroundLocation;
         if (FindSpawnPoint(Center, RingMin, RingMax, GroundLocation) == false)
@@ -247,6 +261,8 @@ int32 UHDSpawnDirectorSubsystem::SpawnGroup(const FVector& Center, const int32 C
             continue;
         }
         ++SpawnedCount;
+        SpawnedHeavyCount += bHeavy ? 1 : 0;
+        SpawnedShooterCount += bShooter ? 1 : 0;
 
         if (bDebug)
         {
@@ -263,6 +279,8 @@ int32 UHDSpawnDirectorSubsystem::SpawnGroup(const FVector& Center, const int32 C
             }
         }
     }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDDirector] group heavy=%d shooter=%d charger=%d"), SpawnedHeavyCount, SpawnedShooterCount, SpawnedCount - SpawnedHeavyCount - SpawnedShooterCount);
 
     return SpawnedCount;
 }

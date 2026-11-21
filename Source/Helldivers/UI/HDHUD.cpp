@@ -39,6 +39,18 @@ namespace HDHUDMission
 
     // 추출 지점 표식: 위치 + Z 300
     constexpr float     ExtractionMarkerHeight = 300.f;
+
+    // 히트마커: 화면 가운데에서 HitMarkerGap 떨어져 HitMarkerLength 길이의 대각선 넷(X)
+    constexpr float     HitMarkerDuration = 0.25f;
+    constexpr float     HitMarkerGap = 6.f;
+    constexpr float     HitMarkerLength = 10.f;
+    constexpr float     HitMarkerThickness = 2.f;
+    // DEFLECT 글자: X 아래쪽 끝에서 이만큼 아래
+    constexpr float     HitMarkerTextGap = 6.f;
+    const FLinearColor  HitMarkerFullColor(1.f, 0.1f, 0.1f);
+    const FLinearColor  HitMarkerWeakColor(1.f, 0.55f, 0.f);
+    const FLinearColor  HitMarkerReducedColor(1.f, 1.f, 1.f);
+    const FLinearColor  HitMarkerRicochetColor(0.55f, 0.55f, 0.55f);
 }
 
 void AHDHUD::SetAbilitySystemComponent(UAbilitySystemComponent* ASC)
@@ -144,6 +156,76 @@ void AHDHUD::DrawHUD()
 
     DrawMissionText();
     DrawObjectiveMarkers();
+    DrawHitMarker();
+}
+
+void AHDHUD::NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint)
+{
+    const UWorld* World = GetWorld();
+    NULL_CHECK_WITHOUT_LOG(World);
+
+    LastHitOutcome = Outcome;
+    bLastHitWeakPoint = bWeakPoint;
+    LastHitTime = World->GetTimeSeconds();
+
+    UE_LOG(LogTemp, Display, TEXT("[HDHUD] hit marker %s%s"), HDArmor::GetOutcomeName(Outcome), bWeakPoint ? TEXT(" weak") : TEXT(""));
+}
+
+void AHDHUD::DrawHitMarker()
+{
+    using namespace HDHUDMission;
+
+    const UWorld* World = GetWorld();
+    if (World == nullptr || Canvas == nullptr || LastHitTime < 0.0)
+    {
+        return;
+    }
+
+    if (World->GetTimeSeconds() - LastHitTime > HitMarkerDuration)
+    {
+        return;
+    }
+
+    FLinearColor Color = HitMarkerFullColor;
+    switch (LastHitOutcome)
+    {
+    case EHDHitOutcome::Full:
+        Color = bLastHitWeakPoint ? HitMarkerWeakColor : HitMarkerFullColor;
+        break;
+    case EHDHitOutcome::Reduced:
+        Color = HitMarkerReducedColor;
+        break;
+    case EHDHitOutcome::Ricochet:
+        Color = HitMarkerRicochetColor;
+        break;
+    default:
+        break;
+    }
+
+    const float CenterX = Canvas->ClipX * 0.5f;
+    const float CenterY = Canvas->ClipY * 0.5f;
+
+    // 대각선 방향 넷. 가운데는 비워 조준점을 가리지 않는다
+    const float Inner = HitMarkerGap * UE_INV_SQRT_2;
+    const float Outer = (HitMarkerGap + HitMarkerLength) * UE_INV_SQRT_2;
+    for (const float SignX : { -1.f, 1.f })
+    {
+        for (const float SignY : { -1.f, 1.f })
+        {
+            DrawLine(CenterX + SignX * Inner, CenterY + SignY * Inner, CenterX + SignX * Outer, CenterY + SignY * Outer, Color, HitMarkerThickness);
+        }
+    }
+
+    if (LastHitOutcome == EHDHitOutcome::Ricochet)
+    {
+        const FString DeflectText = TEXT("DEFLECT");
+        UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+
+        float TextWidth = 0.f;
+        float TextHeight = 0.f;
+        GetTextSize(DeflectText, TextWidth, TextHeight, Font);
+        DrawText(DeflectText, Color, CenterX - TextWidth * 0.5f, CenterY + Outer + HitMarkerTextGap, Font);
+    }
 }
 
 void AHDHUD::DrawMissionText()

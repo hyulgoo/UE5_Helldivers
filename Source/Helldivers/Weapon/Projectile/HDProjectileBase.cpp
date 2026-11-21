@@ -14,6 +14,9 @@
 #include "Weapon/WeaponTypes.h"
 #include "Weapon/HDArmorRules.h"
 #include "Attribute/HDHealthAttributeSet.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
+#include "UI/HDHUD.h"
 
 AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer) 
@@ -130,6 +133,9 @@ void AHDProjectileBase::OnBoxHit(UPrimitiveComponent* HitComp, AActor* OtherActo
                     HDArmor::GetOutcomeName(Resolution.Outcome),
                     Resolution.Damage,
                     TargetASC->GetNumericAttribute(UHDHealthAttributeSet::GetCurrentHealthAttribute()));
+
+                // 약점: 머리이고 그 표의 머리 배율이 1 보다 클 때
+                NotifyOwnerHud(Resolution.Outcome, Resolution.Zone == EHDHitZone::Head && ArmorProfile.HeadDamageMultiplier > 1.f);
             }
 		}
 
@@ -200,6 +206,10 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 		Params
 	);
 
+    // 히트마커는 한 번의 폭발에서 가장 좋은 결과(Full > Reduced > Ricochet) 하나만 알린다
+    bool bHitEnemy = false;
+    EHDHitOutcome BestOutcome = EHDHitOutcome::Ricochet;
+
 	TSet<AActor*> HitActors;
 	for (const FHitResult& Result : HitResults)
 	{
@@ -251,6 +261,13 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
                     Resolution.Armor,
                     HDArmor::GetOutcomeName(Resolution.Outcome),
                     Resolution.Damage);
+
+                // 열거형 순서가 Full, Reduced, Ricochet 이라 작은 값이 더 좋은 결과다
+                if (bHitEnemy == false || Resolution.Outcome < BestOutcome)
+                {
+                    BestOutcome = Resolution.Outcome;
+                }
+                bHitEnemy = true;
             }
 
 			UE_LOG(LogTemp, Error, TEXT("Distance : %f, ExplodeDamageRange : %f, ImpactDamage : %f"), Damage, ExplodeDamageRange, ImpactDamage);
@@ -258,6 +275,22 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 
         FGameplayAbilityHelper::SendGameplayEventToTarget(KnockbackTag, this, TargetASC, KnockbackImpulse * (1.f - (Distance / ExplodeKnockBackRange)));
 	}
+
+    if (bHitEnemy)
+    {
+        NotifyOwnerHud(BestOutcome, false);
+    }
+}
+
+void AHDProjectileBase::NotifyOwnerHud(EHDHitOutcome Outcome, bool bWeakPoint) const
+{
+    const APawn* OwnerPawn = Cast<APawn>(GetOwner());
+    const APlayerController* PlayerController = OwnerPawn ? Cast<APlayerController>(OwnerPawn->GetController()) : nullptr;
+    AHDHUD* HUD = PlayerController ? PlayerController->GetHUD<AHDHUD>() : nullptr;
+    if (HUD)
+    {
+        HUD->NotifyHitFeedback(Outcome, bWeakPoint);
+    }
 }
 
 void AHDProjectileBase::ApplyDamageGameEffect(UAbilitySystemComponent* SourceASC, UAbilitySystemComponent* TargetASC, const float InterpImpactDamage)

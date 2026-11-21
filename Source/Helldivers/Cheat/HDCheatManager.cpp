@@ -15,6 +15,7 @@
 #include "Character/NPC/HDCharacterNonPlayer.h"
 #include "Character/NPC/HDEnemyCharger.h"
 #include "Character/NPC/HDEnemyShooter.h"
+#include "Character/NPC/HDEnemyHeavy.h"
 #include "Game/HDSpawnDirectorSubsystem.h"
 #include "Game/HDGameMode.h"
 #include "Game/HDGameState.h"
@@ -44,6 +45,7 @@ namespace HDCheatManager
         return {
             { TEXT("Charger"), AHDEnemyCharger::StaticClass() },
             { TEXT("Shooter"), AHDEnemyShooter::StaticClass() },
+            { TEXT("Heavy"), AHDEnemyHeavy::StaticClass() },
         };
     }
 }

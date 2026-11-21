@@ -16,6 +16,7 @@ class UGameplayEffect;
 class UAbilitySystemComponent;
 enum class EImpactType : uint8;
 enum class EStatusEffect : uint8;
+enum class EHDHitOutcome : uint8;
 
 UCLASS()
 class HELLDIVERS_API AHDProjectileBase : public AActor
@@ -52,6 +53,9 @@ private:
     void                                        SpawnTrailSystem();
 
     void                                        ApplyDamageGameEffect(UAbilitySystemComponent* SourceAbiltySystemComponent, UAbilitySystemComponent* TargetAbiltySystemComponent, const float InterpImpactDamage);
+
+    // 소유자가 플레이어가 조종하는 폰이면 그 HUD 에 히트마커를 알린다. 포탑·전함·적이 쏜 탄은 알리지 않는다
+    void                                        NotifyOwnerHud(EHDHitOutcome Outcome, bool bWeakPoint) const;
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Info|Default")
