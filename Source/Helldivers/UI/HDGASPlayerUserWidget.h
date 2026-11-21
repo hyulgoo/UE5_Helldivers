@@ -24,9 +24,8 @@ public:
 private:
 
     void                        RefreshHealthBar();
-    void                        SetGrenadeCountInfo(const int32 NewGrenadeCount, const int32 NewMaxGrenadeCount);
     void                        OnCapacityCountChanged(const int32 NewCapacityCount);
-    void                        OnGrenadeCountChanged(const int32 NewGrenadeCount);
+    void                        RefreshGrenadeCount();
 
     void                        UpdateProgressbar(UProgressBar* Progressbar, const float Value);
     void                        UpdateTextblock(UTextBlock* TextBlock, const FText& Text);
@@ -77,4 +76,5 @@ protected:
     int32                       MaxAmmoCount = 1;
     int32                       MaxCapacityCount = 1;
     int32                       MaxGrenadeCount = 1;
+    int32                       CurrentGrenadeCount = 0;
 };

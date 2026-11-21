@@ -101,6 +101,14 @@ void UHDStratagemComponent::HoldStratagem(USkeletalMeshComponent* MeshComponent,
 	SpawnParams.Owner = GetOwner();
 	SpawnParams.Instigator = Cast<APawn>(GetOwner());
 
+	// 든 채 다시 고르면 앞의 것을 버린다. 그대로 두면 포인터만 덮여 앞 액터가 손에 붙은 채 남는다
+	if (IsValid(Stratagem))
+	{
+		UE_LOG(LogTemp, Display, TEXT("[HDStratagem] replace held"));
+		Stratagem->Destroy();
+		Stratagem = nullptr;
+	}
+
 	Stratagem = World->SpawnActor<AHDStratagem>(StratagemClass, SocketTransform.GetLocation(), TargetRotation, SpawnParams);
 	NULL_CHECK(Stratagem);
     

@@ -86,6 +86,9 @@ void UHDGA_Reload::OnEventRecieved(FGameplayEventData Payload)
 
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
+    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] reload done ammo=%.0f capacity=%.0f"),
+        ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetAmmoAttribute()), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetCapacityAttribute()));
+
     EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, false, true);
 }
 

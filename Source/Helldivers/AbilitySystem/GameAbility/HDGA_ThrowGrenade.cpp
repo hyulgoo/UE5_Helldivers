@@ -19,6 +19,8 @@ UHDGA_ThrowGrenade::UHDGA_ThrowGrenade(const FObjectInitializer& ObjectInitializ
     ActivationBlockedTags.AddTag(Tag_Block_Grenade);
     ActivationBlockedTags.AddTag(Tag_Block_All);
     ActivationBlockedTags.AddTag(Tag_Character_Action_HoldStratagem);
+    // Ctrl(스트라타젬 입력 모드)을 누르고 있는 동안에는 던지지 않는다. SelectWeaponSlot 이 입력 모드 중 선택을 거부하는 것과 같은 규칙이다
+    ActivationBlockedTags.AddTag(Tag_Character_Action_StratagemInputMode);
     ActivationBlockedTags.AddTag(Tag_Character_Action_Dead);
 
     ActivationOwnedTags.AddTag(Tag_Block_Fire);

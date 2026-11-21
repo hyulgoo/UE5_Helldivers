@@ -66,19 +66,14 @@ void UHDGASPlayerUserWidget::OnWeaponAttributeChangeds(const FOnAttributeChangeD
     }
     else if (ChangeData.Attribute == UHDWeaponAttributeSet::GetGrenadeAttribute())
     {
-        OnGrenadeCountChanged(static_cast<int32>(ChangeData.NewValue));
+        CurrentGrenadeCount = static_cast<int32>(ChangeData.NewValue);
+        RefreshGrenadeCount();
     }
     else if (ChangeData.Attribute == UHDWeaponAttributeSet::GetMaxGrenadeAttribute())
     {
-        MaxCapacityCount = static_cast<int32>(ChangeData.NewValue);
-        SetGrenadeCountInfo(MaxCapacityCount, MaxCapacityCount);
+        MaxGrenadeCount = static_cast<int32>(ChangeData.NewValue);
+        RefreshGrenadeCount();
     }
-}
-
-void UHDGASPlayerUserWidget::SetGrenadeCountInfo(const int32 NewGrenadeCount, const int32 NewMaxGrenadeCount)
-{
-    MaxGrenadeCount = NewMaxGrenadeCount;
-    OnGrenadeCountChanged(NewGrenadeCount);
 }
 
 void UHDGASPlayerUserWidget::OnCapacityCountChanged(const int32 NewCapacityCount)
@@ -88,11 +83,11 @@ void UHDGASPlayerUserWidget::OnCapacityCountChanged(const int32 NewCapacityCount
     UpdateTextblock(Text_CapacityCount, CapacityCountText);
 }
 
-void UHDGASPlayerUserWidget::OnGrenadeCountChanged(const int32 NewGrenadeCount)
+void UHDGASPlayerUserWidget::RefreshGrenadeCount()
 {
     const FText GrenadeCountText = FText::Format(NSLOCTEXT("Grenade", "GrenadeForamt", "{0}/{1}"),
-        FText::AsNumber(NewGrenadeCount), FText::AsNumber(MaxGrenadeCount));
-    UpdateTextblock(Text_CapacityCount, GrenadeCountText);
+        FText::AsNumber(CurrentGrenadeCount), FText::AsNumber(MaxGrenadeCount));
+    UpdateTextblock(Text_GrenadeCount, GrenadeCountText);
 }
 
 void UHDGASPlayerUserWidget::UpdateProgressbar(UProgressBar* Progressbar, const float Value)

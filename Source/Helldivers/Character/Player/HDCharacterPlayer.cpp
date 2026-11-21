@@ -764,6 +764,14 @@ void AHDCharacterPlayer::SetDead()
         ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
         // 수류탄을 든 상태도 푼다(같은 이유로 증원 뒤에도 남는다)
         ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
+
+        // 좌클릭 직후 죽으면 AM_Throw 가 시체에서 계속 돌아 0.427초에 수류탄이 나간다. 투척 GA 를 취소해 몽타주를 멈춘다
+        const FGameplayAbilitySpec* ThrowSpec = ASC->FindAbilitySpecFromClass(UHDGA_ThrowGrenade::StaticClass());
+        if (ThrowSpec && ThrowSpec->IsActive())
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDGrenade] throw cancelled (dead)"));
+            ASC->CancelAbilityHandle(ThrowSpec->Handle);
+        }
     }
 
     APlayerController* PlayerController = GetController<APlayerController>();
