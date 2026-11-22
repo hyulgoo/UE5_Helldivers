@@ -28,13 +28,20 @@ public:
     // 로드아웃을 바꾼 뒤 스트라타젬 목록을 다시 만든다. 위젯이 아직 없으면 아무것도 하지 않는다
     void                                RebuildStratagemList();
 
-    // 왼쪽 위 미션 글자, 미완료 목표 표식(라벨·거리), 증원 대기 중이면 가운데 REINFORCING IN <초> 를 캔버스에 그린다
+    // 왼쪽 위 미션 글자, 미완료 목표 표식(라벨·거리), 증원 대기 중이면 가운데 REINFORCING IN <초> 를 캔버스에 그린다.
+    // 함선 단계면 함선 메뉴만 그린다
     virtual void                        DrawHUD() override;
+
+    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기
+    virtual void                        NotifyHitBoxClick(FName BoxName) override;
+    virtual void                        NotifyHitBoxBeginCursorOver(FName BoxName) override;
 
     // 플레이어가 쏜 탄이 적에 맞은 결과. 조준점에 히트마커를 잠깐 그린다(투사체가 부른다)
     void                                NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint);
 
 private:
+    // 반투명 배경 + 타이틀(HD SOLO OPERATIONS / PRESS ENTER) 또는 Bridge(제목·자원 줄·줄 목록·설명·키 안내)와 히트박스
+    void                                DrawShipMenu();
     void                                DrawMissionText();
     void                                DrawObjectiveMarkers();
     // 마지막 알림 뒤 잠깐 화면 가운데 X. 전부 빨강(약점 주황), 감소 흰색, 도탄 회색 + DEFLECT

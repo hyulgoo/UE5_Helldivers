@@ -8,8 +8,10 @@
 #include "HDGameMode.generated.h"
 
 class UHDMissionSettings;
+class ACameraActor;
 
-// 한 판의 단계(FHDMissionFlow)를 소유하고 착지·목표·추출·사망을 받아 게임스테이트와 스폰 디렉터에 반영한다
+// 한 판의 단계(FHDMissionFlow)를 소유하고 착지·목표·추출·사망을 받아 게임스테이트와 스폰 디렉터에 반영한다.
+// UHDProgressionSettings::bStartInShip 이면 함선 단계(폰 없음, 고정 카메라 + 메뉴)로 시작하고 RequestDeploy 때 미션을 시작한다
 UCLASS()
 class HELLDIVERS_API AHDGameMode : public AGameModeBase
 {
@@ -18,9 +20,19 @@ class HELLDIVERS_API AHDGameMode : public AGameModeBase
 public:
     AHDGameMode(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+    // 함선 단계를 정한다. 첫 헬포드는 로그인 때 스폰되므로 StartPlay 보다 먼저인 여기서 정한다
+    virtual void                InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
+    // 함선 단계면 EnterShip, 아니면 BeginMission
 	virtual void	StartPlay() override final;
     virtual void                PostLogin(APlayerController* NewPlayer) override;
     virtual void                Tick(float DeltaSeconds) override;
+
+    // 함선 단계면 거짓(로그인 때 기본 폰을 스폰하지 않는다), 아니면 Super
+    virtual bool                PlayerCanRestart_Implementation(APlayerController* Player) override;
+
+    // 출격(메뉴 DEPLOY·치트 HDDeploy). 함선 단계가 아니면 거짓. 메뉴를 닫고 미션을 시작한 뒤 헬포드를 스폰하고 함선 카메라를 지운다
+    bool                        RequestDeploy(APlayerController* PC);
+    bool                        IsInShip() const;
 
     // 브리프 7~9 가 부른다
     void                        NotifyObjectiveCompleted(AActor* Objective);
@@ -40,6 +52,12 @@ public:
     void                        DebugSetMissionTimeLimit(float Seconds);
 
 private:
+    // 목표를 배치하고 FHDMissionFlow 를 만든다([HDMission] start 로그까지)
+    void                        BeginMission();
+
+    // 첫 PlayerStart(없으면 원점) + ShipCameraOffset 에 PlayerStart 를 바라보는 카메라를 두고, 모든 플레이어의 시점을 옮겨 함선 메뉴를 연다
+    void                        EnterShip();
+
     // 맵에 놓인 목표가 RequiredObjectives 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
     int32                       PlaceObjectives(const UHDMissionSettings& Settings);
 
@@ -66,4 +84,11 @@ private:
 
     // 사망 -> Reinforce 대기. Tick 에서 남은 시간을 게임스테이트 RespawnRemaining 에 옮긴다
     FTimerHandle                ReinforceTimerHandle;
+
+    // 함선 단계인가(InitGame 에서 정하고 RequestDeploy 가 내린다)
+    bool                        bInShip = false;
+
+    // 함선 단계의 고정 카메라. 출격하면 지운다
+    UPROPERTY()
+    TObjectPtr<ACameraActor>    ShipCamera;
 };

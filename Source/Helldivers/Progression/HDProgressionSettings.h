@@ -27,4 +27,12 @@ public:
     // 새 프로필의 징발 포인트
     UPROPERTY(Config, EditAnywhere, Category = "Profile")
     int32               StartingRequisition = 0;
+
+    // 참이면 맵을 열 때 함선 단계(폰 없음, 메뉴)로 시작하고 출격을 골라야 강하한다. 거짓이면 지금처럼 바로 강하한다
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    bool                bStartInShip = true;
+
+    // 함선 카메라 = 첫 PlayerStart + 이 값, PlayerStart 를 바라본다
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    FVector             ShipCameraOffset = FVector(-5000.f, 0.f, 6000.f);
 };

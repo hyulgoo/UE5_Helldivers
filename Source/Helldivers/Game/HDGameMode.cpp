@@ -15,6 +15,11 @@
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
 #include "Mission/HDObjectiveFacility.h"
+#include "Controller/HDPlayerController.h"
+#include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDProgressionSettings.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerState.h"
@@ -74,10 +79,95 @@ AHDGameMode::AHDGameMode(const FObjectInitializer& ObjectInitializer)
     PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
+void AHDGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+    Super::InitGame(MapName, Options, ErrorMessage);
+
+    // 로그인(첫 헬포드)이 StartPlay 보다 먼저라 여기서 정한다
+    bInShip = GetDefault<UHDProgressionSettings>()->bStartInShip;
+}
+
 void AHDGameMode::StartPlay()
 {
 	Super::StartPlay();
 
+    if (bInShip)
+    {
+        EnterShip();
+    }
+    else
+    {
+        BeginMission();
+    }
+}
+
+bool AHDGameMode::PlayerCanRestart_Implementation(APlayerController* Player)
+{
+    // 엔진은 로그인 때 이 값이 참일 때만 기본 폰을 스폰한다. 출격은 RequestDeploy 가 RestartPlayer 로 직접 부른다
+    if (bInShip)
+    {
+        return false;
+    }
+
+    return Super::PlayerCanRestart_Implementation(Player);
+}
+
+bool AHDGameMode::RequestDeploy(APlayerController* PC)
+{
+    if (bInShip == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] deploy refused (not in ship)"));
+        return false;
+    }
+
+    NULL_CHECK_WITH_RETURNTYPE(PC, false);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] deploy"));
+
+    bInShip = false;
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetInShip(false);
+    }
+
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    if (ProfileSubsystem)
+    {
+        ProfileSubsystem->MarkTitleShown();
+    }
+
+    AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PC);
+    if (HDPlayerController)
+    {
+        HDPlayerController->ExitShipMenu();
+    }
+
+    BeginMission();
+
+    // 엔진 RestartPlayer 는 PlayerCanRestart 를 보지 않는다. 빙의가 시점을 헬포드로 옮긴다
+    if (PC->GetPawn() == nullptr)
+    {
+        RestartPlayer(PC);
+    }
+
+    if (ShipCamera)
+    {
+        ShipCamera->Destroy();
+        ShipCamera = nullptr;
+    }
+
+    return true;
+}
+
+bool AHDGameMode::IsInShip() const
+{
+    return bInShip;
+}
+
+void AHDGameMode::BeginMission()
+{
     const UHDMissionSettings* Settings = GetDefault<UHDMissionSettings>();
 
     // 목표 배치를 미션 로직보다 먼저 한다. 필요 수는 실제로 있는 목표 수를 넘지 않게(최소 1)
@@ -89,6 +179,60 @@ void AHDGameMode::StartPlay()
     SyncGameState();
 
     UE_LOG(LogTemp, Display, TEXT("[HDMission] start objectives=%d reinforcements=%d"), MissionFlow->GetRequiredObjectives(), MissionFlow->GetReinforcementsLeft());
+}
+
+void AHDGameMode::EnterShip()
+{
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    // 바라볼 곳 = 첫 PlayerStart(없으면 원점)
+    FVector LookAtLocation = FVector::ZeroVector;
+    TActorIterator<APlayerStart> PlayerStartIt(World);
+    if (PlayerStartIt)
+    {
+        LookAtLocation = PlayerStartIt->GetActorLocation();
+    }
+
+    const FVector CameraLocation = LookAtLocation + GetDefault<UHDProgressionSettings>()->ShipCameraOffset;
+    const FRotator CameraRotation = (LookAtLocation - CameraLocation).Rotation();
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    ShipCamera = World->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), CameraLocation, CameraRotation, SpawnParams);
+    NULL_CHECK(ShipCamera);
+
+    // 화면 비율이 달라도 검은 띠를 넣지 않는다
+    ShipCamera->GetCameraComponent()->SetConstraintAspectRatio(false);
+
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const bool bShowTitle = ProfileSubsystem == nullptr || ProfileSubsystem->HasShownTitle() == false;
+
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PlayerController = It->Get();
+        if (PlayerController == nullptr)
+        {
+            continue;
+        }
+
+        PlayerController->SetViewTarget(ShipCamera);
+
+        AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerController);
+        if (HDPlayerController)
+        {
+            HDPlayerController->EnterShipMenu(bShowTitle);
+        }
+    }
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetInShip(true);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] enter title=%d camera=%s"), bShowTitle ? 1 : 0, *CameraLocation.ToString());
 }
 
 void AHDGameMode::PostLogin(APlayerController* NewPlayer)

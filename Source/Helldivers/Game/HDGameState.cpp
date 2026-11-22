@@ -16,6 +16,7 @@ AHDGameState::AHDGameState()
     , bPlayerInExtractionZone(false)
     , bExtractionCalled(false)
     , RespawnRemaining(-1.f)
+    , bInShip(false)
 {
 }
 
@@ -50,6 +51,11 @@ void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed,
 void AHDGameState::SetRespawnRemaining(float NewRespawnRemaining)
 {
     RespawnRemaining = NewRespawnRemaining;
+}
+
+void AHDGameState::SetInShip(bool bNewInShip)
+{
+    bInShip = bNewInShip;
 }
 
 void AHDGameState::BeginPlay()

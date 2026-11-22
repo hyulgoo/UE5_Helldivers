@@ -76,6 +76,16 @@ void UHDProfileSubsystem::ResetProfile()
     UE_LOG(LogTemp, Display, TEXT("[HDProfile] reset slot=%s"), *SlotName);
 }
 
+bool UHDProfileSubsystem::HasShownTitle() const
+{
+    return bTitleShown;
+}
+
+void UHDProfileSubsystem::MarkTitleShown()
+{
+    bTitleShown = true;
+}
+
 FHDProfileData UHDProfileSubsystem::MakeNewProfile() const
 {
     FHDProfileData NewProfile;

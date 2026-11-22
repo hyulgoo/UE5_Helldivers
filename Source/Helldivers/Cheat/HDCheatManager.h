@@ -31,7 +31,7 @@ public:
     UFUNCTION(Exec)
     void        HDBreach();
 
-    // 미션 상태 한 줄: Phase=... Objectives=a/b Reinforcements=n Extraction=s InZone=0|1 Called=0|1
+    // 미션 상태 한 줄: Phase=... Objectives=a/b Reinforcements=n Extraction=s InZone=0|1 Called=0|1 Ship=0|1
     UFUNCTION(Exec)
     void        HDMission();
 
@@ -123,4 +123,12 @@ public:
     // 프로필 저장 파일을 지우고 새 프로필로 돌린다(저장하지 않는다)
     UFUNCTION(Exec)
     void        HDResetProfile();
+
+    // 함선 단계에서 바로 출격한다(메뉴 DEPLOY 와 같은 AHDGameMode::RequestDeploy 경로, 타이틀 화면에서도 된다). 함선 단계가 아니면 deploy refused
+    UFUNCTION(Exec)
+    void        HDDeploy();
+
+    // 함선 메뉴 한 줄: [HDShip] inShip=0|1 active=0|1 screen=<화면> cursor=<n> items=<Label|Label…>
+    UFUNCTION(Exec)
+    void        HDShip();
 };

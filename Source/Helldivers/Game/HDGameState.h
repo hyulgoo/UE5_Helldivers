@@ -38,6 +38,10 @@ public:
     float                       GetRespawnRemaining() const { return RespawnRemaining; }
     void                        SetRespawnRemaining(float NewRespawnRemaining);
 
+    // 함선 단계(폰 없음, 메뉴)인가. AHDGameMode 가 함선에 들어올 때 참, 출격할 때 거짓으로 둔다
+    void                        SetInShip(bool bNewInShip);
+    bool                        IsInShip() const { return bInShip; }
+
 public:
     // SetMissionSnapshot 안에서 단계가 바뀌면 방송한다
     FOnHDMissionPhaseChanged    OnMissionPhaseChanged;
@@ -78,4 +82,7 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     float                       RespawnRemaining;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Mission")
+    bool                        bInShip;
 };

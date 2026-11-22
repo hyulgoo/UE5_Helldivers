@@ -29,6 +29,10 @@ public:
     // 파일을 지우고 새 프로필로(치트). 저장하지 않는다
     void                            ResetProfile();
 
+    // 타이틀을 이미 보였는가. 저장하지 않고 게임 인스턴스가 살아 있는 동안만 기억한다(복귀 뒤에는 타이틀 없이 Bridge)
+    bool                            HasShownTitle() const;
+    void                            MarkTitleShown();
+
 private:
     // StartingRequisition 반영
     FHDProfileData                  MakeNewProfile() const;
@@ -36,4 +40,6 @@ private:
 
 private:
     FHDProfileData                  Profile;
+
+    bool                            bTitleShown = false;
 };

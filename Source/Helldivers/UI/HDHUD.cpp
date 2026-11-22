@@ -21,6 +21,9 @@
 #include "Game/HDMissionFlow.h"
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
+#include "Controller/HDPlayerController.h"
+#include "Progression/HDProfileSubsystem.h"
+#include "UI/HDShipMenu.h"
 #include "Engine/Canvas.h"
 
 namespace HDHUDMission
@@ -69,6 +72,73 @@ namespace HDHUDMission
             }
         }
         return FString::Join(Words, TEXT(" "));
+    }
+}
+
+namespace HDHUDShip
+{
+    // 화면 전체를 덮는 반투명 검정
+    const FLinearColor  BackgroundColor(0.f, 0.f, 0.f, 0.6f);
+    const FLinearColor  ItemColor(1.f, 1.f, 1.f);
+    const FLinearColor  DisabledItemColor(0.5f, 0.5f, 0.5f);
+
+    // 타이틀: 화면 높이 비율 위치에 가운데 정렬
+    constexpr float     TitleTextScale = 2.5f;
+    constexpr float     TitleTextHeightRatio = 0.35f;
+    constexpr float     PromptTextHeightRatio = 0.6f;
+
+    // Bridge 위쪽: 왼쪽 제목, 오른쪽 자원 줄
+    constexpr float     HeaderMargin = 40.f;
+    constexpr float     HeaderTextScale = 1.5f;
+
+    // Bridge 줄 목록과 줄마다 히트박스(글자 위아래로 여유를 둔다)
+    constexpr float     ItemLeft = 120.f;
+    constexpr float     ItemTop = 180.f;
+    constexpr float     ItemSpacing = 44.f;
+    constexpr float     ItemHitBoxWidth = 600.f;
+    constexpr float     ItemHitBoxHeight = 40.f;
+    constexpr float     ItemHitBoxTopOffset = 10.f;
+
+    // Bridge 아래쪽: 화면 아래에서 이만큼 위
+    constexpr float     DetailBottom = 140.f;
+    constexpr float     HelpBottom = 80.f;
+
+    const TCHAR* const  TitleText = TEXT("HD SOLO OPERATIONS");
+    const TCHAR* const  PromptText = TEXT("PRESS ENTER");
+    const TCHAR* const  BridgeText = TEXT("SHIP BRIDGE");
+    const TCHAR* const  HelpText = TEXT("[UP/DOWN] SELECT   [LEFT/RIGHT] CHANGE   [ENTER] CONFIRM   [BACKSPACE] BACK");
+
+    const FName         TitleHitBoxName(TEXT("ShipTitle"));
+    const FString       ItemHitBoxPrefix(TEXT("ShipItem_"));
+
+    FName MakeItemHitBoxName(int32 Index)
+    {
+        return FName(*FString::Printf(TEXT("%s%d"), *ItemHitBoxPrefix, Index));
+    }
+
+    // ShipTitle → -1, ShipItem_<i> → i. 함선 메뉴 히트박스가 아니면 거짓
+    bool TryParseHitBoxName(FName BoxName, int32& OutIndex)
+    {
+        if (BoxName == TitleHitBoxName)
+        {
+            OutIndex = -1;
+            return true;
+        }
+
+        const FString Name = BoxName.ToString();
+        if (Name.StartsWith(ItemHitBoxPrefix, ESearchCase::CaseSensitive) == false)
+        {
+            return false;
+        }
+
+        const FString IndexText = Name.RightChop(ItemHitBoxPrefix.Len());
+        if (IndexText.IsNumeric() == false)
+        {
+            return false;
+        }
+
+        OutIndex = FCString::Atoi(*IndexText);
+        return true;
     }
 }
 
@@ -171,11 +241,113 @@ void AHDHUD::RebuildStratagemList()
 
 void AHDHUD::DrawHUD()
 {
+    // AHUD::DrawHUD 가 매 프레임 히트박스를 지우므로 함선 메뉴의 히트박스는 그 뒤에 더한다
     Super::DrawHUD();
+
+    // 함선 단계에서는 메뉴만 그린다(미션 글자·표식·히트마커는 그리지 않는다)
+    const UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    if (HDGameState && HDGameState->IsInShip())
+    {
+        DrawShipMenu();
+        return;
+    }
 
     DrawMissionText();
     DrawObjectiveMarkers();
     DrawHitMarker();
+}
+
+void AHDHUD::NotifyHitBoxClick(FName BoxName)
+{
+    Super::NotifyHitBoxClick(BoxName);
+
+    AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    int32 Index = 0;
+    if (HDPlayerController && HDHUDShip::TryParseHitBoxName(BoxName, Index))
+    {
+        HDPlayerController->ClickShipMenuItem(Index);
+    }
+}
+
+void AHDHUD::NotifyHitBoxBeginCursorOver(FName BoxName)
+{
+    Super::NotifyHitBoxBeginCursorOver(BoxName);
+
+    AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    int32 Index = 0;
+    if (HDPlayerController && HDHUDShip::TryParseHitBoxName(BoxName, Index))
+    {
+        HDPlayerController->HoverShipMenuItem(Index);
+    }
+}
+
+void AHDHUD::DrawShipMenu()
+{
+    using namespace HDHUDShip;
+
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    if (Canvas == nullptr || HDPlayerController == nullptr)
+    {
+        return;
+    }
+
+    const float ScreenWidth = Canvas->ClipX;
+    const float ScreenHeight = Canvas->ClipY;
+    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+    UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+
+    DrawRect(BackgroundColor, 0.f, 0.f, ScreenWidth, ScreenHeight);
+
+    // 가로 가운데 정렬 글자
+    auto DrawCenteredText = [&](const FString& Text, const FLinearColor& Color, float CenterY, UFont* Font, float Scale)
+    {
+        float TextWidth = 0.f;
+        float TextHeight = 0.f;
+        GetTextSize(Text, TextWidth, TextHeight, Font, Scale);
+        DrawText(Text, Color, (ScreenWidth - TextWidth) * 0.5f, CenterY - TextHeight * 0.5f, Font, Scale);
+    };
+
+    const FHDShipMenu& ShipMenu = HDPlayerController->GetShipMenu();
+    if (ShipMenu.GetScreen() == EHDShipScreen::Title)
+    {
+        DrawCenteredText(TitleText, HDHUDMission::TextColor, ScreenHeight * TitleTextHeightRatio, LargeFont, TitleTextScale);
+        DrawCenteredText(PromptText, ItemColor, ScreenHeight * PromptTextHeightRatio, MediumFont, 1.f);
+
+        AddHitBox(FVector2D(0.f, 0.f), FVector2D(ScreenWidth, ScreenHeight), TitleHitBoxName, true);
+        return;
+    }
+
+    // 위쪽: 왼쪽 제목, 오른쪽 자원 줄(오른쪽 정렬)
+    DrawText(BridgeText, HDHUDMission::TextColor, HeaderMargin, HeaderMargin, LargeFont, HeaderTextScale);
+
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const FString ResourcesText = HDShipMenu::FormatResources(ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData());
+    float ResourcesWidth = 0.f;
+    float ResourcesHeight = 0.f;
+    GetTextSize(ResourcesText, ResourcesWidth, ResourcesHeight, MediumFont);
+    DrawText(ResourcesText, ItemColor, ScreenWidth - HeaderMargin - ResourcesWidth, HeaderMargin, MediumFont);
+
+    // 줄 목록: 고른 줄은 "> " + 노랑, 다른 줄 흰색, 꺼진 줄 회색
+    const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
+    const int32 Cursor = ShipMenu.GetCursor();
+    for (int32 Index = 0; Index < Items.Num(); ++Index)
+    {
+        const FHDShipMenuItem& Item = Items[Index];
+        const bool bSelected = Index == Cursor;
+        const FLinearColor Color = Item.bEnabled == false ? DisabledItemColor : (bSelected ? HDHUDMission::TextColor : ItemColor);
+        const float RowY = ItemTop + ItemSpacing * Index;
+
+        DrawText(bSelected ? TEXT("> ") + Item.Label : Item.Label, Color, ItemLeft, RowY, MediumFont);
+        AddHitBox(FVector2D(ItemLeft, RowY - ItemHitBoxTopOffset), FVector2D(ItemHitBoxWidth, ItemHitBoxHeight), MakeItemHitBoxName(Index), true);
+    }
+
+    // 아래쪽: 고른 줄의 설명, 키 안내
+    if (Items.IsValidIndex(Cursor))
+    {
+        DrawText(Items[Cursor].Detail, ItemColor, ItemLeft, ScreenHeight - DetailBottom, MediumFont);
+    }
+    DrawText(HelpText, DisabledItemColor, ItemLeft, ScreenHeight - HelpBottom, MediumFont);
 }
 
 void AHDHUD::NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint)

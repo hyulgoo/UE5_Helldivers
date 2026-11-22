@@ -13,6 +13,9 @@
 #include "GameData/HDCharacterControlData.h"
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Cheat/HDCheatManager.h"
+#include "Game/HDGameMode.h"
+#include "Progression/HDProfileSubsystem.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
 
 static TAutoConsoleVariable<int32> CVarHDAbilitySystemDebugOnSpawn(
@@ -55,6 +58,18 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
     // Enhanced Input 이 키 상태를 그대로 받게 먼저 부른다
     const bool bResult = Super::InputKey(Params);
 
+    // 함선 메뉴 중에는 메뉴 키만 받는다. 방향키가 스트라타젬 명령 큐로 가지 않게 나머지 큐(화살표·숫자·Q·Alt)는 건너뛴다
+    if (bShipMenuActive)
+    {
+        EHDShipMenuKey MenuKey = EHDShipMenuKey::Confirm;
+        if (HDShipMenu::TryGetMenuKey(Params.Key, Params.Event, MenuKey))
+        {
+            PendingShipMenuKeys.Add(MenuKey);
+        }
+
+        return bResult;
+    }
+
     EHDCommandInput Command = EHDCommandInput::Count;
     if (HDDirectKey::TryGetCommand(Params.Key, Params.Event, Command))
     {
@@ -83,6 +98,23 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
 void AHDPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
+
+    // 메뉴 키를 먼저. 출격하면 ExitShipMenu 가 큐를 비우므로 옮겨 놓고 돌고, 메뉴가 닫히면 남은 키는 버린다
+    if (PendingShipMenuKeys.IsEmpty() == false)
+    {
+        const TArray<EHDShipMenuKey> MenuKeys = MoveTemp(PendingShipMenuKeys);
+        PendingShipMenuKeys.Reset();
+
+        for (const EHDShipMenuKey MenuKey : MenuKeys)
+        {
+            if (bShipMenuActive == false)
+            {
+                break;
+            }
+
+            HandleShipMenuKey(MenuKey);
+        }
+    }
 
     if (PendingStratagemCommands.IsEmpty() && PendingWeaponSlots.IsEmpty() && bPendingStim == false && bPendingDive == false)
     {
@@ -177,6 +209,114 @@ void AHDPlayerController::SendNextSimulatedKeyFrame()
     {
         SendNextSimulatedKeyFrame();
     }));
+}
+
+void AHDPlayerController::EnterShipMenu(bool bShowTitle)
+{
+    ShipMenu        = FHDShipMenu(bShowTitle ? EHDShipScreen::Title : EHDShipScreen::Bridge);
+    bShipMenuActive = true;
+
+    SetShowMouseCursor(true);
+    bEnableClickEvents      = true;
+    bEnableMouseOverEvents  = true;
+    SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+}
+
+void AHDPlayerController::ExitShipMenu()
+{
+    bShipMenuActive = false;
+    PendingShipMenuKeys.Reset();
+
+    SetShowMouseCursor(false);
+    bEnableClickEvents      = false;
+    bEnableMouseOverEvents  = false;
+    SetInputMode(FInputModeGameOnly());
+}
+
+TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
+{
+    FHDShipMenuContext Context;
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    if (ProfileSubsystem)
+    {
+        Context.Profile = ProfileSubsystem->GetProfile();
+    }
+
+    return HDShipMenu::BuildItems(ShipMenu.GetScreen(), Context);
+}
+
+void AHDPlayerController::HoverShipMenuItem(int32 Index)
+{
+    if (bShipMenuActive == false)
+    {
+        return;
+    }
+
+    ShipMenu.SetCursor(Index, BuildShipMenuItems().Num());
+}
+
+void AHDPlayerController::ClickShipMenuItem(int32 Index)
+{
+    if (bShipMenuActive == false)
+    {
+        return;
+    }
+
+    // -1 = 타이틀 화면 전체
+    if (Index != -1)
+    {
+        ShipMenu.SetCursor(Index, BuildShipMenuItems().Num());
+    }
+
+    HandleShipMenuKey(EHDShipMenuKey::Confirm);
+}
+
+void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
+{
+    const EHDShipScreen OldScreen = ShipMenu.GetScreen();
+    const FHDShipMenuAction Action = ShipMenu.HandleKey(Key, BuildShipMenuItems());
+
+    // 키 처리 뒤의 화면·커서와 그 줄(화면이 바뀌었으면 새 화면의 줄)
+    const EHDShipScreen NewScreen = ShipMenu.GetScreen();
+    const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+    const int32 Cursor = ShipMenu.GetCursor();
+    const FString ItemLabel = Items.IsValidIndex(Cursor) ? Items[Cursor].Label : FString(TEXT("-"));
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] key %s screen=%s cursor=%d item=%s action=%s"),
+        HDShipMenu::GetKeyName(Key),
+        HDShipMenu::GetScreenName(NewScreen),
+        Cursor,
+        *ItemLabel,
+        HDShipMenu::GetActionName(Action.Type));
+
+    if (Action.Type == EHDShipActionType::OpenScreen)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] screen %s -> %s"), HDShipMenu::GetScreenName(OldScreen), HDShipMenu::GetScreenName(NewScreen));
+    }
+
+    ExecuteShipMenuAction(Action);
+}
+
+void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
+{
+    switch (Action.Type)
+    {
+    case EHDShipActionType::Deploy:
+    {
+        UWorld* World = GetWorld();
+        AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+        NULL_CHECK(HDGameMode);
+
+        HDGameMode->RequestDeploy(this);
+        break;
+    }
+    case EHDShipActionType::Quit:
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] quit"));
+        UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+        break;
+    default:
+        break;
+    }
 }
 
 void AHDPlayerController::BeginPlay()

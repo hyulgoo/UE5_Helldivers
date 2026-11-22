@@ -261,14 +261,15 @@ void UHDCheatManager::HDMission()
         return;
     }
 
-    const FString Status = FString::Printf(TEXT("Phase=%s Objectives=%d/%d Reinforcements=%d Extraction=%.1f InZone=%d Called=%d"),
+    const FString Status = FString::Printf(TEXT("Phase=%s Objectives=%d/%d Reinforcements=%d Extraction=%.1f InZone=%d Called=%d Ship=%d"),
         *StaticEnum<EHDMissionPhase>()->GetNameStringByValue(static_cast<int64>(HDGameState->GetMissionPhase())),
         HDGameState->GetCompletedObjectives(),
         HDGameState->GetRequiredObjectives(),
         HDGameState->GetReinforcementsLeft(),
         HDGameState->GetExtractionRemaining(),
         HDGameState->IsPlayerInExtractionZone() ? 1 : 0,
-        HDGameState->IsExtractionCalled() ? 1 : 0);
+        HDGameState->IsExtractionCalled() ? 1 : 0,
+        HDGameState->IsInShip() ? 1 : 0);
 
     UE_LOG(LogTemp, Display, TEXT("[HDMission] %s"), *Status);
 
@@ -817,4 +818,43 @@ void UHDCheatManager::HDResetProfile()
     }
 
     ProfileSubsystem->ResetProfile();
+}
+
+void UHDCheatManager::HDDeploy()
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->RequestDeploy(GetPlayerController());
+}
+
+void UHDCheatManager::HDShip()
+{
+    UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    const AHDPlayerController* PlayerController = Cast<AHDPlayerController>(GetOuterAPlayerController());
+    if (HDGameState == nullptr || PlayerController == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] No HDGameState or HDPlayerController"));
+        return;
+    }
+
+    TArray<FString> Labels;
+    for (const FHDShipMenuItem& Item : PlayerController->BuildShipMenuItems())
+    {
+        Labels.Add(Item.Label);
+    }
+
+    const FHDShipMenu& ShipMenu = PlayerController->GetShipMenu();
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] inShip=%d active=%d screen=%s cursor=%d items=%s"),
+        HDGameState->IsInShip() ? 1 : 0,
+        PlayerController->IsShipMenuActive() ? 1 : 0,
+        HDShipMenu::GetScreenName(ShipMenu.GetScreen()),
+        ShipMenu.GetCursor(),
+        *FString::Join(Labels, TEXT("|")));
 }
