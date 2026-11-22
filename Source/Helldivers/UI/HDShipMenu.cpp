@@ -1,21 +1,119 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UI/HDShipMenu.h"
+#include "Progression/HDArmoryRules.h"
 #include "Progression/HDProgressionRules.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Stratagem/HDStratagemCatalog.h"
 
 namespace HDShipMenuItemId
 {
     const FName Bridge(TEXT("Bridge"));
     const FName Deploy(TEXT("Deploy"));
     const FName Difficulty(TEXT("Difficulty"));
+    const FName Loadout(TEXT("Loadout"));
     const FName Upgrades(TEXT("Upgrades"));
+    const FName Armory(TEXT("Armory"));
     const FName Quit(TEXT("Quit"));
 }
 
 namespace HDShipMenuPrivate
 {
+    // 초 글자: 정수면 "10", 아니면 "0.5"
+    FString FormatSeconds(const float Seconds)
+    {
+        const int32 Rounded = FMath::RoundToInt(Seconds);
+        return FMath::IsNearlyEqual(Seconds, static_cast<float>(Rounded))
+            ? FString::Printf(TEXT("%d"), Rounded)
+            : FString::Printf(TEXT("%.1f"), Seconds);
+    }
+
+    // 프로필 로드아웃을 정리한 것(출격 칸과 같은 규칙). 카탈로그가 없으면 빈 배열
+    TArray<FName> GetValidatedLoadout(const FHDShipMenuContext& Context)
+    {
+        if (Context.Stratagems == nullptr)
+        {
+            return TArray<FName>();
+        }
+
+        return HDArmory::ValidateLoadout(Context.Profile.Loadout, Context.Profile, *Context.Stratagems, Context.DefaultLoadout);
+    }
+
+    // Loadout 화면: 정리한 로드아웃의 칸마다 한 줄(Slot1~Slot4). ← → 는 Adjust(컨트롤러가 해금된 이름을 돌린다), 확정은 아무것도 하지 않는다.
+    // 설명의 값은 정의 값이다(업그레이드 적용 전)
+    TArray<FHDShipMenuItem> BuildLoadoutItems(const FHDShipMenuContext& Context)
+    {
+        TArray<FHDShipMenuItem> Items;
+        if (Context.Stratagems == nullptr)
+        {
+            return Items;
+        }
+
+        const TArray<FName> Loadout = GetValidatedLoadout(Context);
+        for (int32 SlotIndex = 0; SlotIndex < Loadout.Num(); ++SlotIndex)
+        {
+            const FName StratagemName = Loadout[SlotIndex];
+
+            FHDShipMenuItem& Item   = Items.AddDefaulted_GetRef();
+            Item.Id                 = FName(*FString::Printf(TEXT("Slot%d"), SlotIndex + 1));
+            Item.Label              = FString::Printf(TEXT("SLOT %d  < %s >"), SlotIndex + 1, *HDArmory::MakeDisplayName(StratagemName));
+            Item.bAdjustable        = true;
+            Item.ConfirmAction      = EHDShipActionType::None;
+
+            const FHDStratagemDefinition* Definition = Context.Stratagems->Find(StratagemName);
+            if (Definition)
+            {
+                Item.Detail = FString::Printf(TEXT("COOLDOWN %sS   USES %s   CALL-IN %sS   %s"),
+                    *FormatSeconds(Definition->Cooldown),
+                    Definition->MaxUses > 0 ? *FString::FromInt(Definition->MaxUses) : TEXT("INF"),
+                    *FormatSeconds(Definition->ActivationDelay),
+                    *HDArmory::FormatCommand(Definition->CommandSequence));
+            }
+        }
+
+        return Items;
+    }
+
+    // Armory 화면: 카탈로그 파일 순서로 UnlockCost > 0 인 행마다 한 줄. 잠겨 있고 징발이 충분할 때만 켜짐, 해금했으면 꺼짐
+    TArray<FHDShipMenuItem> BuildArmoryItems(const FHDShipMenuContext& Context)
+    {
+        TArray<FHDShipMenuItem> Items;
+        if (Context.Stratagems == nullptr)
+        {
+            return Items;
+        }
+
+        for (const FName& StratagemName : Context.Stratagems->GetNames())
+        {
+            const FHDStratagemDefinition* Definition = Context.Stratagems->Find(StratagemName);
+            if (Definition == nullptr || Definition->UnlockCost <= 0)
+            {
+                continue;
+            }
+
+            const bool bUnlocked    = HDArmory::IsUnlocked(Context.Profile, *Context.Stratagems, StratagemName);
+            const FString Name      = HDArmory::MakeDisplayName(StratagemName);
+
+            FHDCost Cost;
+            Cost.Requisition = Definition->UnlockCost;
+
+            FHDShipMenuItem& Item   = Items.AddDefaulted_GetRef();
+            Item.Id                 = StratagemName;
+            Item.Label              = bUnlocked
+                ? FString::Printf(TEXT("%s  UNLOCKED"), *Name)
+                : FString::Printf(TEXT("%s  %d REQ"), *Name, Definition->UnlockCost);
+            Item.Detail             = FString::Printf(TEXT("COOLDOWN %sS   CALL-IN %sS   %s"),
+                *FormatSeconds(Definition->Cooldown),
+                *FormatSeconds(Definition->ActivationDelay),
+                *HDArmory::FormatCommand(Definition->CommandSequence));
+            Item.bEnabled           = bUnlocked == false && HDProgression::CanAfford(Context.Profile, Cost);
+            Item.ConfirmAction      = EHDShipActionType::Select;
+        }
+
+        return Items;
+    }
+
     // Upgrades 화면: 카탈로그 파일 순서로 행마다 한 줄. 다음 단계가 있으면 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐
     TArray<FHDShipMenuItem> BuildUpgradeItems(const FHDShipMenuContext& Context)
     {
@@ -116,6 +214,16 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
         return HDShipMenuPrivate::BuildUpgradeItems(Context);
     }
 
+    if (Screen == EHDShipScreen::Loadout)
+    {
+        return HDShipMenuPrivate::BuildLoadoutItems(Context);
+    }
+
+    if (Screen == EHDShipScreen::Armory)
+    {
+        return HDShipMenuPrivate::BuildArmoryItems(Context);
+    }
+
     TArray<FHDShipMenuItem> Items;
     if (Screen != EHDShipScreen::Bridge)
     {
@@ -142,6 +250,20 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
         DifficultyItem.ConfirmAction    = EHDShipActionType::None;
     }
 
+    // 설명 = 지금 로드아웃(출격할 때의 칸)의 표시 이름
+    TArray<FString> LoadoutNames;
+    for (const FName& StratagemName : HDShipMenuPrivate::GetValidatedLoadout(Context))
+    {
+        LoadoutNames.Add(HDArmory::MakeDisplayName(StratagemName));
+    }
+
+    FHDShipMenuItem& LoadoutItem    = Items.AddDefaulted_GetRef();
+    LoadoutItem.Id                  = HDShipMenuItemId::Loadout;
+    LoadoutItem.Label               = TEXT("LOADOUT");
+    LoadoutItem.Detail              = FString::Join(LoadoutNames, TEXT(" / "));
+    LoadoutItem.ConfirmAction       = EHDShipActionType::OpenScreen;
+    LoadoutItem.TargetScreen        = EHDShipScreen::Loadout;
+
     FHDShipMenuItem& UpgradesItem   = Items.AddDefaulted_GetRef();
     UpgradesItem.Id                 = HDShipMenuItemId::Upgrades;
     UpgradesItem.Label              = TEXT("SHIP UPGRADES");
@@ -149,7 +271,12 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
     UpgradesItem.ConfirmAction      = EHDShipActionType::OpenScreen;
     UpgradesItem.TargetScreen       = EHDShipScreen::Upgrades;
 
-    // 뒤 브리프(7)가 Upgrades 와 Quit 사이에 줄을 더한다
+    FHDShipMenuItem& ArmoryItem     = Items.AddDefaulted_GetRef();
+    ArmoryItem.Id                   = HDShipMenuItemId::Armory;
+    ArmoryItem.Label                = TEXT("ARMORY");
+    ArmoryItem.Detail               = TEXT("UNLOCK NEW STRATAGEMS WITH REQUISITION");
+    ArmoryItem.ConfirmAction        = EHDShipActionType::OpenScreen;
+    ArmoryItem.TargetScreen         = EHDShipScreen::Armory;
 
     FHDShipMenuItem& QuitItem   = Items.AddDefaulted_GetRef();
     QuitItem.Id                 = HDShipMenuItemId::Quit;
@@ -176,6 +303,8 @@ const TCHAR* HDShipMenu::GetScreenName(EHDShipScreen Screen)
     case EHDShipScreen::Title:      return TEXT("Title");
     case EHDShipScreen::Bridge:     return TEXT("Bridge");
     case EHDShipScreen::Upgrades:   return TEXT("Upgrades");
+    case EHDShipScreen::Loadout:    return TEXT("Loadout");
+    case EHDShipScreen::Armory:     return TEXT("Armory");
     default:                        return TEXT("?");
     }
 }
@@ -186,6 +315,8 @@ const TCHAR* HDShipMenu::GetScreenTitle(EHDShipScreen Screen)
     {
     case EHDShipScreen::Bridge:     return TEXT("SHIP BRIDGE");
     case EHDShipScreen::Upgrades:   return TEXT("SHIP UPGRADES");
+    case EHDShipScreen::Loadout:    return TEXT("LOADOUT");
+    case EHDShipScreen::Armory:     return TEXT("ARMORY");
     default:                        return TEXT("");
     }
 }

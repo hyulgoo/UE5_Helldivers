@@ -13,6 +13,7 @@
 #include "AbilitySystem/GameplayEffect/HDGE_StratagemCooldown.h"
 #include "Player/HDGASPlayerState.h"
 #include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDArmoryRules.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
 #include "AbilitySystemGlobals.h"
@@ -167,7 +168,19 @@ void UHDStratagemComponent::BindLoadout(AHDGASPlayerState* InPlayerState)
         return;
     }
 
-    ReinitializeLoadout(GetDefault<UHDStratagemSettings>()->Loadout);
+    // 함선 LOADOUT 에서 고른 프로필 로드아웃을 해금된 것만 정리해 쓴다. 비거나 모자라면 설정 기본 로드아웃으로 채운다
+    const TArray<FName>& SettingsLoadout = GetDefault<UHDStratagemSettings>()->Loadout;
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    if (ProfileSubsystem)
+    {
+        const FHDProfileData& Profile = ProfileSubsystem->GetProfile();
+        UE_LOG(LogTemp, Display, TEXT("[HDStratagem] loadout source=profile"));
+        ReinitializeLoadout(HDArmory::ValidateLoadout(Profile.Loadout, Profile, FHDStratagemCatalog::GetProjectCatalog(), SettingsLoadout));
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDStratagem] loadout source=settings"));
+    ReinitializeLoadout(SettingsLoadout);
 }
 
 void UHDStratagemComponent::ReinitializeLoadout(const TArray<FName>& LoadoutNames)

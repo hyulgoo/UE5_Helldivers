@@ -41,6 +41,9 @@
 #include "Progression/HDSampleRules.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Progression/HDArmoryRules.h"
+#include "Stratagem/HDStratagemCatalog.h"
+#include "Stratagem/HDStratagemSettings.h"
 
 namespace HDCheatManager
 {
@@ -1125,4 +1128,67 @@ void UHDCheatManager::HDBuyUpgrade(const FString& Name)
         HDUpgrade::GetBuyResultName(Result),
         OldRequisition,
         Profile.Requisition);
+}
+
+void UHDCheatManager::HDArmory()
+{
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmory] No profile subsystem"));
+        return;
+    }
+
+    // 이 멤버 함수와 이름이 같은 규칙 네임스페이스는 :: 로 부른다
+    const FHDProfileData& Profile = ProfileSubsystem->GetProfile();
+    const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+    for (const FName& StratagemName : Catalog.GetNames())
+    {
+        const FHDStratagemDefinition* Definition = Catalog.Find(StratagemName);
+        if (Definition == nullptr)
+        {
+            continue;
+        }
+
+        UE_LOG(LogTemp, Display, TEXT("[HDArmory] %s cost=%d unlocked=%d"),
+            *StratagemName.ToString(),
+            Definition->UnlockCost,
+            ::HDArmory::IsUnlocked(Profile, Catalog, StratagemName) ? 1 : 0);
+    }
+
+    // 다음 출격의 칸(UHDStratagemComponent::BindLoadout 과 같은 정리)
+    const TArray<FName> Loadout = ::HDArmory::ValidateLoadout(Profile.Loadout, Profile, Catalog, GetDefault<UHDStratagemSettings>()->Loadout);
+    TArray<FString> LoadoutNames;
+    for (const FName& StratagemName : Loadout)
+    {
+        LoadoutNames.Add(StratagemName.ToString());
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDArmory] loadout %s"), *FString::Join(LoadoutNames, TEXT(",")));
+}
+
+void UHDCheatManager::HDUnlockStratagem(const FString& Name)
+{
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmory] No profile subsystem"));
+        return;
+    }
+
+    // 메뉴(AHDPlayerController::ExecuteShipMenuAction 의 Armory Select)와 같은 경로·같은 로그. 거부도 저장 경로를 탄다(프로필은 그대로)
+    const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+    const FName StratagemName(*Name);
+    const int32 OldRequisition = ProfileSubsystem->GetProfile().Requisition;
+    EHDUnlockResult Result = EHDUnlockResult::Unknown;
+    ProfileSubsystem->ModifyProfile([&Result, &Catalog, StratagemName](FHDProfileData& Data)
+    {
+        Result = ::HDArmory::TryUnlock(Data, Catalog, StratagemName);
+    });
+
+    UE_LOG(LogTemp, Display, TEXT("[HDArmory] unlock %s (%s) requisition %d -> %d"),
+        *StratagemName.ToString(),
+        ::HDArmory::GetUnlockResultName(Result),
+        OldRequisition,
+        ProfileSubsystem->GetProfile().Requisition);
 }

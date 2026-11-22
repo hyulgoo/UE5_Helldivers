@@ -64,7 +64,8 @@ public:
     void        HDStratagemReset();
 
     // 로드아웃을 주어진 이름(Config/HDStratagems.json 의 "Name", 1~4개)으로 바꾸고 화면 목록을 다시 만든다. 빈 칸은 뺀다.
-    // 칸을 새로 만들므로 모든 칸의 남은 횟수·재사용 대기가 처음으로 돌아간다. 카탈로그에 없는 이름은 건너뛴다
+    // 칸을 새로 만들므로 모든 칸의 남은 횟수·재사용 대기가 처음으로 돌아간다. 카탈로그에 없는 이름은 건너뛴다.
+    // 이번 미션의 칸만 바꾸고 프로필에 쓰지 않는다(해금도 보지 않는다). 다음 출격의 칸은 함선 LOADOUT(프로필)에서 온다
     UFUNCTION(Exec)
     void        HDStratagemLoadout(const FString& Slot1, const FString& Slot2 = TEXT(""), const FString& Slot3 = TEXT(""), const FString& Slot4 = TEXT(""));
 
@@ -168,4 +169,12 @@ public:
     // 함선 메뉴 SHIP UPGRADES 줄 확정과 같은 ModifyProfile(TryBuy) 경로. [HDUpgrade] buy <이름> -> <단계> (bought|cannot afford|max level|unknown) requisition <전> -> <후>
     UFUNCTION(Exec)
     void        HDBuyUpgrade(const FString& Name);
+
+    // 스트라타젬 카탈로그 행마다 [HDArmory] <이름> cost=<UnlockCost> unlocked=0|1, 마지막에 [HDArmory] loadout <정리한 프로필 로드아웃, 쉼표로>
+    UFUNCTION(Exec)
+    void        HDArmory();
+
+    // 함선 메뉴 ARMORY 줄 확정과 같은 ModifyProfile(TryUnlock) 경로. [HDArmory] unlock <이름> (unlocked|cannot afford|already unlocked|unknown) requisition <전> -> <후>
+    UFUNCTION(Exec)
+    void        HDUnlockStratagem(const FString& Name);
 };

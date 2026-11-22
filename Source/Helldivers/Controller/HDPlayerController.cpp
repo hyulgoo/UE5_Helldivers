@@ -21,6 +21,9 @@
 #include "Progression/HDMissionReward.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Progression/HDArmoryRules.h"
+#include "Stratagem/HDStratagemCatalog.h"
+#include "Stratagem/HDStratagemSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
 
@@ -28,6 +31,26 @@ namespace HDPlayerControllerShip
 {
     // HDShipMenu::BuildItems 의 난이도 줄 Id
     const FName DifficultyItemId(TEXT("Difficulty"));
+
+    // HDShipMenu::BuildItems 의 Loadout 칸 줄 Id "Slot1"~"Slot4" → 칸 번호 0~3. 아니면 INDEX_NONE
+    int32 GetLoadoutSlotIndex(const FName ItemId)
+    {
+        const FString IdText = ItemId.ToString();
+        const FString Prefix(TEXT("Slot"));
+        if (IdText.StartsWith(Prefix, ESearchCase::IgnoreCase) == false)
+        {
+            return INDEX_NONE;
+        }
+
+        const FString NumberText = IdText.Mid(Prefix.Len());
+        if (NumberText.IsEmpty() || NumberText.IsNumeric() == false)
+        {
+            return INDEX_NONE;
+        }
+
+        const int32 SlotNumber = FCString::Atoi(*NumberText);
+        return (SlotNumber >= 1 && SlotNumber <= FHDStratagemLoadout::MaxSlots) ? SlotNumber - 1 : INDEX_NONE;
+    }
 }
 
 static TAutoConsoleVariable<int32> CVarHDAbilitySystemDebugOnSpawn(
@@ -274,6 +297,8 @@ TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
     }
     Context.Difficulties = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
     Context.Upgrades = &FHDUpgradeCatalog::GetProjectCatalog();
+    Context.Stratagems = &FHDStratagemCatalog::GetProjectCatalog();
+    Context.DefaultLoadout = GetDefault<UHDStratagemSettings>()->Loadout;
 
     return HDShipMenu::BuildItems(ShipMenu.GetScreen(), Context);
 }
@@ -349,6 +374,34 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
         break;
     case EHDShipActionType::Adjust:
     {
+        // Loadout 화면의 칸 줄: 정리한 로드아웃에서 그 칸만 해금된 다음 이름으로 바꿔 프로필에 저장한다(다음 출격부터). 저장 로그는 서브시스템이 찍는다
+        const int32 SlotIndex = HDPlayerControllerShip::GetLoadoutSlotIndex(Action.Id);
+        if (SlotIndex != INDEX_NONE)
+        {
+            UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+            NULL_CHECK(ProfileSubsystem);
+
+            const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+            const TArray<FName>& DefaultLoadout = GetDefault<UHDStratagemSettings>()->Loadout;
+            const int32 Delta = Action.Value;
+            FName NewName = NAME_None;
+            ProfileSubsystem->ModifyProfile([&Catalog, &DefaultLoadout, &NewName, SlotIndex, Delta](FHDProfileData& Data)
+            {
+                TArray<FName> Loadout = HDArmory::ValidateLoadout(Data.Loadout, Data, Catalog, DefaultLoadout);
+                if (Loadout.IsValidIndex(SlotIndex) == false)
+                {
+                    return;
+                }
+
+                Loadout[SlotIndex] = HDArmory::CycleSlot(Loadout, SlotIndex, Delta, Data, Catalog);
+                NewName = Loadout[SlotIndex];
+                Data.Loadout = Loadout;
+            });
+
+            UE_LOG(LogTemp, Display, TEXT("[HDLoadout] slot %d -> %s"), SlotIndex + 1, *NewName.ToString());
+            break;
+        }
+
         if (Action.Id != HDPlayerControllerShip::DifficultyItemId)
         {
             break;
@@ -371,6 +424,30 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
     }
     case EHDShipActionType::Select:
     {
+        // Armory 화면의 줄 = 스트라타젬 이름. 꺼진 줄(해금함·징발 모자람)은 메뉴가 None 을 돌려주므로 여기까지 오지 않는다
+        if (ShipMenu.GetScreen() == EHDShipScreen::Armory)
+        {
+            UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+            NULL_CHECK(ProfileSubsystem);
+
+            // 해금한 스트라타젬은 다음에 LOADOUT 후보로 나온다. 저장 로그는 서브시스템이 찍는다
+            const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+            const FName StratagemName = Action.Id;
+            const int32 OldRequisition = ProfileSubsystem->GetProfile().Requisition;
+            EHDUnlockResult Result = EHDUnlockResult::Unknown;
+            ProfileSubsystem->ModifyProfile([&Result, &Catalog, StratagemName](FHDProfileData& Data)
+            {
+                Result = HDArmory::TryUnlock(Data, Catalog, StratagemName);
+            });
+
+            UE_LOG(LogTemp, Display, TEXT("[HDArmory] unlock %s (%s) requisition %d -> %d"),
+                *StratagemName.ToString(),
+                HDArmory::GetUnlockResultName(Result),
+                OldRequisition,
+                ProfileSubsystem->GetProfile().Requisition);
+            break;
+        }
+
         // Upgrades 화면의 줄 = 업그레이드 이름. 꺼진 줄은 메뉴가 None 을 돌려주므로 여기까지 오지 않는다
         if (ShipMenu.GetScreen() != EHDShipScreen::Upgrades)
         {

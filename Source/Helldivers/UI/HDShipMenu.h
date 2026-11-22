@@ -9,13 +9,16 @@
 #include "Progression/HDDifficulty.h"
 
 class FHDUpgradeCatalog;
+class FHDStratagemCatalog;
 
-// 함선 메뉴의 화면. 뒤 브리프가 더한다(7: Loadout·Armory)
+// 함선 메뉴의 화면
 enum class EHDShipScreen : uint8
 {
     Title,
     Bridge,
-    Upgrades
+    Upgrades,
+    Loadout,
+    Armory
 };
 
 // 메뉴가 받는 키. 원시 키는 HDShipMenu::TryGetMenuKey 가 바꾼다
@@ -72,6 +75,10 @@ struct FHDShipMenuContext
     TArray<FHDDifficultyLevel>  Difficulties;
     // 업그레이드 카탈로그(컨트롤러가 FHDUpgradeCatalog::GetProjectCatalog 로 채운다). 없거나 비면 Upgrades 화면에 줄이 없다
     const FHDUpgradeCatalog*    Upgrades = nullptr;
+    // 스트라타젬 카탈로그(컨트롤러가 FHDStratagemCatalog::GetProjectCatalog 로 채운다). 없으면 Loadout·Armory 화면에 줄이 없다
+    const FHDStratagemCatalog*  Stratagems = nullptr;
+    // 프로필 로드아웃이 비거나 모자랄 때 채우는 값(컨트롤러가 UHDStratagemSettings::Loadout 으로 채운다)
+    TArray<FName>               DefaultLoadout;
 };
 
 // 함선 메뉴 규칙. 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipMenu)로 고정한다
@@ -79,14 +86,16 @@ namespace HDShipMenu
 {
     // 눌림만 받는다: 방향키 = Up/Down/Left/Right, Enter = Confirm, BackSpace·Escape = Back
     HELLDIVERS_API bool                     TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKey& OutKey);
-    // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정), Upgrades … Quit.
-    // Upgrades 는 카탈로그 행마다 "<DisplayName>  <산 단계>/<단계 수>"(확정 Select, 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐)
+    // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정), Loadout, Upgrades, Armory, Quit.
+    // Upgrades 는 카탈로그 행마다 "<DisplayName>  <산 단계>/<단계 수>"(확정 Select, 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐).
+    // Loadout 은 정리한 로드아웃(HDArmory::ValidateLoadout)의 칸마다 Slot1~Slot4 "SLOT <n>  < <표시 이름> >"(← → 로 조정, 확정 None).
+    // Armory 는 UnlockCost > 0 인 스트라타젬 행마다 "<표시 이름>  <가격> REQ" 또는 "<표시 이름>  UNLOCKED"(확정 Select, 잠겨 있고 징발이 충분할 때만 켜짐)
     HELLDIVERS_API TArray<FHDShipMenuItem>  BuildItems(EHDShipScreen Screen, const FHDShipMenuContext& Context);
     // 함선 자원 줄: "REQ <징발>   COMMON <일반>   RARE <희귀>   SUPER <최상급>"(사이 공백 세 칸)
     HELLDIVERS_API FString                  FormatResources(const FHDProfileData& Profile);
-    // 로그용: "Title"·"Bridge"·"Upgrades" / "Up"… / "none"·"open"·"deploy"·"quit"·"adjust"·"select"
+    // 로그용: "Title"·"Bridge"·"Upgrades"·"Loadout"·"Armory" / "Up"… / "none"·"open"·"deploy"·"quit"·"adjust"·"select"
     HELLDIVERS_API const TCHAR*             GetScreenName(EHDShipScreen Screen);
-    // 화면 머리글: "SHIP BRIDGE"·"SHIP UPGRADES"(Title 은 빈 글자)
+    // 화면 머리글: "SHIP BRIDGE"·"SHIP UPGRADES"·"LOADOUT"·"ARMORY"(Title 은 빈 글자)
     HELLDIVERS_API const TCHAR*             GetScreenTitle(EHDShipScreen Screen);
     HELLDIVERS_API const TCHAR*             GetKeyName(EHDShipMenuKey Key);
     HELLDIVERS_API const TCHAR*             GetActionName(EHDShipActionType Type);
