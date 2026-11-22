@@ -116,7 +116,6 @@ namespace HDHUDShip
 
     const TCHAR* const  TitleText = TEXT("HD SOLO OPERATIONS");
     const TCHAR* const  PromptText = TEXT("PRESS ENTER");
-    const TCHAR* const  BridgeText = TEXT("SHIP BRIDGE");
     const TCHAR* const  HelpText = TEXT("[UP/DOWN] SELECT   [LEFT/RIGHT] CHANGE   [ENTER] CONFIRM   [BACKSPACE] BACK");
 
     const FName         TitleHitBoxName(TEXT("ShipTitle"));
@@ -409,8 +408,8 @@ void AHDHUD::DrawShipMenu()
         return;
     }
 
-    // 위쪽: 왼쪽 제목, 오른쪽 자원 줄(오른쪽 정렬)
-    DrawText(BridgeText, HDHUDMission::TextColor, HeaderMargin, HeaderMargin, LargeFont, HeaderTextScale);
+    // 위쪽: 왼쪽 화면 머리글, 오른쪽 자원 줄(오른쪽 정렬)
+    DrawText(HDShipMenu::GetScreenTitle(ShipMenu.GetScreen()), HDHUDMission::TextColor, HeaderMargin, HeaderMargin, LargeFont, HeaderTextScale);
 
     const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
     const FString ResourcesText = HDShipMenu::FormatResources(ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData());

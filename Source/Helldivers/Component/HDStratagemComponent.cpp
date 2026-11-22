@@ -12,6 +12,9 @@
 #include "Stratagem/HDStratagemSettings.h"
 #include "AbilitySystem/GameplayEffect/HDGE_StratagemCooldown.h"
 #include "Player/HDGASPlayerState.h"
+#include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDUpgradeCatalog.h"
+#include "Progression/HDUpgradeRules.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
 
@@ -216,6 +219,12 @@ TArray<FHDStratagemEntry> UHDStratagemComponent::BuildCatalog() const
     // 카탈로그 문제는 GetProjectCatalog 가 처음 읽을 때 Warning 으로 남긴다
     const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
 
+    // 함선 업그레이드는 칸을 만들 때(첫 빙의 BindLoadout, 치트 HDStratagemLoadout)만 넣는다. 그래서 미션 중에는 바뀌지 않는다
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const FHDUpgradeModifiers Upgrades = ProfileSubsystem
+        ? HDUpgrade::ComputeModifiers(ProfileSubsystem->GetProfile(), FHDUpgradeCatalog::GetProjectCatalog())
+        : FHDUpgradeModifiers();
+
     TArray<FHDStratagemEntry> Entries;
     for (const FName& StratagemName : Catalog.GetNames())
     {
@@ -232,6 +241,7 @@ TArray<FHDStratagemEntry> UHDStratagemComponent::BuildCatalog() const
         Entry.Cooldown = Definition->Cooldown;
         Entry.MaxUses = Definition->MaxUses;
         Entry.RearmTime = Definition->RearmTime;
+        HDUpgrade::ApplyToEntry(Entry, *Definition, Upgrades);
     }
 
     return Entries;

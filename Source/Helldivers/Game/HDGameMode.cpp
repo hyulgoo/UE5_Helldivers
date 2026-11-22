@@ -22,6 +22,8 @@
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDMissionReward.h"
 #include "Progression/HDSampleRules.h"
+#include "Progression/HDUpgradeCatalog.h"
+#include "Progression/HDUpgradeRules.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -193,6 +195,12 @@ void AHDGameMode::BeginMission()
 
     FHDMissionConfig Config = HDDifficulty::ApplyToConfig(Settings->MakeConfig(), MissionDifficulty);
 
+    // 함선 업그레이드(ExtraReinforcements)는 난이도 뒤에 더한다. 칸 값·스팀·수류탄은 캐릭터 쪽이 같은 효과를 읽는다
+    const FHDUpgradeModifiers Upgrades = ProfileSubsystem
+        ? HDUpgrade::ComputeModifiers(ProfileSubsystem->GetProfile(), FHDUpgradeCatalog::GetProjectCatalog())
+        : FHDUpgradeModifiers();
+    Config.MaxReinforcements += Upgrades.ExtraReinforcements;
+
     // 목표 배치를 미션 로직보다 먼저 한다. 필요 수는 실제로 있는 목표 수를 넘지 않게(최소 1)
     const int32 ObjectiveCount = PlaceObjectives(*Settings, Config.RequiredObjectives);
     Config.RequiredObjectives = FMath::Max(1, FMath::Min(ObjectiveCount, Config.RequiredObjectives));
@@ -203,6 +211,7 @@ void AHDGameMode::BeginMission()
     MissionFlow = MakeUnique<FHDMissionFlow>(Config);
     SyncGameState();
 
+    UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] active %s"), *HDUpgrade::DescribeModifiers(Upgrades));
     UE_LOG(LogTemp, Display, TEXT("[HDMission] start objectives=%d reinforcements=%d difficulty=%d %s"),
         MissionFlow->GetRequiredObjectives(),
         MissionFlow->GetReinforcementsLeft(),

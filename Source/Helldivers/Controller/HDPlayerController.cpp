@@ -19,6 +19,8 @@
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDDifficulty.h"
 #include "Progression/HDMissionReward.h"
+#include "Progression/HDUpgradeCatalog.h"
+#include "Progression/HDUpgradeRules.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
 
@@ -271,6 +273,7 @@ TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
         Context.Profile = ProfileSubsystem->GetProfile();
     }
     Context.Difficulties = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
+    Context.Upgrades = &FHDUpgradeCatalog::GetProjectCatalog();
 
     return HDShipMenu::BuildItems(ShipMenu.GetScreen(), Context);
 }
@@ -364,6 +367,36 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
 
         const int32 Level = ProfileSubsystem->GetProfile().Difficulty;
         UE_LOG(LogTemp, Display, TEXT("[HDShip] difficulty %d %s"), Level, *HDDifficulty::GetLevel(DifficultyTable, Level).Label);
+        break;
+    }
+    case EHDShipActionType::Select:
+    {
+        // Upgrades 화면의 줄 = 업그레이드 이름. 꺼진 줄은 메뉴가 None 을 돌려주므로 여기까지 오지 않는다
+        if (ShipMenu.GetScreen() != EHDShipScreen::Upgrades)
+        {
+            break;
+        }
+
+        UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+        NULL_CHECK(ProfileSubsystem);
+
+        // 효과는 다음 출격부터 들어간다. 저장 로그는 서브시스템이 찍는다
+        const FHDUpgradeCatalog& Catalog = FHDUpgradeCatalog::GetProjectCatalog();
+        const FName UpgradeName = Action.Id;
+        const int32 OldRequisition = ProfileSubsystem->GetProfile().Requisition;
+        EHDUpgradeBuyResult Result = EHDUpgradeBuyResult::Unknown;
+        ProfileSubsystem->ModifyProfile([&Result, &Catalog, UpgradeName](FHDProfileData& Data)
+        {
+            Result = HDUpgrade::TryBuy(Data, UpgradeName, Catalog);
+        });
+
+        const FHDProfileData& Profile = ProfileSubsystem->GetProfile();
+        UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] buy %s -> %d (%s) requisition %d -> %d"),
+            *UpgradeName.ToString(),
+            HDUpgrade::GetLevel(Profile, UpgradeName),
+            HDUpgrade::GetBuyResultName(Result),
+            OldRequisition,
+            Profile.Requisition);
         break;
     }
     default:

@@ -28,6 +28,9 @@
 #include "Define/HDSocketNames.h"
 #include "TimerManager.h"
 #include "Game/HDGameMode.h"
+#include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDUpgradeCatalog.h"
+#include "Progression/HDUpgradeRules.h"
 #include "Engine/World.h"
 
 namespace
@@ -714,12 +717,20 @@ void AHDCharacterPlayer::SpawnDefaultWeapon(const FGameplayEventData* Payload)
     NULL_CHECK(ASC);
     ASC->GenericGameplayEventCallbacks.Remove(Tag_Event_PlayerHUD_Initialize);
 
+    // 함선 업그레이드(ExtraStimsAndGrenades)만큼 더 받는다. 보급은 Max 로 채우므로 따라 늘어난다
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const FHDUpgradeModifiers Upgrades = ProfileSubsystem
+        ? HDUpgrade::ComputeModifiers(ProfileSubsystem->GetProfile(), FHDUpgradeCatalog::GetProjectCatalog())
+        : FHDUpgradeModifiers();
+    const float GrenadeMax = DefaultGrenadeCount + Upgrades.ExtraStimsAndGrenades;
+    const float StimMax = DefaultStimCount + Upgrades.ExtraStimsAndGrenades;
+
     // 강하·증원마다 수류탄을 채운다. PreAttributeChange 가 Grenade 를 MaxGrenade 로 자르므로 Max 를 먼저 정한다
-    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxGrenadeAttribute(), DefaultGrenadeCount);
-    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), DefaultGrenadeCount);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxGrenadeAttribute(), GrenadeMax);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), GrenadeMax);
     // 스팀도 같은 순서로 채운다
-    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxStimAttribute(), DefaultStimCount);
-    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetStimAttribute(), DefaultStimCount);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetMaxStimAttribute(), StimMax);
+    ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetStimAttribute(), StimMax);
     ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
 }
 

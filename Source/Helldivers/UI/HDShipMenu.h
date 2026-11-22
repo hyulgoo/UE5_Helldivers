@@ -8,11 +8,14 @@
 #include "Progression/HDProfileTypes.h"
 #include "Progression/HDDifficulty.h"
 
-// 함선 메뉴의 화면. 뒤 브리프가 더한다(6: Upgrades, 7: Loadout·Armory)
+class FHDUpgradeCatalog;
+
+// 함선 메뉴의 화면. 뒤 브리프가 더한다(7: Loadout·Armory)
 enum class EHDShipScreen : uint8
 {
     Title,
-    Bridge
+    Bridge,
+    Upgrades
 };
 
 // 메뉴가 받는 키. 원시 키는 HDShipMenu::TryGetMenuKey 가 바꾼다
@@ -67,6 +70,8 @@ struct FHDShipMenuContext
     FHDProfileData              Profile;
     // 난이도 표(UHDProgressionSettings::DifficultyLevels). 비면 Difficulty 줄을 넣지 않는다
     TArray<FHDDifficultyLevel>  Difficulties;
+    // 업그레이드 카탈로그(컨트롤러가 FHDUpgradeCatalog::GetProjectCatalog 로 채운다). 없거나 비면 Upgrades 화면에 줄이 없다
+    const FHDUpgradeCatalog*    Upgrades = nullptr;
 };
 
 // 함선 메뉴 규칙. 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipMenu)로 고정한다
@@ -74,12 +79,15 @@ namespace HDShipMenu
 {
     // 눌림만 받는다: 방향키 = Up/Down/Left/Right, Enter = Confirm, BackSpace·Escape = Back
     HELLDIVERS_API bool                     TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKey& OutKey);
-    // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정) … Quit
+    // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정), Upgrades … Quit.
+    // Upgrades 는 카탈로그 행마다 "<DisplayName>  <산 단계>/<단계 수>"(확정 Select, 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐)
     HELLDIVERS_API TArray<FHDShipMenuItem>  BuildItems(EHDShipScreen Screen, const FHDShipMenuContext& Context);
     // 함선 자원 줄: "REQ <징발>   COMMON <일반>   RARE <희귀>   SUPER <최상급>"(사이 공백 세 칸)
     HELLDIVERS_API FString                  FormatResources(const FHDProfileData& Profile);
-    // 로그용: "Title"·"Bridge" / "Up"… / "none"·"open"·"deploy"·"quit"·"adjust"·"select"
+    // 로그용: "Title"·"Bridge"·"Upgrades" / "Up"… / "none"·"open"·"deploy"·"quit"·"adjust"·"select"
     HELLDIVERS_API const TCHAR*             GetScreenName(EHDShipScreen Screen);
+    // 화면 머리글: "SHIP BRIDGE"·"SHIP UPGRADES"(Title 은 빈 글자)
+    HELLDIVERS_API const TCHAR*             GetScreenTitle(EHDShipScreen Screen);
     HELLDIVERS_API const TCHAR*             GetKeyName(EHDShipMenuKey Key);
     HELLDIVERS_API const TCHAR*             GetActionName(EHDShipActionType Type);
 }

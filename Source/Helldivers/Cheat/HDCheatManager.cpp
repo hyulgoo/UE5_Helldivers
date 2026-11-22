@@ -39,6 +39,8 @@
 #include "Progression/HDDifficulty.h"
 #include "Progression/HDMissionReward.h"
 #include "Progression/HDSampleRules.h"
+#include "Progression/HDUpgradeCatalog.h"
+#include "Progression/HDUpgradeRules.h"
 
 namespace HDCheatManager
 {
@@ -439,12 +441,15 @@ void UHDCheatManager::HDStratagems()
     for (int32 SlotIndex = 0; SlotIndex < Loadout->Num(); ++SlotIndex)
     {
         const FHDStratagemSlot* Slot = Loadout->GetSlot(SlotIndex);
-        UE_LOG(LogTemp, Display, TEXT("[HDStratagems] %d %s cooldown=%.1f uses=%s available=%d"),
+        UE_LOG(LogTemp, Display, TEXT("[HDStratagems] %d %s cooldown=%.1f uses=%s available=%d maxCooldown=%.1f delay=%.1f rearm=%.0f"),
             SlotIndex + 1,
             *Slot->StratagemName.ToString(),
             StratagemComponent->GetSlotCooldownRemaining(SlotIndex),
             *Slot->GetUsesText(),
-            StratagemComponent->IsSlotAvailable(SlotIndex) ? 1 : 0);
+            StratagemComponent->IsSlotAvailable(SlotIndex) ? 1 : 0,
+            Slot->Cooldown,
+            Slot->ActivationDelay,
+            Slot->RearmTime);
     }
 }
 
@@ -1060,4 +1065,64 @@ void UHDCheatManager::HDGiveSamples(int32 Common, int32 Rare, int32 Super)
     PlayerState->AddCarriedSamples(Samples);
 
     UE_LOG(LogTemp, Display, TEXT("[HDSample] carried=%s"), *HDSamples::Describe(PlayerState->GetCarriedSamples()));
+}
+
+void UHDCheatManager::HDUpgrades()
+{
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] No profile subsystem"));
+        return;
+    }
+
+    const FHDProfileData& Profile = ProfileSubsystem->GetProfile();
+    const FHDUpgradeCatalog& Catalog = FHDUpgradeCatalog::GetProjectCatalog();
+    for (const FName& UpgradeName : Catalog.GetNames())
+    {
+        const FHDUpgradeDefinition* Definition = Catalog.Find(UpgradeName);
+        if (Definition == nullptr)
+        {
+            continue;
+        }
+
+        const int32 LevelCount = Definition->Levels.Num();
+        const int32 Level = FMath::Clamp(HDUpgrade::GetLevel(Profile, UpgradeName), 0, LevelCount);
+        const FHDUpgradeLevel* NextLevel = HDUpgrade::GetNextLevel(*Definition, Level);
+        UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] %s level=%d/%d next=%s"),
+            *UpgradeName.ToString(),
+            Level,
+            LevelCount,
+            NextLevel ? *HDUpgrade::FormatCost(NextLevel->ToCost()) : TEXT("max"));
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] active %s"), *HDUpgrade::DescribeModifiers(HDUpgrade::ComputeModifiers(Profile, Catalog)));
+}
+
+void UHDCheatManager::HDBuyUpgrade(const FString& Name)
+{
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] No profile subsystem"));
+        return;
+    }
+
+    // 메뉴(AHDPlayerController::ExecuteShipMenuAction 의 Select)와 같은 경로·같은 로그. 거부도 저장 경로를 탄다(프로필은 그대로)
+    const FHDUpgradeCatalog& Catalog = FHDUpgradeCatalog::GetProjectCatalog();
+    const FName UpgradeName(*Name);
+    const int32 OldRequisition = ProfileSubsystem->GetProfile().Requisition;
+    EHDUpgradeBuyResult Result = EHDUpgradeBuyResult::Unknown;
+    ProfileSubsystem->ModifyProfile([&Result, &Catalog, UpgradeName](FHDProfileData& Data)
+    {
+        Result = HDUpgrade::TryBuy(Data, UpgradeName, Catalog);
+    });
+
+    const FHDProfileData& Profile = ProfileSubsystem->GetProfile();
+    UE_LOG(LogTemp, Display, TEXT("[HDUpgrade] buy %s -> %d (%s) requisition %d -> %d"),
+        *UpgradeName.ToString(),
+        HDUpgrade::GetLevel(Profile, UpgradeName),
+        HDUpgrade::GetBuyResultName(Result),
+        OldRequisition,
+        Profile.Requisition);
 }

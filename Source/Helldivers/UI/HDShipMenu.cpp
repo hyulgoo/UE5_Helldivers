@@ -1,13 +1,66 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UI/HDShipMenu.h"
+#include "Progression/HDProgressionRules.h"
+#include "Progression/HDUpgradeCatalog.h"
+#include "Progression/HDUpgradeRules.h"
 
 namespace HDShipMenuItemId
 {
     const FName Bridge(TEXT("Bridge"));
     const FName Deploy(TEXT("Deploy"));
     const FName Difficulty(TEXT("Difficulty"));
+    const FName Upgrades(TEXT("Upgrades"));
     const FName Quit(TEXT("Quit"));
+}
+
+namespace HDShipMenuPrivate
+{
+    // Upgrades 화면: 카탈로그 파일 순서로 행마다 한 줄. 다음 단계가 있으면 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐
+    TArray<FHDShipMenuItem> BuildUpgradeItems(const FHDShipMenuContext& Context)
+    {
+        TArray<FHDShipMenuItem> Items;
+        if (Context.Upgrades == nullptr)
+        {
+            return Items;
+        }
+
+        for (const FName& UpgradeName : Context.Upgrades->GetNames())
+        {
+            const FHDUpgradeDefinition* Definition = Context.Upgrades->Find(UpgradeName);
+            if (Definition == nullptr)
+            {
+                continue;
+            }
+
+            const int32 LevelCount = Definition->Levels.Num();
+            const int32 Level = FMath::Clamp(HDUpgrade::GetLevel(Context.Profile, UpgradeName), 0, LevelCount);
+
+            FHDShipMenuItem& Item   = Items.AddDefaulted_GetRef();
+            Item.Id                 = UpgradeName;
+            Item.Label              = FString::Printf(TEXT("%s  %d/%d"), *Definition->DisplayName, Level, LevelCount);
+            Item.ConfirmAction      = EHDShipActionType::Select;
+
+            const FHDUpgradeLevel* NextLevel = HDUpgrade::GetNextLevel(*Definition, Level);
+            if (NextLevel)
+            {
+                const FHDCost Cost  = NextLevel->ToCost();
+                Item.Detail         = FString::Printf(TEXT("NEXT  %s   COST %s"), *HDUpgrade::FormatEffect(Definition->Effect, NextLevel->Value), *HDUpgrade::FormatCost(Cost));
+                Item.bEnabled       = HDProgression::CanAfford(Context.Profile, Cost);
+            }
+            else
+            {
+                Item.Detail         = TEXT("MAX LEVEL");
+                if (Level > 0)
+                {
+                    Item.Detail += FString::Printf(TEXT("   %s"), *HDUpgrade::FormatEffect(Definition->Effect, Definition->Levels[Level - 1].Value));
+                }
+                Item.bEnabled       = false;
+            }
+        }
+
+        return Items;
+    }
 }
 
 bool HDShipMenu::TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKey& OutKey)
@@ -58,6 +111,11 @@ bool HDShipMenu::TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKe
 
 TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDShipMenuContext& Context)
 {
+    if (Screen == EHDShipScreen::Upgrades)
+    {
+        return HDShipMenuPrivate::BuildUpgradeItems(Context);
+    }
+
     TArray<FHDShipMenuItem> Items;
     if (Screen != EHDShipScreen::Bridge)
     {
@@ -84,7 +142,14 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
         DifficultyItem.ConfirmAction    = EHDShipActionType::None;
     }
 
-    // 뒤 브리프(6·7)가 Difficulty 와 Quit 사이에 줄을 더한다
+    FHDShipMenuItem& UpgradesItem   = Items.AddDefaulted_GetRef();
+    UpgradesItem.Id                 = HDShipMenuItemId::Upgrades;
+    UpgradesItem.Label              = TEXT("SHIP UPGRADES");
+    UpgradesItem.Detail             = TEXT("SPEND REQUISITION AND SAMPLES ON SHIP MODULES");
+    UpgradesItem.ConfirmAction      = EHDShipActionType::OpenScreen;
+    UpgradesItem.TargetScreen       = EHDShipScreen::Upgrades;
+
+    // 뒤 브리프(7)가 Upgrades 와 Quit 사이에 줄을 더한다
 
     FHDShipMenuItem& QuitItem   = Items.AddDefaulted_GetRef();
     QuitItem.Id                 = HDShipMenuItemId::Quit;
@@ -110,7 +175,18 @@ const TCHAR* HDShipMenu::GetScreenName(EHDShipScreen Screen)
     {
     case EHDShipScreen::Title:      return TEXT("Title");
     case EHDShipScreen::Bridge:     return TEXT("Bridge");
+    case EHDShipScreen::Upgrades:   return TEXT("Upgrades");
     default:                        return TEXT("?");
+    }
+}
+
+const TCHAR* HDShipMenu::GetScreenTitle(EHDShipScreen Screen)
+{
+    switch (Screen)
+    {
+    case EHDShipScreen::Bridge:     return TEXT("SHIP BRIDGE");
+    case EHDShipScreen::Upgrades:   return TEXT("SHIP UPGRADES");
+    default:                        return TEXT("");
     }
 }
 

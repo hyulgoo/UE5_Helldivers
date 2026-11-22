@@ -55,7 +55,7 @@ public:
     UFUNCTION(Exec)
     void        HDSetTimeLimit(float Seconds);
 
-    // 로드아웃 칸마다 한 줄: [HDStratagems] <칸> <이름> cooldown=<남은 초> uses=<남은/최대|inf> available=0|1
+    // 로드아웃 칸마다 한 줄: [HDStratagems] <칸> <이름> cooldown=<남은 초> uses=<남은/최대|inf> available=0|1 maxCooldown=<칸 대기> delay=<호출 지연> rearm=<재무장>
     UFUNCTION(Exec)
     void        HDStratagems();
 
@@ -160,4 +160,12 @@ public:
     // 플레이어스테이트 소지에 더한다(프로필이 아니다. 종류별로 0 미만이 되지 않게) → [HDSample] carried=c/r/s
     UFUNCTION(Exec)
     void        HDGiveSamples(int32 Common, int32 Rare = 0, int32 Super = 0);
+
+    // 업그레이드 행마다 [HDUpgrade] <이름> level=<산>/<수> next=<가격|max>, 마지막에 [HDUpgrade] active <프로필 효과 합>
+    UFUNCTION(Exec)
+    void        HDUpgrades();
+
+    // 함선 메뉴 SHIP UPGRADES 줄 확정과 같은 ModifyProfile(TryBuy) 경로. [HDUpgrade] buy <이름> -> <단계> (bought|cannot afford|max level|unknown) requisition <전> -> <후>
+    UFUNCTION(Exec)
+    void        HDBuyUpgrade(const FString& Name);
 };
