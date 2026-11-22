@@ -111,4 +111,16 @@ public:
     // 로그 [HDExplode] target=<적> body=<몸까지> capsule=<액터 위치까지> ragdoll=0|1, 판정은 [HDArmor] explosion 줄로 본다
     UFUNCTION(Exec)
     void        HDExplodeAtEnemy(float Offset = 150.f);
+
+    // 프로필 한 줄: [HDProfile] slot=<슬롯> file=0|1 Requisition=… Samples=c/r/s Difficulty=… Played=… Won=… Upgrades=… Unlocked=… Loadout=…
+    UFUNCTION(Exec)
+    void        HDProfile();
+
+    // 프로필에 징발·샘플을 더하고 저장한다(음수도 받는다). 각각 [0, 상한] 으로 자른다. 저장 로그는 서브시스템이 찍는다
+    UFUNCTION(Exec)
+    void        HDGiveResources(int32 Requisition, int32 Common = 0, int32 Rare = 0, int32 Super = 0);
+
+    // 프로필 저장 파일을 지우고 새 프로필로 돌린다(저장하지 않는다)
+    UFUNCTION(Exec)
+    void        HDResetProfile();
 };

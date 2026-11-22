@@ -32,6 +32,8 @@
 #include "Weapon/Projectile/HDProjectileGrenade.h"
 #include "Controller/HDPlayerController.h"
 #include "Controller/HDDirectKeyRules.h"
+#include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDProgressionRules.h"
 
 namespace HDCheatManager
 {
@@ -768,4 +770,51 @@ void UHDCheatManager::HDExplodeAtEnemy(float Offset)
         bRagdoll ? 1 : 0);
 
     Grenade->Explode();
+}
+
+void UHDCheatManager::HDProfile()
+{
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDProfile] No profile subsystem"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDProfile] slot=%s file=%d %s"),
+        *ProfileSubsystem->GetSlotName(),
+        ProfileSubsystem->HasSaveFile() ? 1 : 0,
+        *HDProgression::Describe(ProfileSubsystem->GetProfile()));
+}
+
+void UHDCheatManager::HDGiveResources(int32 Requisition, int32 Common, int32 Rare, int32 Super)
+{
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDProfile] No profile subsystem"));
+        return;
+    }
+
+    FHDSampleCounts Samples;
+    Samples.Common = Common;
+    Samples.Rare = Rare;
+    Samples.Super = Super;
+
+    ProfileSubsystem->ModifyProfile([Requisition, &Samples](FHDProfileData& Data)
+    {
+        HDProgression::AddResources(Data, Requisition, Samples);
+    });
+}
+
+void UHDCheatManager::HDResetProfile()
+{
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDProfile] No profile subsystem"));
+        return;
+    }
+
+    ProfileSubsystem->ResetProfile();
 }
