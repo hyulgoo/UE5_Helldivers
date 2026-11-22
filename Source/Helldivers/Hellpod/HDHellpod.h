@@ -25,6 +25,9 @@ class HELLDIVERS_API AHDHellpod : public APawn
 public:
     AHDHellpod(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
+    // 착지하면 스폰하는 캐릭터 클래스(BP 값 BP_CharacterPlayer). 함선 속 헬다이버도 이 클래스로 스폰한다(AHDGameMode::EnterShipInterior)
+    TSubclassOf<AHDCharacterPlayer>     GetCharacterClass() const { return CharacterClass; }
+
 protected:
 	virtual void						BeginPlay() override;
 	virtual void						Tick(float DeltaTime) override;

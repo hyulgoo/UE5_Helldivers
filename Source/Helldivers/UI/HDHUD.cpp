@@ -29,6 +29,7 @@
 #include "Progression/HDMissionReward.h"
 #include "Progression/HDSampleRules.h"
 #include "UI/HDShipMenu.h"
+#include "Ship/HDShipHubRules.h"
 #include "Engine/Canvas.h"
 
 namespace HDHUDMission
@@ -117,6 +118,17 @@ namespace HDHUDShip
     const TCHAR* const  TitleText = TEXT("HD SOLO OPERATIONS");
     const TCHAR* const  PromptText = TEXT("PRESS ENTER");
     const TCHAR* const  HelpText = TEXT("[UP/DOWN] SELECT   [LEFT/RIGHT] CHANGE   [ENTER] CONFIRM   [BACKSPACE] BACK");
+
+    // 함선 안(메뉴 닫힘): 아래 가운데 단말기 안내, 왼쪽 아래 키 안내
+    constexpr float     InteractPromptScale = 1.5f;
+    constexpr float     InteractPromptBottom = 180.f;
+    const TCHAR* const  InteriorHelpText = TEXT("[E] USE   [P] SHIP MENU");
+
+    // 출격 대기: 위쪽 가운데 큰 글자와 그 아래 취소 안내
+    constexpr float     CountdownTextScale = 2.f;
+    constexpr float     CountdownHeightRatio = 0.1f;
+    constexpr float     CountdownCancelGap = 8.f;
+    const TCHAR* const  CountdownCancelText = TEXT("[BACKSPACE] CANCEL");
 
     const FName         TitleHitBoxName(TEXT("ShipTitle"));
     const FString       ItemHitBoxPrefix(TEXT("ShipItem_"));
@@ -289,6 +301,11 @@ void AHDHUD::CreateDefaultWidget()
 
 void AHDHUD::OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload)
 {
+    // 함선 안에는 조준선이 없다
+    const UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    CONDITION_CHECK_WITHOUT_LOG(HDGameState == nullptr || HDGameState->IsInShip() == false);
+
     NULL_CHECK_WITHOUT_LOG(AbilitySystemComponent);
     NULL_CHECK(ReticleWidgetClass);
 
@@ -327,12 +344,25 @@ void AHDHUD::DrawHUD()
     // AHUD::DrawHUD 가 매 프레임 히트박스를 지우므로 함선 메뉴의 히트박스는 그 뒤에 더한다
     Super::DrawHUD();
 
-    // 함선 단계에서는 메뉴만 그린다(미션 글자·표식·히트마커는 그리지 않는다)
+    // 함선 단계에서는 메뉴(닫혀 있으면 함선 안 안내)와 출격 대기만 그린다(미션 글자·표식·히트마커는 그리지 않는다)
     const UWorld* World = GetWorld();
     const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
     if (HDGameState && HDGameState->IsInShip())
     {
-        DrawShipMenu();
+        const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+        if (HDPlayerController && HDPlayerController->IsShipMenuActive())
+        {
+            DrawShipMenu();
+        }
+        else
+        {
+            DrawShipOverlay();
+        }
+
+        if (HDGameState->GetLaunchRemaining() >= 0.f)
+        {
+            DrawLaunchCountdown(HDGameState->GetLaunchRemaining());
+        }
         return;
     }
 
@@ -408,29 +438,9 @@ void AHDHUD::DrawShipMenu()
         return;
     }
 
-    // 위쪽: 왼쪽 화면 머리글, 오른쪽 자원 줄(오른쪽 정렬)
+    // 위쪽: 왼쪽 화면 머리글, 오른쪽 자원 줄과 마지막 결과 줄
     DrawText(HDShipMenu::GetScreenTitle(ShipMenu.GetScreen()), HDHUDMission::TextColor, HeaderMargin, HeaderMargin, LargeFont, HeaderTextScale);
-
-    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
-    const FString ResourcesText = HDShipMenu::FormatResources(ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData());
-    float ResourcesWidth = 0.f;
-    float ResourcesHeight = 0.f;
-    GetTextSize(ResourcesText, ResourcesWidth, ResourcesHeight, MediumFont);
-    DrawText(ResourcesText, ItemColor, ScreenWidth - HeaderMargin - ResourcesWidth, HeaderMargin, MediumFont);
-
-    // 자원 줄 아래: 게임 인스턴스가 기억하는 마지막 미션 결과(오른쪽 정렬)
-    const FHDMissionResultSummary* LastResult = ProfileSubsystem ? ProfileSubsystem->GetLastResult() : nullptr;
-    if (LastResult)
-    {
-        const FString LastResultText = FString::Printf(TEXT("LAST MISSION  %s  +%d REQ"),
-            LastResult->Outcome.bSuccess ? TEXT("COMPLETE") : TEXT("FAILED"),
-            LastResult->Reward.Requisition);
-
-        float LastResultWidth = 0.f;
-        float LastResultHeight = 0.f;
-        GetTextSize(LastResultText, LastResultWidth, LastResultHeight, MediumFont);
-        DrawText(LastResultText, ItemColor, ScreenWidth - HeaderMargin - LastResultWidth, HeaderMargin + ResourcesHeight + LastResultGap, MediumFont);
-    }
+    DrawShipResources();
 
     // 줄 목록: 고른 줄은 "> " + 노랑, 다른 줄 흰색, 꺼진 줄 회색
     const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
@@ -452,6 +462,102 @@ void AHDHUD::DrawShipMenu()
         DrawText(Items[Cursor].Detail, ItemColor, ItemLeft, ScreenHeight - DetailBottom, MediumFont);
     }
     DrawText(HelpText, DisabledItemColor, ItemLeft, ScreenHeight - HelpBottom, MediumFont);
+}
+
+void AHDHUD::DrawShipResources()
+{
+    using namespace HDHUDShip;
+
+    if (Canvas == nullptr)
+    {
+        return;
+    }
+
+    const float ScreenWidth = Canvas->ClipX;
+    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+
+    // 자원 줄(오른쪽 정렬)
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const FString ResourcesText = HDShipMenu::FormatResources(ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData());
+    float ResourcesWidth = 0.f;
+    float ResourcesHeight = 0.f;
+    GetTextSize(ResourcesText, ResourcesWidth, ResourcesHeight, MediumFont);
+    DrawText(ResourcesText, ItemColor, ScreenWidth - HeaderMargin - ResourcesWidth, HeaderMargin, MediumFont);
+
+    // 자원 줄 아래: 게임 인스턴스가 기억하는 마지막 미션 결과(오른쪽 정렬)
+    const FHDMissionResultSummary* LastResult = ProfileSubsystem ? ProfileSubsystem->GetLastResult() : nullptr;
+    if (LastResult)
+    {
+        const FString LastResultText = FString::Printf(TEXT("LAST MISSION  %s  +%d REQ"),
+            LastResult->Outcome.bSuccess ? TEXT("COMPLETE") : TEXT("FAILED"),
+            LastResult->Reward.Requisition);
+
+        float LastResultWidth = 0.f;
+        float LastResultHeight = 0.f;
+        GetTextSize(LastResultText, LastResultWidth, LastResultHeight, MediumFont);
+        DrawText(LastResultText, ItemColor, ScreenWidth - HeaderMargin - LastResultWidth, HeaderMargin + ResourcesHeight + LastResultGap, MediumFont);
+    }
+}
+
+void AHDHUD::DrawShipOverlay()
+{
+    using namespace HDHUDShip;
+
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    if (Canvas == nullptr || HDPlayerController == nullptr)
+    {
+        return;
+    }
+
+    const float ScreenWidth = Canvas->ClipX;
+    const float ScreenHeight = Canvas->ClipY;
+    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+
+    // 오른쪽 위: 자원 줄·마지막 결과 줄(배경 없음)
+    DrawShipResources();
+
+    // 아래 가운데: 범위 안 단말기 안내
+    const int32 TerminalIndex = HDPlayerController->FindShipTerminalInRange();
+    const TArray<FHDShipTerminalInfo>& Terminals = HDShipHub::GetTerminals();
+    if (Terminals.IsValidIndex(TerminalIndex))
+    {
+        const FString InteractText = HDShipHub::FormatInteractPrompt(Terminals[TerminalIndex]);
+        float InteractWidth = 0.f;
+        float InteractHeight = 0.f;
+        GetTextSize(InteractText, InteractWidth, InteractHeight, MediumFont, InteractPromptScale);
+        DrawText(InteractText, HDHUDMission::TextColor, (ScreenWidth - InteractWidth) * 0.5f, ScreenHeight - InteractPromptBottom, MediumFont, InteractPromptScale);
+    }
+
+    // 왼쪽 아래: 키 안내
+    DrawText(InteriorHelpText, DisabledItemColor, HeaderMargin, ScreenHeight - HelpBottom, MediumFont);
+}
+
+void AHDHUD::DrawLaunchCountdown(float RemainingSeconds)
+{
+    using namespace HDHUDShip;
+
+    if (Canvas == nullptr)
+    {
+        return;
+    }
+
+    const float ScreenWidth = Canvas->ClipX;
+    const float ScreenHeight = Canvas->ClipY;
+    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+    UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+
+    // 위쪽 가운데: 큰 글자 HELLPOD LAUNCH IN n, 그 아래 취소 안내
+    const FString CountdownText = HDShipHub::FormatCountdown(RemainingSeconds);
+    float CountdownWidth = 0.f;
+    float CountdownHeight = 0.f;
+    GetTextSize(CountdownText, CountdownWidth, CountdownHeight, LargeFont, CountdownTextScale);
+    const float CountdownY = ScreenHeight * CountdownHeightRatio;
+    DrawText(CountdownText, HDHUDMission::TextColor, (ScreenWidth - CountdownWidth) * 0.5f, CountdownY, LargeFont, CountdownTextScale);
+
+    float CancelWidth = 0.f;
+    float CancelHeight = 0.f;
+    GetTextSize(CountdownCancelText, CancelWidth, CancelHeight, MediumFont);
+    DrawText(CountdownCancelText, ItemColor, (ScreenWidth - CancelWidth) * 0.5f, CountdownY + CountdownHeight + CountdownCancelGap, MediumFont);
 }
 
 void AHDHUD::NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint)

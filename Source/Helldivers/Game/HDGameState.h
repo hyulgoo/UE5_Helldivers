@@ -39,6 +39,10 @@ public:
     float                       GetRespawnRemaining() const { return RespawnRemaining; }
     void                        SetRespawnRemaining(float NewRespawnRemaining);
 
+    // 출격 대기(READY 뒤 카운트다운) 남은 시간(초). 돌고 있지 않으면 -1. AHDGameMode 가 Tick 에서 옮긴다
+    float                       GetLaunchRemaining() const { return LaunchRemaining; }
+    void                        SetLaunchRemaining(float NewLaunchRemaining);
+
     // 함선 단계(폰 없음, 메뉴)인가. AHDGameMode 가 함선에 들어올 때 참, 출격할 때 거짓으로 둔다
     void                        SetInShip(bool bNewInShip);
     bool                        IsInShip() const { return bInShip; }
@@ -88,6 +92,9 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     float                       RespawnRemaining;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Mission")
+    float                       LaunchRemaining;
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     bool                        bInShip;

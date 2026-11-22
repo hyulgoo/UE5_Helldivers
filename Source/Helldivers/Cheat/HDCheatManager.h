@@ -177,4 +177,17 @@ public:
     // 함선 메뉴 ARMORY 줄 확정과 같은 ModifyProfile(TryUnlock) 경로. [HDArmory] unlock <이름> (unlocked|cannot afford|already unlocked|unknown) requisition <전> -> <후>
     UFUNCTION(Exec)
     void        HDUnlockStratagem(const FString& Name);
+
+    // 걸어 다니는 함선 상태: [HDShipHub] interior=0|1 crew=0|1 menu=<화면|none> root=<뿌리> launch=<남은 초|-1> pawnLocal=<방 기준 위치|none>,
+    // 이어서 단말기마다 [HDShipHub] terminal <번호> <Id> world=<월드 위치|none> dist=<폰과 XY 거리|-1>
+    UFUNCTION(Exec)
+    void        HDShipHub();
+
+    // 단말기를 거리와 상관없이 연다(AHDPlayerController::OpenShipTerminal). Id = WarTable·ShipManagement·Armory·System, 모르면 [HDShip] terminal unknown <Id>
+    UFUNCTION(Exec)
+    void        HDTerminal(const FString& Id);
+
+    // READY 와 같은 AHDGameMode::RequestLaunch(출격 대기 시작)
+    UFUNCTION(Exec)
+    void        HDLaunch();
 };

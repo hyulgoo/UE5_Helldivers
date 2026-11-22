@@ -24,6 +24,10 @@
 #include "Progression/HDSampleRules.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Hellpod/HDHellpod.h"
+#include "Ship/HDShipInterior.h"
+#include "Collision/HDCollision.h"
+#include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -140,9 +144,52 @@ bool AHDGameMode::RequestDeploy(APlayerController* PC)
 
     UE_LOG(LogTemp, Display, TEXT("[HDShip] deploy"));
 
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+
+    // 1. 출격 대기를 조용히 끈다(HDDeploy 로 대기 중에 출격해도 다시 불리지 않게)
+    LaunchCountdown.Cancel();
+    LaunchPlayerController.Reset();
+    if (HDGameState)
+    {
+        HDGameState->SetLaunchRemaining(-1.f);
+    }
+
+    // 2. 함선 속 헬다이버: 능력을 끝내고 빙의를 풀고 지운다(무기는 캐릭터 EndPlay 가 지운다). 이제 폰이 없어 아래 RestartPlayer 가 불린다
+    if (ShipCrew)
+    {
+        UAbilitySystemComponent* ASC = FGameplayAbilityHelper::GetAbilitySystemComponentFromActor(PC->PlayerState);
+        if (ASC)
+        {
+            ASC->CancelAllAbilities();
+        }
+
+        if (PC->GetPawn() == ShipCrew)
+        {
+            PC->UnPossess();
+        }
+
+        ShipCrew->Destroy();
+        ShipCrew = nullptr;
+    }
+
+    // 3. BindLoadout 은 채워진 로드아웃을 그대로 두므로(증원용) 비워서, 착지한 캐릭터가 출격 때의 프로필로 다시 묶게 한다.
+    //    칸 대기 태그는 ReinitializeLoadout 가 지운다
+    AHDGASPlayerState* HDPlayerState = PC->GetPlayerState<AHDGASPlayerState>();
+    if (HDPlayerState)
+    {
+        HDPlayerState->GetStratagemLoadout() = FHDStratagemLoadout();
+    }
+
+    // 4. 함선 방
+    if (ShipInterior)
+    {
+        ShipInterior->Destroy();
+        ShipInterior = nullptr;
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] interior removed"));
+    }
+
     bInShip = false;
 
-    AHDGameState* HDGameState = GetGameState<AHDGameState>();
     if (HDGameState)
     {
         HDGameState->SetInShip(false);
@@ -180,6 +227,144 @@ bool AHDGameMode::RequestDeploy(APlayerController* PC)
 bool AHDGameMode::IsInShip() const
 {
     return bInShip;
+}
+
+bool AHDGameMode::EnterShipInterior(APlayerController* PC)
+{
+    NULL_CHECK_WITH_RETURNTYPE(PC, false);
+
+    auto Refuse = [](const TCHAR* Reason)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] interior refused (%s)"), Reason);
+        return false;
+    };
+
+    if (bInShip == false)
+    {
+        return Refuse(TEXT("not in ship"));
+    }
+
+    if (GetDefault<UHDProgressionSettings>()->bShipInterior == false)
+    {
+        return Refuse(TEXT("disabled"));
+    }
+
+    if (ShipInterior == nullptr)
+    {
+        return Refuse(TEXT("no interior"));
+    }
+
+    if (PC->GetPawn())
+    {
+        return Refuse(TEXT("has pawn"));
+    }
+
+    // 캐릭터 클래스 = 헬포드(기본 폰) BP 의 CharacterClass. 아무것도 바꾸기 전에 확인한다
+    UClass* HellpodClass = GetDefaultPawnClassForController(PC);
+    const AHDHellpod* HellpodDefault = HellpodClass ? Cast<AHDHellpod>(HellpodClass->GetDefaultObject()) : nullptr;
+    TSubclassOf<AHDCharacterPlayer> CharacterClass;
+    if (HellpodDefault)
+    {
+        CharacterClass = HellpodDefault->GetCharacterClass();
+    }
+
+    if (CharacterClass == nullptr)
+    {
+        return Refuse(TEXT("no character class"));
+    }
+
+    UWorld* World = GetWorld();
+    NULL_CHECK_WITH_RETURNTYPE(World, false);
+
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    if (ProfileSubsystem)
+    {
+        ProfileSubsystem->MarkTitleShown();
+    }
+
+    AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PC);
+    if (HDPlayerController)
+    {
+        HDPlayerController->ExitShipMenu();
+    }
+
+    // 헬포드와 같은 순서(SpawnActorDeferred → Possess → FinishSpawning). 헬포드가 하는 DisableInput·상승 타임라인은 하지 않는다
+    const FTransform SpawnTransform = ShipInterior->GetCrewSpawnTransform();
+    AHDCharacterPlayer* Crew = World->SpawnActorDeferred<AHDCharacterPlayer>(CharacterClass, SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    NULL_CHECK_WITH_RETURNTYPE(Crew, false);
+
+    PC->Possess(Crew);
+    Crew->FinishSpawning(SpawnTransform);
+
+    // BP_CharacterPlayer 의 캡슐은 충돌 없음으로 시작하고 헬포드 상승이 끝날 때(AHDHellpod::SpawnCharacterEnd) 충돌을 켠다.
+    // 상승을 건너뛰므로 같은 프로필을 여기서 준다(안 주면 바닥을 뚫고 떨어진다)
+    Crew->GetCapsuleComponent()->SetCollisionProfileName(HDCOLLISION_PROFILE_PAWN);
+    Crew->GetMesh()->SetCollisionProfileName(HDCOLLISION_PROFILE_PLAYER);
+
+    PC->SetControlRotation(FRotator(0.f, SpawnTransform.Rotator().Yaw, 0.f));
+
+    ShipCrew = Crew;
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] crew spawned at %s"), *Crew->GetActorLocation().ToString());
+    return true;
+}
+
+AHDShipInterior* AHDGameMode::GetShipInterior() const
+{
+    return ShipInterior;
+}
+
+bool AHDGameMode::RequestLaunch(APlayerController* PC)
+{
+    if (bInShip == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] launch refused (not in ship)"));
+        return false;
+    }
+
+    if (LaunchCountdown.IsActive())
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] launch refused (already)"));
+        return false;
+    }
+
+    NULL_CHECK_WITH_RETURNTYPE(PC, false);
+
+    LaunchCountdown.Start(GetDefault<UHDProgressionSettings>()->LaunchCountdownSeconds);
+    LaunchPlayerController = PC;
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetLaunchRemaining(LaunchCountdown.GetRemaining());
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] launch countdown %.0f"), LaunchCountdown.GetRemaining());
+    return true;
+}
+
+bool AHDGameMode::CancelLaunch()
+{
+    const float Remaining = LaunchCountdown.GetRemaining();
+    if (LaunchCountdown.Cancel() == false)
+    {
+        return false;
+    }
+
+    LaunchPlayerController.Reset();
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetLaunchRemaining(-1.f);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] launch cancelled remaining=%.1f"), Remaining);
+    return true;
+}
+
+bool AHDGameMode::IsLaunching() const
+{
+    return LaunchCountdown.IsActive();
 }
 
 void AHDGameMode::BeginMission()
@@ -244,8 +429,24 @@ void AHDGameMode::EnterShip()
     // 화면 비율이 달라도 검은 띠를 넣지 않는다
     ShipCamera->GetCameraComponent()->SetConstraintAspectRatio(false);
 
+    // 걸어 다니는 함선 방 = 첫 PlayerStart(없으면 원점) + ShipInteriorOffset, 회전 0
+    const UHDProgressionSettings* ProgressionSettings = GetDefault<UHDProgressionSettings>();
+    if (ProgressionSettings->bShipInterior)
+    {
+        ShipInterior = World->SpawnActor<AHDShipInterior>(AHDShipInterior::StaticClass(), LookAtLocation + ProgressionSettings->ShipInteriorOffset, FRotator::ZeroRotator, SpawnParams);
+    }
+
     const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
     const bool bShowTitle = ProfileSubsystem == nullptr || ProfileSubsystem->HasShownTitle() == false;
+
+    // 함선 속 헬다이버 빙의(OnPossess 가 전투 HUD 를 건너뛸지 게임스테이트로 본다)보다 먼저 함선 단계를 알린다
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetInShip(true);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] enter title=%d camera=%s interior=%d"), bShowTitle ? 1 : 0, *CameraLocation.ToString(), ShipInterior ? 1 : 0);
 
     for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
     {
@@ -257,20 +458,19 @@ void AHDGameMode::EnterShip()
 
         PlayerController->SetViewTarget(ShipCamera);
 
+        // 복귀(타이틀을 이미 봄)면 바로 함선 안, 아니면 타이틀(함선 모드는 타이틀 Enter 뒤 컨트롤러가 EnterShipInterior 를 부른다) 또는 Bridge
+        if (ShipInterior && bShowTitle == false)
+        {
+            EnterShipInterior(PlayerController);
+            continue;
+        }
+
         AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerController);
         if (HDPlayerController)
         {
             HDPlayerController->EnterShipMenu(bShowTitle);
         }
     }
-
-    AHDGameState* HDGameState = GetGameState<AHDGameState>();
-    if (HDGameState)
-    {
-        HDGameState->SetInShip(true);
-    }
-
-    UE_LOG(LogTemp, Display, TEXT("[HDShip] enter title=%d camera=%s"), bShowTitle ? 1 : 0, *CameraLocation.ToString());
 }
 
 void AHDGameMode::PostLogin(APlayerController* NewPlayer)
@@ -295,6 +495,28 @@ void AHDGameMode::Tick(float DeltaSeconds)
     if (HDGameState)
     {
         HDGameState->SetRespawnRemaining(GetWorldTimerManager().GetTimerRemaining(ReinforceTimerHandle));
+    }
+
+    // 출격 대기. 기억한 PC 가 없어졌으면 취소한다
+    if (LaunchCountdown.IsActive())
+    {
+        if (LaunchPlayerController.IsValid() == false)
+        {
+            CancelLaunch();
+            return;
+        }
+
+        const bool bLaunch = LaunchCountdown.Tick(DeltaSeconds);
+        if (HDGameState)
+        {
+            HDGameState->SetLaunchRemaining(LaunchCountdown.GetRemaining());
+        }
+
+        if (bLaunch)
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDShip] launch"));
+            RequestDeploy(LaunchPlayerController.Get());
+        }
     }
 }
 

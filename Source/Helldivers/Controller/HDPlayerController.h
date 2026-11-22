@@ -41,9 +41,10 @@ public:
 
     // 키 이벤트는 하나씩 누른 순서대로 온다. Super(Enhanced Input) 를 먼저 부르고, 화살표 누름은 스트라타젬 명령 큐에, 숫자 키 1~4 누름은 무기 칸 큐에 넣는다. Q 누름은 스팀 요청, 왼쪽 Alt 누름은 급강하 요청으로 세운다.
     // 이어서 Enter·P·Escape·BackSpace 누름(HDDirectKey::TryGetMissionMenuKey)은 미션 메뉴 큐에 넣는다.
-    // 함선 메뉴 중에는 메뉴 키(HDShipMenu::TryGetMenuKey)만 메뉴 큐에 넣고 나머지 큐는 건너뛴다
+    // 함선 메뉴 중에는 메뉴 키(HDShipMenu::TryGetMenuKey)만 메뉴 큐에 넣고 나머지 큐는 건너뛴다.
+    // 함선 안(메뉴 닫힘)에서는 E 누름 = 상호작용, P·Escape = 함선 메뉴, 출격 대기 중 BackSpace = 대기 취소만 세우고 나머지 큐는 건너뛴다
     virtual bool                            InputKey(const FInputKeyEventArgs& Params) override;
-    // Super 의 입력 처리(여기서 Ctrl 입력 모드 GA 가 켜진다) 뒤에 메뉴 큐를 먼저 비우고, 미션 메뉴 큐(폰이 캐릭터가 아니어도, 죽어 있어도),
+    // Super 의 입력 처리(여기서 Ctrl 입력 모드 GA 가 켜진다) 뒤에 메뉴 큐를 먼저 비우고, 함선 안 요청(상호작용·함선 메뉴·대기 취소), 미션 메뉴 큐(폰이 캐릭터가 아니어도, 죽어 있어도),
     // 명령 큐, 이어서 무기 칸 큐, 스팀 요청, 급강하 요청을 순서대로 폰에 넘긴다
     virtual void                            PlayerTick(float DeltaTime) override;
 
@@ -52,8 +53,18 @@ public:
 
     // 게임모드가 함선 단계에 들어올 때 부른다. 커서를 보이고 클릭·가리키기 이벤트를 켠다
     void                                    EnterShipMenu(bool bShowTitle);
-    // 출격할 때 부른다. 커서·클릭 이벤트를 끄고 게임 입력만 받는다
+    // 출격할 때 부른다. 커서·클릭 이벤트를 끄고 게임 입력만 받는다. 단말기가 막은 이동·시점도 푼다
     void                                    ExitShipMenu();
+
+    // 걸어 다니는 함선 안인가: 게임스테이트가 함선 단계이고 폰이 AHDCharacterPlayer
+    bool                                    IsInShipInterior() const;
+    // 폰에서 XY ShipInteractRange 안의 가장 가까운 단말기 번호(HDShipHub::GetTerminals). 함선 방이나 폰이 없으면 INDEX_NONE. HUD 안내와 E 가 같이 쓴다
+    int32                                   FindShipTerminalInRange() const;
+    // 단말기(또는 System 함선 메뉴)를 Root 화면으로 연다. 함선 안이 아니거나 메뉴가 열려 있으면 거짓(terminal refused 로그).
+    // 커서·클릭·입력 모드는 EnterShipMenu 와 같고 이동·시점 입력을 막는다
+    bool                                    OpenShipTerminal(EHDShipScreen Root, FName TerminalId);
+    // 단말기를 닫고 이동·시점을 푼다(terminal close 로그)
+    void                                    CloseShipTerminal();
     bool                                    IsShipMenuActive() const { return bShipMenuActive; }
     const FHDShipMenu&                      GetShipMenu() const { return ShipMenu; }
     // 지금 화면의 줄. 문맥은 프로필 서브시스템에서 만든다(없으면 기본값)
@@ -88,9 +99,11 @@ private:
 
     void                                    SendNextSimulatedKeyFrame();
 
-    // 메뉴 키 하나: 줄을 만들고 FHDShipMenu::HandleKey → [HDShip] key 로그 → ExecuteShipMenuAction
+    // 메뉴 키 하나: 출격 대기 중이면 Back = 대기 취소, 나머지는 무시(ignored (launching) 로그).
+    // 아니면 줄을 만들고 FHDShipMenu::HandleKey → [HDShip] key 로그 → 타이틀을 넘겼고 bShipInterior 면 AHDGameMode::EnterShipInterior, 아니면 ExecuteShipMenuAction
     void                                    HandleShipMenuKey(EHDShipMenuKey Key);
-    // Deploy → AHDGameMode::RequestDeploy, Quit → UKismetSystemLibrary::QuitGame. 뒤 브리프가 Adjust·Select 갈래를 더한다
+    // Deploy → AHDGameMode::RequestDeploy, Quit → UKismetSystemLibrary::QuitGame, Adjust(난이도·로드아웃 칸), Select(업그레이드·해금),
+    // CloseTerminal → CloseShipTerminal, Launch → AHDGameMode::RequestLaunch(메뉴는 열어 둔다)
     void                                    ExecuteShipMenuAction(const FHDShipMenuAction& Action);
 
     // 미션 메뉴 키 하나. 결과가 있으면 Confirm = RequestReturnToShip, 확인 창이 열려 있으면 Confirm = 닫고 AHDGameMode::RequestAbandon / 나머지 = 닫기,
@@ -143,4 +156,11 @@ private:
     TArray<EHDMissionMenuKey>               PendingMissionMenuKeys;
     // 작전 포기 확인 창. 열려 있어도 미션은 멈추지 않는다
     bool                                    bAbandonPromptOpen = false;
+
+    // 함선 안에서 InputKey 가 세운 요청. PlayerTick 이 함선 메뉴 키 다음에 처리하고 내린다
+    bool                                    bPendingInteract = false;
+    bool                                    bPendingShipSystemMenu = false;
+    bool                                    bPendingLaunchCancel = false;
+    // 지금 열린 단말기 Id(로그용). 닫으면 None
+    FName                                   OpenTerminalId;
 };

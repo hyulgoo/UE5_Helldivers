@@ -6,10 +6,12 @@
 #include "GameFramework/GameModeBase.h"
 #include "Game/HDMissionFlow.h"
 #include "Progression/HDDifficulty.h"
+#include "Ship/HDShipHubRules.h"
 #include "HDGameMode.generated.h"
 
 class UHDMissionSettings;
 class ACameraActor;
+class AHDShipInterior;
 
 // 한 판의 단계(FHDMissionFlow)를 소유하고 착지·목표·추출·사망을 받아 게임스테이트와 스폰 디렉터에 반영한다.
 // UHDProgressionSettings::bStartInShip 이면 함선 단계(폰 없음, 고정 카메라 + 메뉴)로 시작하고 RequestDeploy 때 미션을 시작한다
@@ -31,9 +33,20 @@ public:
     // 함선 단계면 거짓(로그인 때 기본 폰을 스폰하지 않는다), 아니면 Super
     virtual bool                PlayerCanRestart_Implementation(APlayerController* Player) override;
 
-    // 출격(메뉴 DEPLOY·치트 HDDeploy). 함선 단계가 아니면 거짓. 메뉴를 닫고 미션을 시작한 뒤 헬포드를 스폰하고 함선 카메라를 지운다
+    // 출격(메뉴 DEPLOY·출격 대기 끝·치트 HDDeploy). 함선 단계가 아니면 거짓. 출격 대기를 끄고, 함선 속 헬다이버·함선 방을 지우고,
+    // 플레이어스테이트 로드아웃을 비운 뒤(착지한 캐릭터가 프로필로 다시 묶는다) 메뉴를 닫고 미션을 시작해 헬포드를 스폰하고 함선 카메라를 지운다
     bool                        RequestDeploy(APlayerController* PC);
     bool                        IsInShip() const;
+
+    // 함선 속 헬다이버를 함선 방 스폰 지점에 스폰·빙의한다(타이틀 뒤·복귀 뒤). 함선 단계 아님·bShipInterior 꺼짐·방 없음·이미 폰 있음이면 거짓(interior refused 로그)
+    bool                        EnterShipInterior(APlayerController* PC);
+    AHDShipInterior*            GetShipInterior() const;
+
+    // READY(메뉴)·치트 HDLaunch: 출격 대기를 LaunchCountdownSeconds 로 시작한다. 함선 단계가 아니거나 이미 돌고 있으면 거짓(launch refused 로그)
+    bool                        RequestLaunch(APlayerController* PC);
+    // 출격 대기가 돌고 있었으면 끄고 참(launch cancelled 로그)
+    bool                        CancelLaunch();
+    bool                        IsLaunching() const;
 
     // 브리프 7~9 가 부른다
     void                        NotifyObjectiveCompleted(AActor* Objective);
@@ -63,7 +76,8 @@ private:
     // 프로필의 난이도 행을 정하고, 목표를 배치하고 FHDMissionFlow 를 만든다([HDMission] start 로그까지)
     void                        BeginMission();
 
-    // 첫 PlayerStart(없으면 원점) + ShipCameraOffset 에 PlayerStart 를 바라보는 카메라를 두고, 모든 플레이어의 시점을 옮겨 함선 메뉴를 연다
+    // 첫 PlayerStart(없으면 원점) + ShipCameraOffset 에 PlayerStart 를 바라보는 카메라를 두고, bShipInterior 면 + ShipInteriorOffset 에 함선 방을 스폰한다.
+    // 모든 플레이어의 시점을 옮긴 뒤, 함선 방이 있고 타이틀을 이미 봤으면(복귀) EnterShipInterior, 아니면 함선 메뉴(타이틀 또는 Bridge)를 연다
     void                        EnterShip();
 
     // 맵에 놓인 목표가 RequiredCount 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
@@ -108,6 +122,17 @@ private:
     // 함선 단계의 고정 카메라. 출격하면 지운다
     UPROPERTY()
     TObjectPtr<ACameraActor>    ShipCamera;
+
+    // 걸어 다니는 함선 방과 그 안의 헬다이버. 출격하면 지운다
+    UPROPERTY()
+    TObjectPtr<AHDShipInterior> ShipInterior;
+
+    UPROPERTY()
+    TObjectPtr<APawn>           ShipCrew;
+
+    // READY 뒤 출격 대기. Tick 이 돌리고 끝나면 LaunchPlayerController 로 RequestDeploy 를 부른다
+    FHDLaunchCountdown                  LaunchCountdown;
+    TWeakObjectPtr<APlayerController>   LaunchPlayerController;
 
     // 이번 미션의 난이도 단계(1 부터, BeginMission 전에는 0)와 그 행. BeginMission 이 프로필에서 정한다
     int32                       MissionDifficultyLevel = 0;

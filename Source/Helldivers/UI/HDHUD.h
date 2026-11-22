@@ -29,7 +29,7 @@ public:
     void                                RebuildStratagemList();
 
     // 왼쪽 위 미션 글자, 미완료 목표 표식(라벨·거리), 증원 대기 중이면 가운데 REINFORCING IN <초>, 결과가 나오면 가운데 결과 패널,
-    // 작전 포기 확인 창이 열려 있으면 가운데 ABANDON MISSION? 을 캔버스에 그린다. 함선 단계면 함선 메뉴만 그린다
+    // 작전 포기 확인 창이 열려 있으면 가운데 ABANDON MISSION? 을 캔버스에 그린다. 함선 단계면 함선 메뉴(닫혀 있으면 함선 안 안내)와 출격 대기만 그린다
     virtual void                        DrawHUD() override;
 
     // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기. 결과 패널 ResultReturn → 함선 복귀 요청
@@ -40,8 +40,14 @@ public:
     void                                NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint);
 
 private:
-    // 반투명 배경 + 타이틀(HD SOLO OPERATIONS / PRESS ENTER) 또는 Bridge(제목·자원 줄·마지막 결과 줄·줄 목록·설명·키 안내)와 히트박스
+    // 반투명 배경 + 타이틀(HD SOLO OPERATIONS / PRESS ENTER) 또는 화면(머리글·자원 줄·마지막 결과 줄·줄 목록·설명·키 안내)과 히트박스
     void                                DrawShipMenu();
+    // 오른쪽 위 자원 줄과 그 아래 LAST MISSION 줄(함선 메뉴·함선 안 안내 공용)
+    void                                DrawShipResources();
+    // 함선 안(메뉴 닫힘, 배경 없음): 자원 줄, 아래 가운데 범위 안 단말기 [E] <이름>, 왼쪽 아래 [E] USE   [P] SHIP MENU
+    void                                DrawShipOverlay();
+    // 위쪽 가운데 HELLPOD LAUNCH IN <초> 와 [BACKSPACE] CANCEL
+    void                                DrawLaunchCountdown(float RemainingSeconds);
     void                                DrawMissionText();
     // 게임스테이트의 결과를 가운데 반투명 상자에: 성공·실패, 포기, 난이도, 목표, 시간, 징발, 샘플, 입력 지연 뒤 [ENTER] RETURN TO SHIP(히트박스 ResultReturn)
     void                                DrawResultPanel();

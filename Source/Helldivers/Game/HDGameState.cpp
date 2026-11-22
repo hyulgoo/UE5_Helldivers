@@ -16,6 +16,7 @@ AHDGameState::AHDGameState()
     , bPlayerInExtractionZone(false)
     , bExtractionCalled(false)
     , RespawnRemaining(-1.f)
+    , LaunchRemaining(-1.f)
     , bInShip(false)
     , bHasMissionResult(false)
 {
@@ -52,6 +53,11 @@ void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed,
 void AHDGameState::SetRespawnRemaining(float NewRespawnRemaining)
 {
     RespawnRemaining = NewRespawnRemaining;
+}
+
+void AHDGameState::SetLaunchRemaining(float NewLaunchRemaining)
+{
+    LaunchRemaining = NewLaunchRemaining;
 }
 
 void AHDGameState::SetInShip(bool bNewInShip)

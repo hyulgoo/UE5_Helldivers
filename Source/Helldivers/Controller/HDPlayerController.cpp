@@ -24,6 +24,8 @@
 #include "Progression/HDArmoryRules.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Stratagem/HDStratagemSettings.h"
+#include "Ship/HDShipHubRules.h"
+#include "Ship/HDShipInterior.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
 
@@ -31,6 +33,9 @@ namespace HDPlayerControllerShip
 {
     // HDShipMenu::BuildItems 의 난이도 줄 Id
     const FName DifficultyItemId(TEXT("Difficulty"));
+
+    // P 함선 메뉴의 단말기 Id(로그용)
+    const FName SystemTerminalId(TEXT("System"));
 
     // HDShipMenu::BuildItems 의 Loadout 칸 줄 Id "Slot1"~"Slot4" → 칸 번호 0~3. 아니면 INDEX_NONE
     int32 GetLoadoutSlotIndex(const FName ItemId)
@@ -105,6 +110,33 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
         return bResult;
     }
 
+    // 함선 안(메뉴 닫힘): E·P/Escape·BackSpace 만 본다. 화살표·숫자·Q·Alt·결과 키 큐는 건너뛴다
+    if (IsInShipInterior())
+    {
+        if (HDShipHub::IsInteractKey(Params.Key, Params.Event))
+        {
+            bPendingInteract = true;
+        }
+
+        EHDMissionMenuKey ShipMenuKey = EHDMissionMenuKey::Confirm;
+        if (HDDirectKey::TryGetMissionMenuKey(Params.Key, Params.Event, ShipMenuKey))
+        {
+            const UWorld* World = GetWorld();
+            const AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+
+            if (ShipMenuKey == EHDMissionMenuKey::ToggleAbandon)
+            {
+                bPendingShipSystemMenu = true;
+            }
+            else if (ShipMenuKey == EHDMissionMenuKey::Cancel && HDGameMode && HDGameMode->IsLaunching())
+            {
+                bPendingLaunchCancel = true;
+            }
+        }
+
+        return bResult;
+    }
+
     EHDCommandInput Command = EHDCommandInput::Count;
     if (HDDirectKey::TryGetCommand(Params.Key, Params.Event, Command))
     {
@@ -155,6 +187,41 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
             }
 
             HandleShipMenuKey(MenuKey);
+        }
+    }
+
+    // 함선 안 요청. E = 범위 안의 가장 가까운 단말기, P = 함선 메뉴, BackSpace = 출격 대기 취소
+    if (bPendingInteract)
+    {
+        bPendingInteract = false;
+
+        const int32 TerminalIndex = FindShipTerminalInRange();
+        const TArray<FHDShipTerminalInfo>& Terminals = HDShipHub::GetTerminals();
+        if (Terminals.IsValidIndex(TerminalIndex))
+        {
+            OpenShipTerminal(Terminals[TerminalIndex].RootScreen, Terminals[TerminalIndex].Id);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDShip] interact none"));
+        }
+    }
+
+    if (bPendingShipSystemMenu)
+    {
+        bPendingShipSystemMenu = false;
+        OpenShipTerminal(EHDShipScreen::System, HDPlayerControllerShip::SystemTerminalId);
+    }
+
+    if (bPendingLaunchCancel)
+    {
+        bPendingLaunchCancel = false;
+
+        UWorld* World = GetWorld();
+        AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+        if (HDGameMode)
+        {
+            HDGameMode->CancelLaunch();
         }
     }
 
@@ -285,6 +352,67 @@ void AHDPlayerController::ExitShipMenu()
     bEnableClickEvents      = false;
     bEnableMouseOverEvents  = false;
     SetInputMode(FInputModeGameOnly());
+
+    // 단말기가 막은 이동·시점(출격 경로에서도 풀리게)
+    ResetIgnoreMoveInput();
+    ResetIgnoreLookInput();
+}
+
+bool AHDPlayerController::IsInShipInterior() const
+{
+    const UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    return HDGameState && HDGameState->IsInShip() && Cast<AHDCharacterPlayer>(GetPawn()) != nullptr;
+}
+
+int32 AHDPlayerController::FindShipTerminalInRange() const
+{
+    const UWorld* World = GetWorld();
+    const AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    const AHDShipInterior* ShipInterior = HDGameMode ? HDGameMode->GetShipInterior() : nullptr;
+    const APawn* ControlledPawn = GetPawn();
+    if (ShipInterior == nullptr || ControlledPawn == nullptr)
+    {
+        return INDEX_NONE;
+    }
+
+    return HDShipHub::FindTerminalInRange(ShipInterior->ToLocal(ControlledPawn->GetActorLocation()), HDShipHub::GetTerminals(), GetDefault<UHDProgressionSettings>()->ShipInteractRange);
+}
+
+bool AHDPlayerController::OpenShipTerminal(EHDShipScreen Root, FName TerminalId)
+{
+    if (IsInShipInterior() == false || bShipMenuActive)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] terminal refused %s"), *TerminalId.ToString());
+        return false;
+    }
+
+    ShipMenu.OpenTerminal(Root);
+    bShipMenuActive = true;
+    OpenTerminalId  = TerminalId;
+
+    // EnterShipMenu 와 같은 커서·클릭·입력 모드
+    SetShowMouseCursor(true);
+    bEnableClickEvents      = true;
+    bEnableMouseOverEvents  = true;
+    SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+
+    // 단말기를 보는 동안 걷지도 돌아보지도 않는다(APawn::AddMovementInput·APlayerController::AddYawInput 이 본다)
+    SetIgnoreMoveInput(true);
+    SetIgnoreLookInput(true);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] terminal open %s screen=%s"), *TerminalId.ToString(), HDShipMenu::GetScreenName(Root));
+    return true;
+}
+
+void AHDPlayerController::CloseShipTerminal()
+{
+    ExitShipMenu();
+    ResetIgnoreMoveInput();
+    ResetIgnoreLookInput();
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] terminal close %s"), *OpenTerminalId.ToString());
+    OpenTerminalId = NAME_None;
 }
 
 TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
@@ -331,6 +459,23 @@ void AHDPlayerController::ClickShipMenuItem(int32 Index)
 
 void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
 {
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+
+    // 출격 대기 중에는 Back(대기 취소)만 받는다. 메뉴는 그대로(원작처럼 로드아웃 화면에서 카운트다운을 본다)
+    if (HDGameMode && HDGameMode->IsLaunching())
+    {
+        if (Key == EHDShipMenuKey::Back)
+        {
+            HDGameMode->CancelLaunch();
+        }
+        else
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDShip] key %s ignored (launching)"), HDShipMenu::GetKeyName(Key));
+        }
+        return;
+    }
+
     const EHDShipScreen OldScreen = ShipMenu.GetScreen();
     const FHDShipMenuAction Action = ShipMenu.HandleKey(Key, BuildShipMenuItems());
 
@@ -350,6 +495,14 @@ void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
     if (Action.Type == EHDShipActionType::OpenScreen)
     {
         UE_LOG(LogTemp, Display, TEXT("[HDShip] screen %s -> %s"), HDShipMenu::GetScreenName(OldScreen), HDShipMenu::GetScreenName(NewScreen));
+    }
+
+    // 함선 모드에서 타이틀을 넘기면 Bridge 대신 함선 안으로 들어간다(메뉴는 게임모드가 닫는다)
+    if (OldScreen == EHDShipScreen::Title && NewScreen != EHDShipScreen::Title && GetDefault<UHDProgressionSettings>()->bShipInterior)
+    {
+        NULL_CHECK(HDGameMode);
+        HDGameMode->EnterShipInterior(this);
+        return;
     }
 
     ExecuteShipMenuAction(Action);
@@ -372,6 +525,19 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
         UE_LOG(LogTemp, Display, TEXT("[HDShip] quit"));
         UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
         break;
+    case EHDShipActionType::CloseTerminal:
+        CloseShipTerminal();
+        break;
+    case EHDShipActionType::Launch:
+    {
+        // 메뉴는 열어 둔다. 대기 중 키는 HandleShipMenuKey 가 막는다
+        UWorld* World = GetWorld();
+        AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+        NULL_CHECK(HDGameMode);
+
+        HDGameMode->RequestLaunch(this);
+        break;
+    }
     case EHDShipActionType::Adjust:
     {
         // Loadout 화면의 칸 줄: 정리한 로드아웃에서 그 칸만 해금된 다음 이름으로 바꿔 프로필에 저장한다(다음 출격부터). 저장 로그는 서브시스템이 찍는다
@@ -594,7 +760,18 @@ void AHDPlayerController::OnPossess(APawn* aPawn)
         NULL_CHECK(HUD);
 
         HUD->SetAbilitySystemComponent(ASC);
-        HUD->CreateDefaultWidget();
+
+        // 함선 속 헬다이버에는 체력 막대·스트라타젬 패널을 만들지 않는다. 착지한 캐릭터가 처음 만들어 출격 때의 로드아웃으로 목록을 짓는다
+        const UWorld* World = GetWorld();
+        const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+        if (HDGameState && HDGameState->IsInShip())
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDShip] crew possessed (combat hud skipped)"));
+        }
+        else
+        {
+            HUD->CreateDefaultWidget();
+        }
 
         // PlayerState ASC 는 다시 강하해도 같으므로 앞 빙의에서 묶은 것을 먼저 푼다
         FGameplayEventMulticastDelegate& EquipWeaponDelegate = ASC->GenericGameplayEventCallbacks.FindOrAdd(Tag_Event_PlayerHUD_EquipWeapon);
@@ -635,6 +812,9 @@ void AHDPlayerController::SetupInputComponent()
 
 void AHDPlayerController::AbilityInputTriggered(const FGameplayTag InputTag)
 {
+    // 함선 안에서는 사격·조준·재장전·자세·달리기·점프·스트라타젬 입력 모드를 모두 막는다
+    CONDITION_CHECK_WITHOUT_LOG(IsInShipInterior() == false);
+
     UHDAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);
 
@@ -644,6 +824,8 @@ void AHDPlayerController::AbilityInputTriggered(const FGameplayTag InputTag)
 
 void AHDPlayerController::AbilityInputReleased(const FGameplayTag InputTag)
 {
+    CONDITION_CHECK_WITHOUT_LOG(IsInShipInterior() == false);
+
     UHDAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);
 
@@ -653,6 +835,8 @@ void AHDPlayerController::AbilityInputReleased(const FGameplayTag InputTag)
 
 void AHDPlayerController::AbilityInputToggled(const FGameplayTag InputTag)
 {
+    CONDITION_CHECK_WITHOUT_LOG(IsInShipInterior() == false);
+
     UHDAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);
 

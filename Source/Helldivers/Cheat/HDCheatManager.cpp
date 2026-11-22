@@ -44,6 +44,8 @@
 #include "Progression/HDArmoryRules.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Stratagem/HDStratagemSettings.h"
+#include "Ship/HDShipHubRules.h"
+#include "Ship/HDShipInterior.h"
 
 namespace HDCheatManager
 {
@@ -1191,4 +1193,89 @@ void UHDCheatManager::HDUnlockStratagem(const FString& Name)
         ::HDArmory::GetUnlockResultName(Result),
         OldRequisition,
         ProfileSubsystem->GetProfile().Requisition);
+}
+
+void UHDCheatManager::HDShipHub()
+{
+    UWorld* World = GetWorld();
+    const AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    const AHDPlayerController* PlayerController = Cast<AHDPlayerController>(GetOuterAPlayerController());
+    if (HDGameMode == nullptr || HDGameState == nullptr || PlayerController == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShipHub] No HDGameMode, HDGameState or HDPlayerController"));
+        return;
+    }
+
+    // 이 멤버 함수와 이름이 같은 규칙 네임스페이스는 :: 로 부른다
+    const AHDShipInterior* ShipInterior = HDGameMode->GetShipInterior();
+    const APawn* PlayerPawn = PlayerController->GetPawn();
+    const FHDShipMenu& ShipMenu = PlayerController->GetShipMenu();
+    const float LaunchRemaining = HDGameState->GetLaunchRemaining();
+
+    const FString MenuText      = PlayerController->IsShipMenuActive() ? FString(HDShipMenu::GetScreenName(ShipMenu.GetScreen())) : FString(TEXT("none"));
+    const FString LaunchText    = LaunchRemaining >= 0.f ? FString::Printf(TEXT("%.1f"), LaunchRemaining) : FString(TEXT("-1"));
+    const FString PawnLocalText = (ShipInterior && PlayerPawn) ? ShipInterior->ToLocal(PlayerPawn->GetActorLocation()).ToString() : FString(TEXT("none"));
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShipHub] interior=%d crew=%d menu=%s root=%s launch=%s pawnLocal=%s"),
+        ShipInterior ? 1 : 0,
+        PlayerController->IsInShipInterior() ? 1 : 0,
+        *MenuText,
+        HDShipMenu::GetScreenName(ShipMenu.GetRootScreen()),
+        *LaunchText,
+        *PawnLocalText);
+
+    const TArray<FHDShipTerminalInfo>& Terminals = ::HDShipHub::GetTerminals();
+    for (int32 Index = 0; Index < Terminals.Num(); ++Index)
+    {
+        const FVector WorldLocation = ShipInterior ? ShipInterior->GetTerminalWorldLocation(Index) : FVector::ZeroVector;
+        const FString WorldText     = ShipInterior ? WorldLocation.ToString() : FString(TEXT("none"));
+        const float Distance        = (ShipInterior && PlayerPawn) ? FVector::Dist2D(PlayerPawn->GetActorLocation(), WorldLocation) : -1.f;
+
+        UE_LOG(LogTemp, Display, TEXT("[HDShipHub] terminal %d %s world=%s dist=%.0f"),
+            Index,
+            *Terminals[Index].Id.ToString(),
+            *WorldText,
+            Distance);
+    }
+}
+
+void UHDCheatManager::HDTerminal(const FString& Id)
+{
+    AHDPlayerController* PlayerController = Cast<AHDPlayerController>(GetOuterAPlayerController());
+    if (PlayerController == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] No HDPlayerController"));
+        return;
+    }
+
+    const FName TerminalId(*Id);
+    if (TerminalId == FName(TEXT("System")))
+    {
+        PlayerController->OpenShipTerminal(EHDShipScreen::System, TerminalId);
+        return;
+    }
+
+    const FHDShipTerminalInfo* Terminal = ::HDShipHub::FindTerminal(TerminalId);
+    if (Terminal == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] terminal unknown %s"), *Id);
+        return;
+    }
+
+    // 거리와 상관없이 연다(E 와 같은 OpenShipTerminal)
+    PlayerController->OpenShipTerminal(Terminal->RootScreen, Terminal->Id);
+}
+
+void UHDCheatManager::HDLaunch()
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->RequestLaunch(GetPlayerController());
 }

@@ -50,6 +50,23 @@ public:
     UPROPERTY(Config, EditAnywhere, Category = "Ship")
     FVector                     ShipCameraOffset = FVector(-5000.f, 0.f, 6000.f);
 
+    // 참이면 타이틀 뒤 함선 안을 걷는다. 거짓이면 고정 카메라 Bridge 메뉴(브리프 2~7)
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    bool                        bShipInterior = true;
+
+    // 함선 방 = 첫 PlayerStart(없으면 원점) + 이 값. 기본이면 (0, 0, 35000)이다.
+    // 헬포드 시작(15000)과 전함(80000) 사이이고, 타이틀 카메라(−5000, 0, 21000, 아래를 봄)에는 보이지 않는다
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    FVector                     ShipInteriorOffset = FVector(0.f, 0.f, 20000.f);
+
+    // E 로 열 수 있는 단말기까지 XY 거리(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    float                       ShipInteractRange = 300.f;
+
+    // READY 뒤 강하까지(초)
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    float                       LaunchCountdownSeconds = 5.f;
+
     // 난이도 표(1 단계부터). 함선 메뉴 DIFFICULTY 줄에서 고르고 출격할 때 미션에 들어간다.
     // Config 에 줄이 없으면 생성자가 채운 기본 표(HDDifficulty::GetDefaultTable)가 남는다
     UPROPERTY(Config, EditAnywhere, Category = "Difficulty")

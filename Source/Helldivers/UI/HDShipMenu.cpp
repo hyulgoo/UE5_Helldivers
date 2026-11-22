@@ -16,6 +16,9 @@ namespace HDShipMenuItemId
     const FName Upgrades(TEXT("Upgrades"));
     const FName Armory(TEXT("Armory"));
     const FName Quit(TEXT("Quit"));
+    const FName StartMission(TEXT("StartMission"));
+    const FName Ready(TEXT("Ready"));
+    const FName Resume(TEXT("Resume"));
 }
 
 namespace HDShipMenuPrivate
@@ -38,6 +41,36 @@ namespace HDShipMenuPrivate
         }
 
         return HDArmory::ValidateLoadout(Context.Profile.Loadout, Context.Profile, *Context.Stratagems, Context.DefaultLoadout);
+    }
+
+    // Difficulty 줄(Bridge·WarTable 공용). ← → 로 프로필 난이도를 바꾼다(컨트롤러가 처리). 확정은 아무것도 하지 않는다.
+    // 난이도 표가 비면 넣지 않는다
+    void AddDifficultyItem(TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context)
+    {
+        if (Context.Difficulties.IsEmpty())
+        {
+            return;
+        }
+
+        const int32 Level = HDDifficulty::ClampLevel(Context.Profile.Difficulty, Context.Difficulties.Num());
+        const FHDDifficultyLevel Row = HDDifficulty::GetLevel(Context.Difficulties, Level);
+
+        FHDShipMenuItem& DifficultyItem = Items.AddDefaulted_GetRef();
+        DifficultyItem.Id               = HDShipMenuItemId::Difficulty;
+        DifficultyItem.Label            = HDDifficulty::FormatMenuLabel(Level, Row);
+        DifficultyItem.Detail           = HDDifficulty::FormatDetail(Row);
+        DifficultyItem.bAdjustable      = true;
+        DifficultyItem.ConfirmAction    = EHDShipActionType::None;
+    }
+
+    // QUIT GAME 줄(Bridge·System 공용)
+    void AddQuitItem(TArray<FHDShipMenuItem>& Items)
+    {
+        FHDShipMenuItem& QuitItem   = Items.AddDefaulted_GetRef();
+        QuitItem.Id                 = HDShipMenuItemId::Quit;
+        QuitItem.Label              = TEXT("QUIT GAME");
+        QuitItem.Detail             = TEXT("EXIT TO DESKTOP");
+        QuitItem.ConfirmAction      = EHDShipActionType::Quit;
     }
 
     // Loadout 화면: 정리한 로드아웃의 칸마다 한 줄(Slot1~Slot4). ← → 는 Adjust(컨트롤러가 해금된 이름을 돌린다), 확정은 아무것도 하지 않는다.
@@ -216,7 +249,15 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
 
     if (Screen == EHDShipScreen::Loadout)
     {
-        return HDShipMenuPrivate::BuildLoadoutItems(Context);
+        TArray<FHDShipMenuItem> Items = HDShipMenuPrivate::BuildLoadoutItems(Context);
+
+        // 칸 줄 뒤에 READY. 어느 모드(함선 안·Bridge)에서 열어도 출격 대기를 시작한다
+        FHDShipMenuItem& ReadyItem  = Items.AddDefaulted_GetRef();
+        ReadyItem.Id                = HDShipMenuItemId::Ready;
+        ReadyItem.Label             = TEXT("READY");
+        ReadyItem.Detail            = TEXT("START THE HELLPOD LAUNCH COUNTDOWN");
+        ReadyItem.ConfirmAction     = EHDShipActionType::Launch;
+        return Items;
     }
 
     if (Screen == EHDShipScreen::Armory)
@@ -225,6 +266,31 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
     }
 
     TArray<FHDShipMenuItem> Items;
+    if (Screen == EHDShipScreen::WarTable)
+    {
+        HDShipMenuPrivate::AddDifficultyItem(Items, Context);
+
+        FHDShipMenuItem& StartItem  = Items.AddDefaulted_GetRef();
+        StartItem.Id                = HDShipMenuItemId::StartMission;
+        StartItem.Label             = TEXT("START MISSION");
+        StartItem.Detail            = TEXT("CHOOSE YOUR LOADOUT, THEN READY UP");
+        StartItem.ConfirmAction     = EHDShipActionType::OpenScreen;
+        StartItem.TargetScreen      = EHDShipScreen::Loadout;
+        return Items;
+    }
+
+    if (Screen == EHDShipScreen::System)
+    {
+        FHDShipMenuItem& ResumeItem = Items.AddDefaulted_GetRef();
+        ResumeItem.Id               = HDShipMenuItemId::Resume;
+        ResumeItem.Label            = TEXT("RESUME");
+        ResumeItem.Detail           = TEXT("BACK TO THE SHIP");
+        ResumeItem.ConfirmAction    = EHDShipActionType::CloseTerminal;
+
+        HDShipMenuPrivate::AddQuitItem(Items);
+        return Items;
+    }
+
     if (Screen != EHDShipScreen::Bridge)
     {
         return Items;
@@ -236,19 +302,7 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
     DeployItem.Detail           = TEXT("LAUNCH HELLPOD TO THE MISSION AREA");
     DeployItem.ConfirmAction    = EHDShipActionType::Deploy;
 
-    // ← → 로 프로필 난이도를 바꾼다(컨트롤러가 처리). 확정은 아무것도 하지 않는다
-    if (Context.Difficulties.IsEmpty() == false)
-    {
-        const int32 Level = HDDifficulty::ClampLevel(Context.Profile.Difficulty, Context.Difficulties.Num());
-        const FHDDifficultyLevel Row = HDDifficulty::GetLevel(Context.Difficulties, Level);
-
-        FHDShipMenuItem& DifficultyItem = Items.AddDefaulted_GetRef();
-        DifficultyItem.Id               = HDShipMenuItemId::Difficulty;
-        DifficultyItem.Label            = HDDifficulty::FormatMenuLabel(Level, Row);
-        DifficultyItem.Detail           = HDDifficulty::FormatDetail(Row);
-        DifficultyItem.bAdjustable      = true;
-        DifficultyItem.ConfirmAction    = EHDShipActionType::None;
-    }
+    HDShipMenuPrivate::AddDifficultyItem(Items, Context);
 
     // 설명 = 지금 로드아웃(출격할 때의 칸)의 표시 이름
     TArray<FString> LoadoutNames;
@@ -278,11 +332,7 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
     ArmoryItem.ConfirmAction        = EHDShipActionType::OpenScreen;
     ArmoryItem.TargetScreen         = EHDShipScreen::Armory;
 
-    FHDShipMenuItem& QuitItem   = Items.AddDefaulted_GetRef();
-    QuitItem.Id                 = HDShipMenuItemId::Quit;
-    QuitItem.Label              = TEXT("QUIT GAME");
-    QuitItem.Detail             = TEXT("EXIT TO DESKTOP");
-    QuitItem.ConfirmAction      = EHDShipActionType::Quit;
+    HDShipMenuPrivate::AddQuitItem(Items);
 
     return Items;
 }
@@ -305,6 +355,8 @@ const TCHAR* HDShipMenu::GetScreenName(EHDShipScreen Screen)
     case EHDShipScreen::Upgrades:   return TEXT("Upgrades");
     case EHDShipScreen::Loadout:    return TEXT("Loadout");
     case EHDShipScreen::Armory:     return TEXT("Armory");
+    case EHDShipScreen::WarTable:   return TEXT("WarTable");
+    case EHDShipScreen::System:     return TEXT("System");
     default:                        return TEXT("?");
     }
 }
@@ -317,6 +369,8 @@ const TCHAR* HDShipMenu::GetScreenTitle(EHDShipScreen Screen)
     case EHDShipScreen::Upgrades:   return TEXT("SHIP UPGRADES");
     case EHDShipScreen::Loadout:    return TEXT("LOADOUT");
     case EHDShipScreen::Armory:     return TEXT("ARMORY");
+    case EHDShipScreen::WarTable:   return TEXT("WAR TABLE");
+    case EHDShipScreen::System:     return TEXT("SHIP MENU");
     default:                        return TEXT("");
     }
 }
@@ -339,13 +393,15 @@ const TCHAR* HDShipMenu::GetActionName(EHDShipActionType Type)
 {
     switch (Type)
     {
-    case EHDShipActionType::None:       return TEXT("none");
-    case EHDShipActionType::OpenScreen: return TEXT("open");
-    case EHDShipActionType::Deploy:     return TEXT("deploy");
-    case EHDShipActionType::Quit:       return TEXT("quit");
-    case EHDShipActionType::Adjust:     return TEXT("adjust");
-    case EHDShipActionType::Select:     return TEXT("select");
-    default:                            return TEXT("?");
+    case EHDShipActionType::None:           return TEXT("none");
+    case EHDShipActionType::OpenScreen:     return TEXT("open");
+    case EHDShipActionType::Deploy:         return TEXT("deploy");
+    case EHDShipActionType::Quit:           return TEXT("quit");
+    case EHDShipActionType::Adjust:         return TEXT("adjust");
+    case EHDShipActionType::Select:         return TEXT("select");
+    case EHDShipActionType::CloseTerminal:  return TEXT("close");
+    case EHDShipActionType::Launch:         return TEXT("launch");
+    default:                                return TEXT("?");
     }
 }
 
@@ -358,6 +414,13 @@ void FHDShipMenu::SetScreen(EHDShipScreen NewScreen)
 {
     Screen = NewScreen;
     Cursor = 0;
+}
+
+void FHDShipMenu::OpenTerminal(EHDShipScreen Root)
+{
+    SetScreen(Root);
+    RootScreen  = Root;
+    RootCursor  = 0;
 }
 
 void FHDShipMenu::SetCursor(int32 NewCursor, int32 ItemCount)
@@ -392,13 +455,19 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
 
     if (Key == EHDShipMenuKey::Back)
     {
-        // 하위 화면에서는 Bridge 로, 들어갈 때의 커서로 돌아간다. Bridge 에서는 아무것도 하지 않는다
-        if (Screen != EHDShipScreen::Bridge)
+        // 하위 화면에서는 뿌리 화면으로, 들어갈 때의 커서로 돌아간다(Id = 뿌리 이름, Bridge 면 "Bridge")
+        if (Screen != RootScreen)
         {
-            Screen      = EHDShipScreen::Bridge;
-            Cursor      = BridgeCursor;
+            Screen      = RootScreen;
+            Cursor      = RootCursor;
             Action.Type = EHDShipActionType::OpenScreen;
-            Action.Id   = HDShipMenuItemId::Bridge;
+            Action.Id   = FName(HDShipMenu::GetScreenName(RootScreen));
+        }
+        // 뿌리에서: Bridge 면 아무것도 하지 않고(옛 동작), 단말기면 닫는다
+        else if (RootScreen != EHDShipScreen::Bridge)
+        {
+            Action.Type = EHDShipActionType::CloseTerminal;
+            Action.Id   = FName(HDShipMenu::GetScreenName(RootScreen));
         }
         return Action;
     }
@@ -437,9 +506,9 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
 
         if (Item.ConfirmAction == EHDShipActionType::OpenScreen)
         {
-            if (Screen == EHDShipScreen::Bridge)
+            if (Screen == RootScreen)
             {
-                BridgeCursor = Cursor;
+                RootCursor = Cursor;
             }
 
             // SetScreen 이 커서를 바꾸기 전에 Id 를 담는다
