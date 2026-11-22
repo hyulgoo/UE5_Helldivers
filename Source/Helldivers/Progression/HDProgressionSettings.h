@@ -66,4 +66,28 @@ public:
     // 결과가 나온 뒤 이 시간(초) 동안 Enter·클릭을 받지 않는다(남은 Enter 연타로 바로 넘어가지 않게)
     UPROPERTY(Config, EditAnywhere, Category = "Reward")
     float                       ResultInputDelay = 1.f;
+
+    // 일반 샘플을 놓는 링: 강하 지점(첫 PlayerStart)에서의 거리(cm) (최소, 최대)
+    UPROPERTY(Config, EditAnywhere, Category = "Samples")
+    FVector2D                   CommonSampleRing = FVector2D(3000.f, 12000.f);
+
+    // 희귀 샘플을 놓는 링(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Samples")
+    FVector2D                   RareSampleRing = FVector2D(6000.f, 15000.f);
+
+    // 최상급 샘플을 놓는 링(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Samples")
+    FVector2D                   SuperSampleRing = FVector2D(10000.f, 18000.f);
+
+    // 같은 종류끼리 떨어뜨리려는 거리(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Samples")
+    float                       SampleMinSeparation = 1500.f;
+
+    // 줍기 구 반지름(cm)
+    UPROPERTY(Config, EditAnywhere, Category = "Samples")
+    float                       SamplePickupRadius = 200.f;
+
+    // 폰에서 이 거리(cm) 안의 샘플만 HUD 표식을 그린다(떨군 묶음은 늘 그린다)
+    UPROPERTY(Config, EditAnywhere, Category = "Samples")
+    float                       SampleMarkerDistance = 5000.f;
 };

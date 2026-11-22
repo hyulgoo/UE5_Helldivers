@@ -21,6 +21,7 @@
 #include "Game/HDGameState.h"
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDObjectiveFacility.h"
+#include "Mission/HDSamplePickup.h"
 #include "Component/HDStratagemComponent.h"
 #include "Stratagem/HDStratagemLoadout.h"
 #include "Player/HDGASPlayerState.h"
@@ -37,6 +38,7 @@
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDDifficulty.h"
 #include "Progression/HDMissionReward.h"
+#include "Progression/HDSampleRules.h"
 
 namespace HDCheatManager
 {
@@ -919,4 +921,143 @@ void UHDCheatManager::HDMissionResult()
     }
 
     UE_LOG(LogTemp, Display, TEXT("[HDMission] result %s"), *HDProgression::DescribeResult(HDGameState->GetMissionResult()));
+}
+
+void UHDCheatManager::HDSamples()
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSample] No world"));
+        return;
+    }
+
+    const APlayerController* PlayerController = GetPlayerController();
+    const AHDGASPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<AHDGASPlayerState>() : nullptr;
+    const APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+
+    FHDSampleCounts WorldSamples;
+    int32 BundleCount = 0;
+    double NearestDistance = -1.0;
+    for (TActorIterator<AHDSamplePickup> It(World); It; ++It)
+    {
+        const AHDSamplePickup* Sample = *It;
+        if (IsValid(Sample) == false)
+        {
+            continue;
+        }
+
+        if (Sample->IsDroppedBundle())
+        {
+            ++BundleCount;
+        }
+        else
+        {
+            WorldSamples.Common += Sample->GetContents().Common;
+            WorldSamples.Rare   += Sample->GetContents().Rare;
+            WorldSamples.Super  += Sample->GetContents().Super;
+        }
+
+        if (PlayerPawn)
+        {
+            const double Distance = FVector::Distance(PlayerPawn->GetActorLocation(), Sample->GetActorLocation());
+            if (NearestDistance < 0.0 || Distance < NearestDistance)
+            {
+                NearestDistance = Distance;
+            }
+        }
+    }
+
+    const FString CarriedText = PlayerState ? HDSamples::Describe(PlayerState->GetCarriedSamples()) : FString(TEXT("none"));
+    UE_LOG(LogTemp, Display, TEXT("[HDSample] carried=%s world common=%d rare=%d super=%d bundles=%d nearest=%dm"),
+        *CarriedText,
+        WorldSamples.Common,
+        WorldSamples.Rare,
+        WorldSamples.Super,
+        BundleCount,
+        NearestDistance < 0.0 ? -1 : FMath::RoundToInt(NearestDistance / 100.0));
+}
+
+void UHDCheatManager::HDTeleportToSample(const FString& Type)
+{
+    UWorld* World = GetWorld();
+    APlayerController* PlayerController = GetPlayerController();
+    APawn* PlayerPawn = PlayerController ? PlayerController->GetPawn() : nullptr;
+    if (World == nullptr || PlayerPawn == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSample] No player pawn"));
+        return;
+    }
+
+    // 빈 글자 = 아무 샘플, bundle = 떨군 묶음, 그 밖은 한 종류의 낱개
+    const FString Filter = Type.TrimStartAndEnd();
+    const bool bAny = Filter.IsEmpty();
+    const bool bBundle = Filter.Equals(TEXT("bundle"), ESearchCase::IgnoreCase);
+    EHDSampleType SampleType = EHDSampleType::Count;
+    if (bAny == false && bBundle == false && HDSamples::TryParseType(Filter, SampleType) == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSample] unknown sample type %s (common|rare|super|bundle)"), *Filter);
+        return;
+    }
+
+    const FVector From = PlayerPawn->GetActorLocation();
+    const AHDSamplePickup* Nearest = nullptr;
+    double NearestDistance = TNumericLimits<double>::Max();
+    for (TActorIterator<AHDSamplePickup> It(World); It; ++It)
+    {
+        const AHDSamplePickup* Sample = *It;
+        if (IsValid(Sample) == false)
+        {
+            continue;
+        }
+
+        const bool bMatches = bAny
+            || (bBundle && Sample->IsDroppedBundle())
+            || (bBundle == false && Sample->IsDroppedBundle() == false && Sample->GetContents().Get(SampleType) > 0);
+        if (bMatches == false)
+        {
+            continue;
+        }
+
+        const double Distance = FVector::Distance(From, Sample->GetActorLocation());
+        if (Distance < NearestDistance)
+        {
+            NearestDistance = Distance;
+            Nearest = Sample;
+        }
+    }
+
+    const FString FilterName = bAny ? FString(TEXT("any")) : Filter.ToLower();
+    if (Nearest == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSample] no sample (%s)"), *FilterName);
+        return;
+    }
+
+    // HDTeleportToExtraction 과 같은 방식: 위 200
+    const FVector Destination = Nearest->GetActorLocation() + FVector(0.f, 0.f, 200.f);
+    const bool bTeleported = PlayerPawn->TeleportTo(Destination, PlayerPawn->GetActorRotation());
+    UE_LOG(LogTemp, Display, TEXT("[HDSample] teleport to %s %dm%s"),
+        *FilterName,
+        FMath::RoundToInt(NearestDistance / 100.0),
+        bTeleported ? TEXT("") : TEXT(" (failed)"));
+}
+
+void UHDCheatManager::HDGiveSamples(int32 Common, int32 Rare, int32 Super)
+{
+    APlayerController* PlayerController = GetPlayerController();
+    AHDGASPlayerState* PlayerState = PlayerController ? PlayerController->GetPlayerState<AHDGASPlayerState>() : nullptr;
+    if (PlayerState == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDSample] No player state"));
+        return;
+    }
+
+    FHDSampleCounts Samples;
+    Samples.Common = Common;
+    Samples.Rare = Rare;
+    Samples.Super = Super;
+    PlayerState->AddCarriedSamples(Samples);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDSample] carried=%s"), *HDSamples::Describe(PlayerState->GetCarriedSamples()));
 }

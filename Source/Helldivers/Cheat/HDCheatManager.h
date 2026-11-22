@@ -148,4 +148,16 @@ public:
     // 이 월드의 미션 결과 한 줄: [HDMission] result <AHDGameMode 의 결과 로그와 같은 글자>, 없으면 [HDMission] no result
     UFUNCTION(Exec)
     void        HDMissionResult();
+
+    // 샘플 한 줄: [HDSample] carried=c/r/s world common=… rare=… super=… bundles=… nearest=<m>m (맵에 남은 액터 수, 가장 가까운 것까지, 없으면 -1)
+    UFUNCTION(Exec)
+    void        HDSamples();
+
+    // 가장 가까운 샘플 위 200 으로 폰을 옮긴다. 빈 글자 = 아무 샘플, bundle = 떨군 묶음, common·rare·super = 그 종류의 낱개
+    UFUNCTION(Exec)
+    void        HDTeleportToSample(const FString& Type = TEXT(""));
+
+    // 플레이어스테이트 소지에 더한다(프로필이 아니다. 종류별로 0 미만이 되지 않게) → [HDSample] carried=c/r/s
+    UFUNCTION(Exec)
+    void        HDGiveSamples(int32 Common, int32 Rare = 0, int32 Super = 0);
 };

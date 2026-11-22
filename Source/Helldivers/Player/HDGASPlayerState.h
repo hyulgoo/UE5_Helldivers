@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerState.h"
 #include "AbilitySystemInterface.h"
 #include "Stratagem/HDStratagemLoadout.h"
+#include "Progression/HDProfileTypes.h"
 #include "HDGASPlayerState.generated.h"
 
 class UAbilitySystemComponent;
@@ -27,10 +28,19 @@ public:
     FHDStratagemLoadout&                GetStratagemLoadout() { return StratagemLoadout; }
     const FHDStratagemLoadout&          GetStratagemLoadout() const { return StratagemLoadout; }
 
+    // 이번 미션에서 주운 샘플. 증원돼도 남고, 사망하면 게임모드가 묶음으로 꺼낸다
+    const FHDSampleCounts&              GetCarriedSamples() const { return CarriedSamples; }
+    void                                AddCarriedSamples(const FHDSampleCounts& Samples);   // 종류별로 0 미만이 되지 않게
+    // 지닌 것을 돌려주고 비운다
+    FHDSampleCounts                     TakeCarriedSamples();
+
 protected:
     UPROPERTY()
     TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 
 private:
     FHDStratagemLoadout                 StratagemLoadout;
+
+    // 플레이어스테이트는 맵을 다시 열면 새로 생기므로 미션마다 0 에서 시작한다
+    FHDSampleCounts                     CarriedSamples;
 };

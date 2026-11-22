@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Progression/HDDifficulty.h"
+#include "Progression/HDSampleRules.h"
 
 namespace HDDifficulty
 {
@@ -75,10 +76,11 @@ namespace HDDifficulty
 
     FString FormatDetail(const FHDDifficultyLevel& Row)
     {
-        return FString::Printf(TEXT("OBJECTIVES %d   ENEMY INTENSITY %s   HEAVY %d%%   REWARD x%s"),
+        return FString::Printf(TEXT("OBJECTIVES %d   ENEMY INTENSITY %s   HEAVY %d%%   REWARD x%s   SAMPLES %s"),
             Row.RequiredObjectives,
             *FString::SanitizeFloat(Row.SpawnIntensity),
             FMath::RoundToInt(Row.HeavyRatio * 100.f),
-            *FString::SanitizeFloat(Row.RewardMultiplier));
+            *FString::SanitizeFloat(Row.RewardMultiplier),
+            *HDSamples::Describe(Row.SampleCounts));
     }
 }

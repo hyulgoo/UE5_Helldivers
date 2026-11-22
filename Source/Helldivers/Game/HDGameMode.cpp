@@ -15,10 +15,13 @@
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
 #include "Mission/HDObjectiveFacility.h"
+#include "Mission/HDSamplePickup.h"
 #include "Controller/HDPlayerController.h"
+#include "Player/HDGASPlayerState.h"
 #include "Progression/HDProfileSubsystem.h"
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDMissionReward.h"
+#include "Progression/HDSampleRules.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -66,6 +69,15 @@ namespace HDReinforce
 
     // 남겨 둔 시체가 사라지기까지(초)
     constexpr float CorpseLifeSpan = 60.f;
+}
+
+namespace HDPlaceSample
+{
+    // 샘플(피벗 가운데)을 지면 + 50 에 둔다
+    constexpr float SampleHeightAboveGround = 50.f;
+
+    // 떨군 묶음의 지면 찾기: 폰 위치에서 아래로
+    constexpr float DropTraceLength = 50000.f;
 }
 
 AHDGameMode::AHDGameMode(const FObjectInitializer& ObjectInitializer)
@@ -185,6 +197,9 @@ void AHDGameMode::BeginMission()
     const int32 ObjectiveCount = PlaceObjectives(*Settings, Config.RequiredObjectives);
     Config.RequiredObjectives = FMath::Max(1, FMath::Min(ObjectiveCount, Config.RequiredObjectives));
 
+    // 샘플은 목표·추출·증원에 영향을 주지 않는다
+    PlaceSamples(MissionDifficulty.SampleCounts);
+
     MissionFlow = MakeUnique<FHDMissionFlow>(Config);
     SyncGameState();
 
@@ -296,6 +311,9 @@ void AHDGameMode::NotifyPlayerDied(AController* DeadController)
 
     APlayerController* DeadPlayerController = Cast<APlayerController>(DeadController);
     NULL_CHECK(DeadPlayerController);
+
+    // 증원을 기다릴 때만 떨군다. 사망으로 실패하면 위에서 반환해 소지분이 그대로 결과의 잃은 샘플이 된다
+    DropCarriedSamples(DeadPlayerController);
 
     const float RespawnDelay = GetDefault<UHDMissionSettings>()->RespawnDelay;
     const TWeakObjectPtr<APlayerController> WeakPlayerController(DeadPlayerController);
@@ -425,7 +443,16 @@ void AHDGameMode::FinishMission(EHDMissionPhase NewPhase)
     Outcome.DifficultyLabel     = MissionDifficulty.Label;
     Outcome.RewardMultiplier    = MissionDifficulty.RewardMultiplier;
     Outcome.ElapsedSeconds      = MissionFlow->GetElapsedSeconds();
-    // 소지 샘플(CarriedSamples)은 브리프 5 가 채운다. 지금은 빈 값이다
+
+    const UWorld* World = GetWorld();
+
+    // 소지 샘플 = 첫 PC 플레이어스테이트가 지닌 것(꺼내서 비운다). 맵에 남은 묶음은 들어가지 않는다
+    const APlayerController* FirstPlayerController = World ? World->GetFirstPlayerController() : nullptr;
+    AHDGASPlayerState* FirstPlayerState = FirstPlayerController ? FirstPlayerController->GetPlayerState<AHDGASPlayerState>() : nullptr;
+    if (FirstPlayerState)
+    {
+        Outcome.CarriedSamples  = FirstPlayerState->TakeCarriedSamples();
+    }
 
     const FHDMissionReward Reward = HDProgression::ComputeReward(Outcome, GetDefault<UHDProgressionSettings>()->MakeRewardRules());
 
@@ -438,8 +465,6 @@ void AHDGameMode::FinishMission(EHDMissionPhase NewPhase)
             HDProgression::ApplyMissionResult(Data, Outcome, Reward);
         });
     }
-
-    const UWorld* World = GetWorld();
 
     FHDMissionResultSummary Summary;
     Summary.Outcome             = Outcome;
@@ -526,6 +551,110 @@ int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings, int32 Req
 
     UE_LOG(LogTemp, Display, TEXT("[HDMission] objectives placed=%d spawned=%d"), PlacedCount, SpawnedCount);
     return PlacedCount + SpawnedCount;
+}
+
+void AHDGameMode::PlaceSamples(const FHDSampleCounts& Counts)
+{
+    using namespace HDPlaceObjective;
+    using namespace HDPlaceSample;
+
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    // 중심 = 맵의 첫 PlayerStart(없으면 원점). 목표 배치와 같다
+    FVector Center = FVector::ZeroVector;
+    TActorIterator<APlayerStart> PlayerStartIt(World);
+    if (PlayerStartIt)
+    {
+        Center = PlayerStartIt->GetActorLocation();
+    }
+
+    const UHDProgressionSettings* Settings = GetDefault<UHDProgressionSettings>();
+    const TArray<FHDSamplePlacement> Plan = HDSamples::MakePlacementPlan(Counts, Settings->CommonSampleRing, Settings->RareSampleRing, Settings->SuperSampleRing);
+
+    FRandomStream Stream(FMath::Rand());
+    FHDSampleCounts Placed;
+    int32 NoGroundCount = 0;
+
+    for (const FHDSamplePlacement& Placement : Plan)
+    {
+        // 링 간격은 같은 종류끼리만 본다
+        const TArray<FVector2D> Offsets = HDMissionPlacement::ComputeRingOffsets(Placement.Count, Placement.MinRadius, Placement.MaxRadius, Settings->SampleMinSeparation, Stream);
+
+        for (const FVector2D& Offset : Offsets)
+        {
+            FVector GroundLocation = FVector::ZeroVector;
+            bool bFoundGround = FindGround(World, Center, Offset, GroundLocation);
+
+            // 다시 뽑은 점은 다른 샘플과의 간격을 보지 않는다(목표 배치와 같은 방법)
+            for (int32 Retry = 0; Retry < MaxGroundRetries && bFoundGround == false; ++Retry)
+            {
+                const TArray<FVector2D> Redrawn = HDMissionPlacement::ComputeRingOffsets(1, Placement.MinRadius, Placement.MaxRadius, 0.f, Stream);
+                bFoundGround = FindGround(World, Center, Redrawn[0], GroundLocation);
+            }
+
+            if (bFoundGround == false)
+            {
+                ++NoGroundCount;
+                continue;
+            }
+
+            const FTransform SpawnTransform(FRotator::ZeroRotator, GroundLocation + FVector(0.f, 0.f, SampleHeightAboveGround));
+            AHDSamplePickup* Sample = World->SpawnActorDeferred<AHDSamplePickup>(AHDSamplePickup::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+            if (Sample == nullptr)
+            {
+                continue;
+            }
+
+            Sample->InitializeSample(Placement.Type);
+            Sample->FinishSpawning(SpawnTransform);
+            Placed.Add(Placement.Type, 1);
+        }
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDSample] placed common=%d rare=%d super=%d noground=%d"), Placed.Common, Placed.Rare, Placed.Super, NoGroundCount);
+}
+
+void AHDGameMode::DropCarriedSamples(APlayerController* DeadPlayerController)
+{
+    using namespace HDPlaceSample;
+
+    NULL_CHECK(DeadPlayerController);
+
+    AHDGASPlayerState* PlayerState = DeadPlayerController->GetPlayerState<AHDGASPlayerState>();
+    NULL_CHECK_WITHOUT_LOG(PlayerState);
+
+    // 지닌 것이 없으면 떨구지 않는다. 폰이 없으면 꺼내지 않는다(소지분이 그대로 남는다)
+    CONDITION_CHECK_WITHOUT_LOG(PlayerState->GetCarriedSamples().IsEmpty() == false);
+
+    const APawn* DeadPawn = DeadPlayerController->GetPawn();
+    NULL_CHECK(DeadPawn);
+
+    UWorld* World = GetWorld();
+    NULL_CHECK(World);
+
+    // 폰 위치 아래 지면. 못 찾으면 폰 위치
+    const FVector PawnLocation = DeadPawn->GetActorLocation();
+    FVector GroundLocation = PawnLocation;
+
+    FHitResult GroundHit;
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(HDDropSamples), false);
+    QueryParams.AddIgnoredActor(DeadPawn);
+    if (World->LineTraceSingleByChannel(GroundHit, PawnLocation, PawnLocation - FVector(0.f, 0.f, DropTraceLength), ECC_Visibility, QueryParams))
+    {
+        GroundLocation = GroundHit.ImpactPoint;
+    }
+
+    const FTransform SpawnTransform(FRotator::ZeroRotator, GroundLocation + FVector(0.f, 0.f, SampleHeightAboveGround));
+    AHDSamplePickup* Bundle = World->SpawnActorDeferred<AHDSamplePickup>(AHDSamplePickup::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    NULL_CHECK(Bundle);
+
+    // 묶음이 생긴 뒤에 꺼낸다(스폰에 실패하면 소지분이 그대로 남는다)
+    const FHDSampleCounts Dropped = PlayerState->TakeCarriedSamples();
+    Bundle->InitializeBundle(Dropped);
+    Bundle->FinishSpawning(SpawnTransform);
+
+    UE_LOG(LogTemp, Display, TEXT("[HDSample] dropped %s"), *HDSamples::Describe(Dropped));
 }
 
 void AHDGameMode::SpawnExtractionZone(const UHDMissionSettings& Settings)

@@ -13,3 +13,17 @@ UAbilitySystemComponent* AHDGASPlayerState::GetAbilitySystemComponent() const
 {
     return AbilitySystemComponent;
 }
+
+void AHDGASPlayerState::AddCarriedSamples(const FHDSampleCounts& Samples)
+{
+    CarriedSamples.Common   = FMath::Max(0, CarriedSamples.Common + Samples.Common);
+    CarriedSamples.Rare     = FMath::Max(0, CarriedSamples.Rare + Samples.Rare);
+    CarriedSamples.Super    = FMath::Max(0, CarriedSamples.Super + Samples.Super);
+}
+
+FHDSampleCounts AHDGASPlayerState::TakeCarriedSamples()
+{
+    const FHDSampleCounts Taken = CarriedSamples;
+    CarriedSamples = FHDSampleCounts();
+    return Taken;
+}

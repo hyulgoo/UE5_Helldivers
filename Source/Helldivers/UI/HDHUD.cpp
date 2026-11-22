@@ -21,10 +21,13 @@
 #include "Game/HDMissionFlow.h"
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
+#include "Mission/HDSamplePickup.h"
+#include "Player/HDGASPlayerState.h"
 #include "Controller/HDPlayerController.h"
 #include "Progression/HDProfileSubsystem.h"
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDMissionReward.h"
+#include "Progression/HDSampleRules.h"
 #include "UI/HDShipMenu.h"
 #include "Engine/Canvas.h"
 
@@ -45,6 +48,9 @@ namespace HDHUDMission
 
     // 추출 지점 표식: 위치 + Z 300
     constexpr float     ExtractionMarkerHeight = 300.f;
+
+    // 샘플 표식: 위치 + Z 100
+    constexpr float     SampleMarkerHeight = 100.f;
 
     // 히트마커: 화면 가운데에서 HitMarkerGap 떨어져 HitMarkerLength 길이의 대각선 넷(X)
     constexpr float     HitMarkerDuration = 0.25f;
@@ -559,6 +565,13 @@ void AHDHUD::DrawMissionText()
     }
     Lines.Add(FString::Printf(TEXT("REINFORCEMENTS  %d"), HDGameState->GetReinforcementsLeft()));
 
+    // 이번 미션에서 지닌 샘플(플레이어스테이트가 없으면 줄을 넣지 않는다)
+    const AHDGASPlayerState* HDPlayerState = PlayerOwner ? PlayerOwner->GetPlayerState<AHDGASPlayerState>() : nullptr;
+    if (HDPlayerState)
+    {
+        Lines.Add(HDSamples::FormatCarried(HDPlayerState->GetCarriedSamples()));
+    }
+
     UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
     float LineY = TextTop;
     for (const FString& Line : Lines)
@@ -725,5 +738,24 @@ void AHDHUD::DrawObjectiveMarkers()
 
         const FVector ZoneLocation = ExtractionZone->GetActorLocation();
         DrawMarker(TEXT("EXTRACT"), ZoneLocation + FVector(0.f, 0.f, ExtractionMarkerHeight), ZoneLocation);
+    }
+
+    // 샘플: 떨군 묶음은 늘, 그 밖은 폰에서 SampleMarkerDistance 안일 때만
+    const float SampleMarkerDistance = GetDefault<UHDProgressionSettings>()->SampleMarkerDistance;
+    for (TActorIterator<AHDSamplePickup> It(GetWorld()); It; ++It)
+    {
+        const AHDSamplePickup* Sample = *It;
+        if (IsValid(Sample) == false)
+        {
+            continue;
+        }
+
+        const FVector SampleLocation = Sample->GetActorLocation();
+        if (Sample->IsDroppedBundle() == false && FVector::Distance(PlayerPawn->GetActorLocation(), SampleLocation) > SampleMarkerDistance)
+        {
+            continue;
+        }
+
+        DrawMarker(Sample->GetMarkerLabel(), SampleLocation + FVector(0.f, 0.f, SampleMarkerHeight), SampleLocation);
     }
 }

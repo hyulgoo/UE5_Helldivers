@@ -69,6 +69,12 @@ private:
     // 맵에 놓인 목표가 RequiredCount 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
     int32                       PlaceObjectives(const UHDMissionSettings& Settings, int32 RequiredCount);
 
+    // 난이도 행의 샘플 수만큼 첫 PlayerStart(없으면 원점) 둘레 링 위 지면 + 50 에 AHDSamplePickup 을 놓는다([HDSample] placed 로그)
+    void                        PlaceSamples(const FHDSampleCounts& Counts);
+
+    // 증원을 기다리는 사망일 때만: 플레이어스테이트의 소지 샘플을 꺼내 폰 아래 지면 + 50 에 묶음으로 떨군다([HDSample] dropped 로그)
+    void                        DropCarriedSamples(APlayerController* DeadPlayerController);
+
     // Extraction: 플레이어 폰(없으면 첫 PlayerStart) 둘레 링 위 지면에 AHDExtractionZone 을 스폰한다
     void                        SpawnExtractionZone(const UHDMissionSettings& Settings);
 
