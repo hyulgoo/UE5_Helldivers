@@ -23,7 +23,7 @@ public:
     void                        SetBattleShip(AHDBattleShip* NewBattleShip);
 
     // 미션 표시용 값. AHDGameMode 가 FHDMissionFlow 를 바꿀 때마다 반영한다
-    void                        SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed, int32 Required, int32 Reinforcements, float NewExtractionRemaining, bool bInZone);
+    void                        SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed, int32 Required, int32 Reinforcements, float NewExtractionRemaining, bool bInZone, bool bCalled);
 
     EHDMissionPhase             GetMissionPhase() const { return MissionPhase; }
     int32                       GetCompletedObjectives() const { return CompletedObjectives; }
@@ -31,6 +31,8 @@ public:
     int32                       GetReinforcementsLeft() const { return ReinforcementsLeft; }
     float                       GetExtractionRemaining() const { return ExtractionRemaining; }
     bool                        IsPlayerInExtractionZone() const { return bPlayerInExtractionZone; }
+    // FHDMissionFlow::IsExtractionCalled. 호출이 필요 없는 설정이면 추출 단계 내내 참
+    bool                        IsExtractionCalled() const { return bExtractionCalled; }
 
     // 증원까지 남은 시간(초). 기다리는 중이 아니면 -1
     float                       GetRespawnRemaining() const { return RespawnRemaining; }
@@ -70,6 +72,9 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     bool                        bPlayerInExtractionZone;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Mission")
+    bool                        bExtractionCalled;
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     float                       RespawnRemaining;

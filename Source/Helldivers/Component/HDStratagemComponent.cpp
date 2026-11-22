@@ -40,6 +40,11 @@ const int32 UHDStratagemComponent::GetCurrentInputNum() const
     return CurrentInputCommandList.Num();
 }
 
+const TArray<EHDCommandInput>& UHDStratagemComponent::GetCurrentInputCommands() const
+{
+    return CurrentInputCommandList;
+}
+
 void UHDStratagemComponent::AddStratagemCommand(const EHDCommandInput NewInput)
 {
     CurrentInputCommandList.Add(NewInput);

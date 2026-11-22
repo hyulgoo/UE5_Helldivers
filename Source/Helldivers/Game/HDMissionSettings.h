@@ -60,6 +60,10 @@ public:
     UPROPERTY(Config, EditAnywhere, Category = "Extraction")
     float               ExtractionZoneRadius = 1000.f;
 
+    // 참이면 추출 지점 안에서 호출 커맨드를 넣어야 대기 시간이 흐른다. 거짓이면 지점 안에 있기만 하면 흐른다
+    UPROPERTY(Config, EditAnywhere, Category = "Extraction")
+    bool                bExtractionRequiresCall = true;
+
     // 죽은 뒤 증원 헬포드가 떨어지기까지 기다리는 시간(초)
     UPROPERTY(Config, EditAnywhere, Category = "Reinforcement")
     float               RespawnDelay = 5.f;

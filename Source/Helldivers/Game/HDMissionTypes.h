@@ -34,4 +34,8 @@ struct HELLDIVERS_API FHDMissionConfig
     // 0 = 제한 없음
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mission")
     float               MissionTimeLimit = 0.f;
+
+    // 참이면 추출 지점 안에서 호출 커맨드를 넣어야 대기 시간이 흐른다. 거짓이면 지점 안에 있기만 하면 흐른다
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mission")
+    bool                bExtractionRequiresCall = true;
 };

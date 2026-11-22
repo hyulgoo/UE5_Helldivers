@@ -14,6 +14,7 @@ AHDGameState::AHDGameState()
     , ReinforcementsLeft(0)
     , ExtractionRemaining(0.f)
     , bPlayerInExtractionZone(false)
+    , bExtractionCalled(false)
     , RespawnRemaining(-1.f)
 {
 }
@@ -28,7 +29,7 @@ void AHDGameState::SetBattleShip(AHDBattleShip* NewBattleShip)
     BattleShip = NewBattleShip;
 }
 
-void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed, int32 Required, int32 Reinforcements, float NewExtractionRemaining, bool bInZone)
+void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed, int32 Required, int32 Reinforcements, float NewExtractionRemaining, bool bInZone, bool bCalled)
 {
     const EHDMissionPhase OldPhase = MissionPhase;
 
@@ -38,6 +39,7 @@ void AHDGameState::SetMissionSnapshot(EHDMissionPhase NewPhase, int32 Completed,
     ReinforcementsLeft = Reinforcements;
     ExtractionRemaining = NewExtractionRemaining;
     bPlayerInExtractionZone = bInZone;
+    bExtractionCalled = bCalled;
 
     if (OldPhase != NewPhase)
     {

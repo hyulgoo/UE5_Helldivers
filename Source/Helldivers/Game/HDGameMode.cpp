@@ -153,6 +153,30 @@ void AHDGameMode::NotifyPlayerDied(AController* DeadController)
     }
 }
 
+EHDExtractionCallResult AHDGameMode::RequestExtractionCall()
+{
+    EHDExtractionCallResult Result = EHDExtractionCallResult::NotExtraction;
+    ApplyMissionChange([&Result](FHDMissionFlow& Flow) { Result = Flow.CallExtraction(); });
+
+    if (Result != EHDExtractionCallResult::Called)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] extraction call refused (%s)"), HDMissionRules::GetCallResultName(Result));
+        return Result;
+    }
+
+    // 호출이 필요한 설정이면 강도는 추출 단계가 될 때가 아니라 여기서 오른다
+    const float Intensity = GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity;
+    UWorld* World = GetWorld();
+    UHDSpawnDirectorSubsystem* Director = World ? World->GetSubsystem<UHDSpawnDirectorSubsystem>() : nullptr;
+    if (Director)
+    {
+        Director->SetIntensity(Intensity);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] extraction called intensity=%.1f"), Intensity);
+    return Result;
+}
+
 const FHDMissionFlow* AHDGameMode::GetMissionFlow() const
 {
     return MissionFlow.Get();
@@ -442,7 +466,8 @@ void AHDGameMode::SyncGameState() const
         MissionFlow->GetRequiredObjectives(),
         MissionFlow->GetReinforcementsLeft(),
         MissionFlow->GetExtractionRemaining(),
-        MissionFlow->IsPlayerInExtractionZone());
+        MissionFlow->IsPlayerInExtractionZone(),
+        MissionFlow->IsExtractionCalled());
 }
 
 void AHDGameMode::HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase NewPhase)
@@ -463,7 +488,9 @@ void AHDGameMode::HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase N
     {
         SpawnExtractionZone(*GetDefault<UHDMissionSettings>());
 
-        if (Director)
+        // 설정이 호출 불필요일 때만 여기서 강도를 올린다. 그 설정이면 추출 단계가 되는 순간 IsExtractionCalled 가 참이다.
+        // 호출이 필요하면 아직 거짓이고, 강도는 RequestExtractionCall 이 부를 때 올린다
+        if (Director && MissionFlow.IsValid() && MissionFlow->IsExtractionCalled())
         {
             Director->SetIntensity(GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity);
         }

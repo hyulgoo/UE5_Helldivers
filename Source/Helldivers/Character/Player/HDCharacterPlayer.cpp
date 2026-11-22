@@ -801,6 +801,17 @@ void AHDCharacterPlayer::InputStratagemCommand(const EHDCommandInput Command)
 
     // HUD 연동용 GAS Event
     FGameplayAbilityHelper::SendGameplayEventToTarget(Tag_Event_StratagemHUD_AddCommand, this, ASC);
+
+    // 추출 호출은 로드아웃 칸이 아니라 미션 규칙이다. 커맨드가 다 맞는 순간 게임모드에 요청하고, 결과 로그는 게임모드가 찍는다
+    if (HDMissionRules::IsExtractionCallSequence(Stratagem->GetCurrentInputCommands()))
+    {
+        UWorld* World = GetWorld();
+        AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+        if (HDGameMode)
+        {
+            HDGameMode->RequestExtractionCall();
+        }
+    }
 }
 
 void AHDCharacterPlayer::SetMovementState(const EHDCharacterMovementState NewState)

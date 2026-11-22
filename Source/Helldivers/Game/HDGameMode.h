@@ -29,6 +29,9 @@ public:
     // 미션이 안 끝났고 남은 증원이 있으면 RespawnDelay 뒤 Reinforce 를 예약한다
     void                        NotifyPlayerDied(AController* DeadController);
 
+    // 추출을 부른다(호출 커맨드·치트 HDCallExtraction). Called 면 스폰 강도를 ExtractionIntensity 로 올린다. 미션 로직이 없으면 NotExtraction
+    EHDExtractionCallResult     RequestExtractionCall();
+
     const FHDMissionFlow*       GetMissionFlow() const;
     FHDMissionFlow*             GetMissionFlowForDebug();
 

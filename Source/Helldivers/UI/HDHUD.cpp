@@ -18,6 +18,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/HDGameState.h"
+#include "Game/HDMissionFlow.h"
 #include "Mission/HDExtractionZone.h"
 #include "Mission/HDMissionObjective.h"
 #include "Engine/Canvas.h"
@@ -51,6 +52,24 @@ namespace HDHUDMission
     const FLinearColor  HitMarkerWeakColor(1.f, 0.55f, 0.f);
     const FLinearColor  HitMarkerReducedColor(1.f, 1.f, 1.f);
     const FLinearColor  HitMarkerRicochetColor(0.55f, 0.55f, 0.55f);
+
+    // 추출 호출 안내의 방향 글자: "LEFT UP RIGHT DOWN" (HDMissionRules::GetExtractionCallSequence 순서)
+    FString MakeExtractionCallText()
+    {
+        TArray<FString> Words;
+        for (const EHDCommandInput Command : HDMissionRules::GetExtractionCallSequence())
+        {
+            switch (Command)
+            {
+            case EHDCommandInput::Up:       Words.Add(TEXT("UP"));      break;
+            case EHDCommandInput::Down:     Words.Add(TEXT("DOWN"));    break;
+            case EHDCommandInput::Left:     Words.Add(TEXT("LEFT"));    break;
+            case EHDCommandInput::Right:    Words.Add(TEXT("RIGHT"));   break;
+            default:                        break;
+            }
+        }
+        return FString::Join(Words, TEXT(" "));
+    }
 }
 
 void AHDHUD::SetAbilitySystemComponent(UAbilitySystemComponent* ASC)
@@ -249,7 +268,16 @@ void AHDHUD::DrawMissionText()
         break;
     case EHDMissionPhase::Extraction:
     {
-        // 남은 시간 mm:ss
+        // 부르기 전(호출이 필요한 설정일 때만): 지점 밖이면 들어가라, 안이면 호출 커맨드
+        if (HDGameState->IsExtractionCalled() == false)
+        {
+            Lines.Add(HDGameState->IsPlayerInExtractionZone()
+                ? FString::Printf(TEXT("EXTRACTION  CALL  CTRL + %s"), *MakeExtractionCallText())
+                : FString(TEXT("EXTRACTION  ENTER EXTRACTION ZONE")));
+            break;
+        }
+
+        // 부른 뒤: 남은 시간 mm:ss
         const int32 RemainingSeconds = FMath::Max(0, FMath::FloorToInt(HDGameState->GetExtractionRemaining()));
         Lines.Add(FString::Printf(TEXT("EXTRACTION  HOLD  %02d:%02d"), RemainingSeconds / 60, RemainingSeconds % 60));
         Lines.Add(HDGameState->IsPlayerInExtractionZone() ? TEXT("HOLD THE ZONE") : TEXT("ENTER EXTRACTION ZONE"));

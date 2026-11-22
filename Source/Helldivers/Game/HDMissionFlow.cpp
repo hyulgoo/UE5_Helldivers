@@ -2,6 +2,32 @@
 
 #include "Game/HDMissionFlow.h"
 
+const TArray<EHDCommandInput>& HDMissionRules::GetExtractionCallSequence()
+{
+    static const TArray<EHDCommandInput> Sequence = { EHDCommandInput::Left, EHDCommandInput::Up, EHDCommandInput::Right, EHDCommandInput::Down };
+    return Sequence;
+}
+
+bool HDMissionRules::IsExtractionCallSequence(const TArray<EHDCommandInput>& Input)
+{
+    // TArray 의 == 는 길이와 원소 순서를 모두 본다
+    return Input == GetExtractionCallSequence();
+}
+
+const TCHAR* HDMissionRules::GetCallResultName(EHDExtractionCallResult Result)
+{
+    switch (Result)
+    {
+    case EHDExtractionCallResult::Called:           return TEXT("called");
+    case EHDExtractionCallResult::NotRequired:      return TEXT("not required");
+    case EHDExtractionCallResult::NotExtraction:    return TEXT("not extraction");
+    case EHDExtractionCallResult::AlreadyCalled:    return TEXT("already called");
+    case EHDExtractionCallResult::Dead:             return TEXT("dead");
+    case EHDExtractionCallResult::NotInZone:        return TEXT("not in zone");
+    default:                                        return TEXT("unknown");
+    }
+}
+
 FHDMissionFlow::FHDMissionFlow(const FHDMissionConfig& InConfig)
     : Config(InConfig)
     , Phase(EHDMissionPhase::Deploy)
@@ -11,12 +37,50 @@ FHDMissionFlow::FHDMissionFlow(const FHDMissionConfig& InConfig)
     , ElapsedSeconds(0.f)
     , bPlayerAlive(true)
     , bPlayerInExtractionZone(false)
+    , bExtractionCalled(false)
 {
 }
 
 bool FHDMissionFlow::IsFinished() const
 {
     return Phase == EHDMissionPhase::Success || Phase == EHDMissionPhase::Fail;
+}
+
+bool FHDMissionFlow::IsExtractionCalled() const
+{
+    return Phase == EHDMissionPhase::Extraction && (bExtractionCalled || Config.bExtractionRequiresCall == false);
+}
+
+EHDExtractionCallResult FHDMissionFlow::CallExtraction()
+{
+    // 끝난 뒤(Success·Fail)도 여기서 걸린다
+    if (Phase != EHDMissionPhase::Extraction)
+    {
+        return EHDExtractionCallResult::NotExtraction;
+    }
+
+    if (Config.bExtractionRequiresCall == false)
+    {
+        return EHDExtractionCallResult::NotRequired;
+    }
+
+    if (bExtractionCalled)
+    {
+        return EHDExtractionCallResult::AlreadyCalled;
+    }
+
+    if (bPlayerAlive == false)
+    {
+        return EHDExtractionCallResult::Dead;
+    }
+
+    if (bPlayerInExtractionZone == false)
+    {
+        return EHDExtractionCallResult::NotInZone;
+    }
+
+    bExtractionCalled = true;
+    return EHDExtractionCallResult::Called;
 }
 
 bool FHDMissionFlow::NotifyPlayerLanded()
@@ -110,7 +174,8 @@ bool FHDMissionFlow::Tick(float DeltaSeconds)
         return true;
     }
 
-    if (Phase != EHDMissionPhase::Extraction || bPlayerInExtractionZone == false || bPlayerAlive == false)
+    // 부른 뒤 지점을 나가면 멈추고, 돌아오면 다시 부르지 않아도 이어 준다
+    if (Phase != EHDMissionPhase::Extraction || bPlayerInExtractionZone == false || bPlayerAlive == false || IsExtractionCalled() == false)
     {
         return false;
     }

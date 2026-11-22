@@ -14,5 +14,6 @@ FHDMissionConfig UHDMissionSettings::MakeConfig() const
     Config.MaxReinforcements = MaxReinforcements;
     Config.ExtractionHoldTime = ExtractionHoldTime;
     Config.MissionTimeLimit = MissionTimeLimit;
+    Config.bExtractionRequiresCall = bExtractionRequiresCall;
     return Config;
 }

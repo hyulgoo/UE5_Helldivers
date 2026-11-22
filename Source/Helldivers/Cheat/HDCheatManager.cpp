@@ -259,13 +259,14 @@ void UHDCheatManager::HDMission()
         return;
     }
 
-    const FString Status = FString::Printf(TEXT("Phase=%s Objectives=%d/%d Reinforcements=%d Extraction=%.1f InZone=%d"),
+    const FString Status = FString::Printf(TEXT("Phase=%s Objectives=%d/%d Reinforcements=%d Extraction=%.1f InZone=%d Called=%d"),
         *StaticEnum<EHDMissionPhase>()->GetNameStringByValue(static_cast<int64>(HDGameState->GetMissionPhase())),
         HDGameState->GetCompletedObjectives(),
         HDGameState->GetRequiredObjectives(),
         HDGameState->GetReinforcementsLeft(),
         HDGameState->GetExtractionRemaining(),
-        HDGameState->IsPlayerInExtractionZone() ? 1 : 0);
+        HDGameState->IsPlayerInExtractionZone() ? 1 : 0,
+        HDGameState->IsExtractionCalled() ? 1 : 0);
 
     UE_LOG(LogTemp, Display, TEXT("[HDMission] %s"), *Status);
 
@@ -369,6 +370,19 @@ void UHDCheatManager::HDTeleportToExtraction()
     }
 
     UE_LOG(LogTemp, Display, TEXT("[HDTeleportToExtraction] No extraction zone in this world"));
+}
+
+void UHDCheatManager::HDCallExtraction()
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDCallExtraction] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->RequestExtractionCall();
 }
 
 void UHDCheatManager::HDSetReinforcements(int32 Count)

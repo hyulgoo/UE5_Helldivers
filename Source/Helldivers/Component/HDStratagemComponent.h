@@ -25,6 +25,8 @@ public:
 	UDataTable*					GetAvaliableStratagemDataTable() const;
 	const TArray<FName>&	    GetCommandMatchStratagemNameList() const;
 	const int32				    GetCurrentInputNum() const;
+    // 지금까지 넣은 커맨드(ClearCommand 까지 쌓인다). 추출 호출 판정(HDMissionRules::IsExtractionCallSequence)이 읽는다
+    const TArray<EHDCommandInput>&  GetCurrentInputCommands() const;
 	void						AddStratagemCommand(const EHDCommandInput NewInput);
     UInputAction*               GetCommandInputAction() const;    
 

@@ -5,25 +5,50 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Game/HDMissionFlow.h"
+#include "Stratagem/HDStratagemCatalog.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHDMissionFlowTest, "Helldivers.Mission.Flow", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 namespace HDMissionFlowTest
 {
-    // 목표 2, 증원 2, 추출 45초, 제한 없음
-    FHDMissionConfig MakeTestConfig(float MissionTimeLimit = 0.f)
+    // 목표 2, 증원 2, 추출 45초, 제한 없음. bRequiresCall 기본값 거짓 = 호출 없이 지점 안에 있기만 하면 준다(호출 도입 전 동작)
+    FHDMissionConfig MakeTestConfig(float MissionTimeLimit = 0.f, bool bRequiresCall = false)
     {
         FHDMissionConfig Config;
         Config.RequiredObjectives = 2;
         Config.MaxReinforcements = 2;
         Config.ExtractionHoldTime = 45.f;
         Config.MissionTimeLimit = MissionTimeLimit;
+        Config.bExtractionRequiresCall = bRequiresCall;
         return Config;
     }
 
     FString PhaseName(EHDMissionPhase Phase)
     {
         return UEnum::GetValueAsString(Phase);
+    }
+
+    FString CallName(EHDExtractionCallResult Result)
+    {
+        return HDMissionRules::GetCallResultName(Result);
+    }
+
+    // Prefix 가 Whole 의 앞부분인가(같은 것 포함)
+    bool IsCommandPrefix(const TArray<EHDCommandInput>& Prefix, const TArray<EHDCommandInput>& Whole)
+    {
+        if (Prefix.Num() > Whole.Num())
+        {
+            return false;
+        }
+
+        for (int32 Index = 0; Index < Prefix.Num(); ++Index)
+        {
+            if (Prefix[Index] != Whole[Index])
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     // 착지 -> 목표 2 로 Extraction 까지 보낸다
@@ -184,6 +209,126 @@ bool FHDMissionFlowTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("ExtraObjective: ignored in Extraction"), Flow.NotifyObjectiveCompleted());
         TestEqual(TEXT("ExtraObjective: objectives stay 2"), Flow.GetCompletedObjectives(), 2);
         TestEqual(TEXT("ExtraObjective: still Extraction"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Extraction));
+    }
+
+    // C1 추출 호출 정상: 부르기 전에는 지점 안이어도 대기 시간이 흐르지 않는다
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        TestFalse(TEXT("C1 Call: not called before the call"), Flow.IsExtractionCalled());
+        TestFalse(TEXT("C1 Call: Tick(10) before the call keeps phase"), Flow.Tick(10.f));
+        TestEqual(TEXT("C1 Call: remaining stays 45 before the call"), Flow.GetExtractionRemaining(), 45.f);
+        TestEqual(TEXT("C1 Call: call accepted"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::Called));
+        TestTrue(TEXT("C1 Call: called after the call"), Flow.IsExtractionCalled());
+        TestTrue(TEXT("C1 Call: Tick(45) changes phase"), Flow.Tick(45.f));
+        TestEqual(TEXT("C1 Call: Success"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Success));
+    }
+
+    // C2 지점 밖에서 호출
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        AdvanceToExtraction(Flow);
+        TestEqual(TEXT("C2 OutOfZoneCall: refused not in zone"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::NotInZone));
+        TestFalse(TEXT("C2 OutOfZoneCall: not called"), Flow.IsExtractionCalled());
+    }
+
+    // C3 추출 단계가 아닐 때 호출
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        Flow.NotifyPlayerLanded();
+        TestEqual(TEXT("C3 NotExtractionCall: in InProgress"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::InProgress));
+        TestEqual(TEXT("C3 NotExtractionCall: refused not extraction"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::NotExtraction));
+    }
+
+    // C4 죽어 있을 때 호출
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        Flow.NotifyPlayerDied();
+        TestEqual(TEXT("C4 DeadCall: refused dead"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::Dead));
+        TestFalse(TEXT("C4 DeadCall: not called"), Flow.IsExtractionCalled());
+    }
+
+    // C5 두 번 호출
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        TestEqual(TEXT("C5 TwiceCall: first accepted"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::Called));
+        TestEqual(TEXT("C5 TwiceCall: second refused already called"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::AlreadyCalled));
+    }
+
+    // C6 부른 뒤 지점을 나갔다 돌아오면 다시 부르지 않아도 이어서 준다
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        TestEqual(TEXT("C6 LeaveAfterCall: call accepted"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::Called));
+        TestFalse(TEXT("C6 LeaveAfterCall: Tick(10) in zone keeps phase"), Flow.Tick(10.f));
+        TestEqual(TEXT("C6 LeaveAfterCall: remaining 35 after Tick(10)"), Flow.GetExtractionRemaining(), 35.f);
+        Flow.SetPlayerInExtractionZone(false);
+        TestFalse(TEXT("C6 LeaveAfterCall: Tick(10) out of zone keeps phase"), Flow.Tick(10.f));
+        TestEqual(TEXT("C6 LeaveAfterCall: remaining stays 35 out of zone"), Flow.GetExtractionRemaining(), 35.f);
+        Flow.SetPlayerInExtractionZone(true);
+        TestTrue(TEXT("C6 LeaveAfterCall: Tick(35) back in zone changes phase without a new call"), Flow.Tick(35.f));
+        TestEqual(TEXT("C6 LeaveAfterCall: Success"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Success));
+    }
+
+    // C7 호출이 필요 없는 설정
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, false));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        TestTrue(TEXT("C7 NoCallNeeded: called without a call"), Flow.IsExtractionCalled());
+        TestEqual(TEXT("C7 NoCallNeeded: call refused not required"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::NotRequired));
+        TestTrue(TEXT("C7 NoCallNeeded: Tick(45) changes phase"), Flow.Tick(45.f));
+        TestEqual(TEXT("C7 NoCallNeeded: Success"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Success));
+    }
+
+    // C8 끝난 뒤 호출
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, true));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        Flow.CallExtraction();
+        Flow.Tick(45.f);
+        TestEqual(TEXT("C8 FinishedCall: Success"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Success));
+        TestEqual(TEXT("C8 FinishedCall: refused not extraction"), CallName(Flow.CallExtraction()), CallName(EHDExtractionCallResult::NotExtraction));
+    }
+
+    // C9 호출 커맨드 판정: 길이·순서가 모두 같을 때만
+    {
+        using EIn = EHDCommandInput;
+        TestTrue(TEXT("C9 CallSequence: Left Up Right Down"), HDMissionRules::IsExtractionCallSequence({ EIn::Left, EIn::Up, EIn::Right, EIn::Down }));
+        TestFalse(TEXT("C9 CallSequence: Left Up Right (short)"), HDMissionRules::IsExtractionCallSequence({ EIn::Left, EIn::Up, EIn::Right }));
+        TestFalse(TEXT("C9 CallSequence: Left Up Right Down Down (long)"), HDMissionRules::IsExtractionCallSequence({ EIn::Left, EIn::Up, EIn::Right, EIn::Down, EIn::Down }));
+        TestFalse(TEXT("C9 CallSequence: empty"), HDMissionRules::IsExtractionCallSequence({}));
+        TestFalse(TEXT("C9 CallSequence: Up Right Down Right"), HDMissionRules::IsExtractionCallSequence({ EIn::Up, EIn::Right, EIn::Down, EIn::Right }));
+    }
+
+    // C10 호출 커맨드와 스트라타젬 카탈로그 커맨드가 앞부분으로 겹치지 않는다(같은 것 포함)
+    {
+        const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+        const TArray<EHDCommandInput>& CallSequence = HDMissionRules::GetExtractionCallSequence();
+        TestTrue(TEXT("C10 NoOverlap: catalog has entries"), Catalog.Num() > 0);
+
+        FString OverlapNames;
+        for (const FName& Name : Catalog.GetNames())
+        {
+            const FHDStratagemDefinition* Definition = Catalog.Find(Name);
+            if (Definition == nullptr)
+            {
+                continue;
+            }
+
+            if (IsCommandPrefix(Definition->CommandSequence, CallSequence) || IsCommandPrefix(CallSequence, Definition->CommandSequence))
+            {
+                OverlapNames += Name.ToString() + TEXT(" ");
+            }
+        }
+        TestTrue(FString::Printf(TEXT("C10 NoOverlap: call command overlaps [ %s]"), *OverlapNames), OverlapNames.IsEmpty());
     }
 
     return true;

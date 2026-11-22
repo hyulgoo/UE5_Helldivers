@@ -31,7 +31,7 @@ public:
     UFUNCTION(Exec)
     void        HDBreach();
 
-    // 미션 상태 한 줄: Phase=... Objectives=a/b Reinforcements=n Extraction=s InZone=0|1
+    // 미션 상태 한 줄: Phase=... Objectives=a/b Reinforcements=n Extraction=s InZone=0|1 Called=0|1
     UFUNCTION(Exec)
     void        HDMission();
 
@@ -42,6 +42,10 @@ public:
     // 추출 지점이 있으면 플레이어 폰을 그 위 200 으로 옮긴다
     UFUNCTION(Exec)
     void        HDTeleportToExtraction();
+
+    // 추출을 부른다(호출 커맨드 Ctrl + ← ↑ → ↓ 와 같은 AHDGameMode::RequestExtractionCall 경로). 결과는 [HDMission] extraction called / call refused 줄
+    UFUNCTION(Exec)
+    void        HDCallExtraction();
 
     // 남은 증원 수를 Count 로(0 이상으로 자른다)
     UFUNCTION(Exec)
