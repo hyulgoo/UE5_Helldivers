@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Game/HDMissionFlow.h"
+#include "Progression/HDDifficulty.h"
 #include "HDGameMode.generated.h"
 
 class UHDMissionSettings;
@@ -41,7 +42,7 @@ public:
     // 미션이 안 끝났고 남은 증원이 있으면 RespawnDelay 뒤 Reinforce 를 예약한다
     void                        NotifyPlayerDied(AController* DeadController);
 
-    // 추출을 부른다(호출 커맨드·치트 HDCallExtraction). Called 면 스폰 강도를 ExtractionIntensity 로 올린다. 미션 로직이 없으면 NotExtraction
+    // 추출을 부른다(호출 커맨드·치트 HDCallExtraction). Called 면 스폰 강도를 ExtractionIntensity × 난이도 강도로 올린다. 미션 로직이 없으면 NotExtraction
     EHDExtractionCallResult     RequestExtractionCall();
 
     const FHDMissionFlow*       GetMissionFlow() const;
@@ -52,14 +53,14 @@ public:
     void                        DebugSetMissionTimeLimit(float Seconds);
 
 private:
-    // 목표를 배치하고 FHDMissionFlow 를 만든다([HDMission] start 로그까지)
+    // 프로필의 난이도 행을 정하고, 목표를 배치하고 FHDMissionFlow 를 만든다([HDMission] start 로그까지)
     void                        BeginMission();
 
     // 첫 PlayerStart(없으면 원점) + ShipCameraOffset 에 PlayerStart 를 바라보는 카메라를 두고, 모든 플레이어의 시점을 옮겨 함선 메뉴를 연다
     void                        EnterShip();
 
-    // 맵에 놓인 목표가 RequiredObjectives 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
-    int32                       PlaceObjectives(const UHDMissionSettings& Settings);
+    // 맵에 놓인 목표가 RequiredCount 보다 적으면 모자란 만큼 시설을 첫 PlayerStart 둘레 지면에 스폰한다. 실제로 있는 목표 수를 돌려준다
+    int32                       PlaceObjectives(const UHDMissionSettings& Settings, int32 RequiredCount);
 
     // Extraction: 플레이어 폰(없으면 첫 PlayerStart) 둘레 링 위 지면에 AHDExtractionZone 을 스폰한다
     void                        SpawnExtractionZone(const UHDMissionSettings& Settings);
@@ -91,4 +92,8 @@ private:
     // 함선 단계의 고정 카메라. 출격하면 지운다
     UPROPERTY()
     TObjectPtr<ACameraActor>    ShipCamera;
+
+    // 이번 미션의 난이도 단계(1 부터, BeginMission 전에는 0)와 그 행. BeginMission 이 프로필에서 정한다
+    int32                       MissionDifficultyLevel = 0;
+    FHDDifficultyLevel          MissionDifficulty;
 };

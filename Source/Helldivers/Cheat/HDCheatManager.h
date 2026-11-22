@@ -131,4 +131,9 @@ public:
     // 함선 메뉴 한 줄: [HDShip] inShip=0|1 active=0|1 screen=<화면> cursor=<n> items=<Label|Label…>
     UFUNCTION(Exec)
     void        HDShip();
+
+    // 프로필 난이도를 Level 로(메뉴 DIFFICULTY 줄과 같은 ModifyProfile 경로, 정리가 표 안으로 자른다) → [HDShip] difficulty <n> <Label> (next deploy).
+    // 다음 출격부터 들어간다. 이미 시작한 미션은 바뀌지 않는다
+    UFUNCTION(Exec)
+    void        HDSetDifficulty(int32 Level);
 };

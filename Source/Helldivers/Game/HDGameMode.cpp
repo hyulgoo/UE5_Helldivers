@@ -170,15 +170,27 @@ void AHDGameMode::BeginMission()
 {
     const UHDMissionSettings* Settings = GetDefault<UHDMissionSettings>();
 
+    // 난이도 = 프로필의 단계(서브시스템이 없으면 새 프로필의 값)를 표 안으로 자른 행. 출격 뒤에 프로필을 바꿔도 이 미션은 그대로다
+    const TArray<FHDDifficultyLevel>& DifficultyTable = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const int32 ProfileDifficulty = ProfileSubsystem ? ProfileSubsystem->GetProfile().Difficulty : FHDProfileData().Difficulty;
+    MissionDifficultyLevel = HDDifficulty::ClampLevel(ProfileDifficulty, DifficultyTable.Num());
+    MissionDifficulty = HDDifficulty::GetLevel(DifficultyTable, MissionDifficultyLevel);
+
+    FHDMissionConfig Config = HDDifficulty::ApplyToConfig(Settings->MakeConfig(), MissionDifficulty);
+
     // 목표 배치를 미션 로직보다 먼저 한다. 필요 수는 실제로 있는 목표 수를 넘지 않게(최소 1)
-    const int32 ObjectiveCount = PlaceObjectives(*Settings);
-    FHDMissionConfig Config = Settings->MakeConfig();
+    const int32 ObjectiveCount = PlaceObjectives(*Settings, Config.RequiredObjectives);
     Config.RequiredObjectives = FMath::Max(1, FMath::Min(ObjectiveCount, Config.RequiredObjectives));
 
     MissionFlow = MakeUnique<FHDMissionFlow>(Config);
     SyncGameState();
 
-    UE_LOG(LogTemp, Display, TEXT("[HDMission] start objectives=%d reinforcements=%d"), MissionFlow->GetRequiredObjectives(), MissionFlow->GetReinforcementsLeft());
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] start objectives=%d reinforcements=%d difficulty=%d %s"),
+        MissionFlow->GetRequiredObjectives(),
+        MissionFlow->GetReinforcementsLeft(),
+        MissionDifficultyLevel,
+        *MissionDifficulty.Label);
 }
 
 void AHDGameMode::EnterShip()
@@ -308,8 +320,8 @@ EHDExtractionCallResult AHDGameMode::RequestExtractionCall()
         return Result;
     }
 
-    // 호출이 필요한 설정이면 강도는 추출 단계가 될 때가 아니라 여기서 오른다
-    const float Intensity = GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity;
+    // 호출이 필요한 설정이면 강도는 추출 단계가 될 때가 아니라 여기서 오른다. 난이도 강도를 곱한다(NORMAL 은 그대로)
+    const float Intensity = HDDifficulty::GetExtractionIntensity(GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity, MissionDifficulty);
     UWorld* World = GetWorld();
     UHDSpawnDirectorSubsystem* Director = World ? World->GetSubsystem<UHDSpawnDirectorSubsystem>() : nullptr;
     if (Director)
@@ -341,7 +353,7 @@ void AHDGameMode::DebugSetMissionTimeLimit(float Seconds)
     ApplyMissionChange([Seconds](FHDMissionFlow& Flow) { Flow.DebugSetMissionTimeLimit(Seconds); });
 }
 
-int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings)
+int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings, int32 RequiredCount)
 {
     using namespace HDPlaceObjective;
 
@@ -355,7 +367,7 @@ int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings)
     }
 
     int32 SpawnedCount = 0;
-    const int32 MissingCount = Settings.RequiredObjectives - PlacedCount;
+    const int32 MissingCount = RequiredCount - PlacedCount;
     if (MissingCount > 0)
     {
         // 중심 = 맵의 첫 PlayerStart(없으면 원점)
@@ -625,6 +637,9 @@ void AHDGameMode::HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase N
     {
         if (Director)
         {
+            // 난이도 행의 강도·중장갑 비율로 켠다(NORMAL = 설정 값과 같은 1.0·0.1)
+            Director->SetIntensity(MissionDifficulty.SpawnIntensity);
+            Director->SetHeavyRatioOverride(MissionDifficulty.HeavyRatio);
             Director->StartDirector();
         }
     }
@@ -636,7 +651,7 @@ void AHDGameMode::HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase N
         // 호출이 필요하면 아직 거짓이고, 강도는 RequestExtractionCall 이 부를 때 올린다
         if (Director && MissionFlow.IsValid() && MissionFlow->IsExtractionCalled())
         {
-            Director->SetIntensity(GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity);
+            Director->SetIntensity(HDDifficulty::GetExtractionIntensity(GetDefault<UHDSpawnDirectorSettings>()->ExtractionIntensity, MissionDifficulty));
         }
     }
     else if (NewPhase == EHDMissionPhase::Success || NewPhase == EHDMissionPhase::Fail)

@@ -20,6 +20,8 @@ public:
     void                        StopDirector();
     bool                        IsRunning() const { return bRunning; }
     void                        SetIntensity(float NewIntensity);
+    // 0 이상이면 설정 HeavyRatio 대신 쓴다. 음수면 설정 값(난이도, AHDGameMode 가 InProgress 때 넣는다)
+    void                        SetHeavyRatioOverride(float Ratio);
 
     // 적이 처음 대상을 알아챘을 때 AI 컨트롤러가 부른다
     void                        NotifyEnemyAlerted(AHDCharacterNonPlayer* Enemy, AActor* Target);
@@ -55,12 +57,16 @@ private:
 
     APawn*                      GetPlayerPawn() const;
     double                      GetNow() const;
+    // 쓰이는 중장갑형 비율: HeavyRatioOverride 가 0 이상이면 그 값, 아니면 설정 HeavyRatio
+    float                       GetHeavyRatio() const;
 
 private:
     TArray<FAlertEntry>         Alerts;
 
     bool                        bRunning = false;
     float                       Intensity = 1.f;
+    // 음수면 UHDSpawnDirectorSettings::HeavyRatio
+    float                       HeavyRatioOverride = -1.f;
     float                       PatrolElapsed = 0.f;
     float                       DebugElapsed = 0.f;
 

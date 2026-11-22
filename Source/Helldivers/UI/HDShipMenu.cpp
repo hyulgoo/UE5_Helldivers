@@ -6,6 +6,7 @@ namespace HDShipMenuItemId
 {
     const FName Bridge(TEXT("Bridge"));
     const FName Deploy(TEXT("Deploy"));
+    const FName Difficulty(TEXT("Difficulty"));
     const FName Quit(TEXT("Quit"));
 }
 
@@ -69,7 +70,21 @@ TArray<FHDShipMenuItem> HDShipMenu::BuildItems(EHDShipScreen Screen, const FHDSh
     DeployItem.Detail           = TEXT("LAUNCH HELLPOD TO THE MISSION AREA");
     DeployItem.ConfirmAction    = EHDShipActionType::Deploy;
 
-    // 뒤 브리프(3·6·7)가 Deploy 와 Quit 사이에 줄을 더한다
+    // ← → 로 프로필 난이도를 바꾼다(컨트롤러가 처리). 확정은 아무것도 하지 않는다
+    if (Context.Difficulties.IsEmpty() == false)
+    {
+        const int32 Level = HDDifficulty::ClampLevel(Context.Profile.Difficulty, Context.Difficulties.Num());
+        const FHDDifficultyLevel Row = HDDifficulty::GetLevel(Context.Difficulties, Level);
+
+        FHDShipMenuItem& DifficultyItem = Items.AddDefaulted_GetRef();
+        DifficultyItem.Id               = HDShipMenuItemId::Difficulty;
+        DifficultyItem.Label            = HDDifficulty::FormatMenuLabel(Level, Row);
+        DifficultyItem.Detail           = HDDifficulty::FormatDetail(Row);
+        DifficultyItem.bAdjustable      = true;
+        DifficultyItem.ConfirmAction    = EHDShipActionType::None;
+    }
+
+    // 뒤 브리프(6·7)가 Difficulty 와 Quit 사이에 줄을 더한다
 
     FHDShipMenuItem& QuitItem   = Items.AddDefaulted_GetRef();
     QuitItem.Id                 = HDShipMenuItemId::Quit;

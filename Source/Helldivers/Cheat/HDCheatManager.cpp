@@ -34,6 +34,8 @@
 #include "Controller/HDDirectKeyRules.h"
 #include "Progression/HDProfileSubsystem.h"
 #include "Progression/HDProgressionRules.h"
+#include "Progression/HDProgressionSettings.h"
+#include "Progression/HDDifficulty.h"
 
 namespace HDCheatManager
 {
@@ -857,4 +859,24 @@ void UHDCheatManager::HDShip()
         HDShipMenu::GetScreenName(ShipMenu.GetScreen()),
         ShipMenu.GetCursor(),
         *FString::Join(Labels, TEXT("|")));
+}
+
+void UHDCheatManager::HDSetDifficulty(int32 Level)
+{
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDProfile] No profile subsystem"));
+        return;
+    }
+
+    // 자르기는 ModifyProfile 의 정리(Sanitize)가 한다
+    ProfileSubsystem->ModifyProfile([Level](FHDProfileData& Data)
+    {
+        Data.Difficulty = Level;
+    });
+
+    const TArray<FHDDifficultyLevel>& DifficultyTable = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
+    const int32 NewLevel = ProfileSubsystem->GetProfile().Difficulty;
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] difficulty %d %s (next deploy)"), NewLevel, *HDDifficulty::GetLevel(DifficultyTable, NewLevel).Label);
 }

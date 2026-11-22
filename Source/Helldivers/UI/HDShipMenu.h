@@ -6,6 +6,7 @@
 #include "InputCoreTypes.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Progression/HDProfileTypes.h"
+#include "Progression/HDDifficulty.h"
 
 // 함선 메뉴의 화면. 뒤 브리프가 더한다(6: Upgrades, 7: Loadout·Armory)
 enum class EHDShipScreen : uint8
@@ -63,7 +64,9 @@ struct FHDShipMenuAction
 // 줄을 만드는 데 쓰는 값. 뒤 브리프가 필드를 더한다
 struct FHDShipMenuContext
 {
-    FHDProfileData      Profile;
+    FHDProfileData              Profile;
+    // 난이도 표(UHDProgressionSettings::DifficultyLevels). 비면 Difficulty 줄을 넣지 않는다
+    TArray<FHDDifficultyLevel>  Difficulties;
 };
 
 // 함선 메뉴 규칙. 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipMenu)로 고정한다
@@ -71,7 +74,7 @@ namespace HDShipMenu
 {
     // 눌림만 받는다: 방향키 = Up/Down/Left/Right, Enter = Confirm, BackSpace·Escape = Back
     HELLDIVERS_API bool                     TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKey& OutKey);
-    // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy … Quit
+    // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정) … Quit
     HELLDIVERS_API TArray<FHDShipMenuItem>  BuildItems(EHDShipScreen Screen, const FHDShipMenuContext& Context);
     // 함선 자원 줄: "REQ <징발>   COMMON <일반>   RARE <희귀>   SUPER <최상급>"(사이 공백 세 칸)
     HELLDIVERS_API FString                  FormatResources(const FHDProfileData& Profile);

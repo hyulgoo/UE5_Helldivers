@@ -7,6 +7,15 @@
 #include "Progression/HDProgressionRules.h"
 #include "Progression/HDProgressionSettings.h"
 
+namespace HDProfileSubsystemPrivate
+{
+    // 난이도는 설정의 난이도 표 행 수까지
+    int32 GetMaxDifficulty()
+    {
+        return FMath::Max(1, GetDefault<UHDProgressionSettings>()->DifficultyLevels.Num());
+    }
+}
+
 UHDProfileSubsystem* UHDProfileSubsystem::Get(const UObject* WorldContextObject)
 {
     if (WorldContextObject == nullptr)
@@ -32,7 +41,7 @@ void UHDProfileSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         if (SaveGame)
         {
             Profile = SaveGame->Data;
-            HDProgression::Sanitize(Profile);
+            HDProgression::Sanitize(Profile, HDProfileSubsystemPrivate::GetMaxDifficulty());
         }
         else
         {
@@ -63,7 +72,7 @@ bool UHDProfileSubsystem::HasSaveFile() const
 bool UHDProfileSubsystem::ModifyProfile(TFunctionRef<void(FHDProfileData&)> Change)
 {
     Change(Profile);
-    HDProgression::Sanitize(Profile);
+    HDProgression::Sanitize(Profile, HDProfileSubsystemPrivate::GetMaxDifficulty());
     return SaveProfile();
 }
 

@@ -15,8 +15,16 @@
 #include "Cheat/HDCheatManager.h"
 #include "Game/HDGameMode.h"
 #include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDProgressionSettings.h"
+#include "Progression/HDDifficulty.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
+
+namespace HDPlayerControllerShip
+{
+    // HDShipMenu::BuildItems 의 난이도 줄 Id
+    const FName DifficultyItemId(TEXT("Difficulty"));
+}
 
 static TAutoConsoleVariable<int32> CVarHDAbilitySystemDebugOnSpawn(
     TEXT("hd.Debug.AbilitySystemOnSpawn"),
@@ -241,6 +249,7 @@ TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
     {
         Context.Profile = ProfileSubsystem->GetProfile();
     }
+    Context.Difficulties = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
 
     return HDShipMenu::BuildItems(ShipMenu.GetScreen(), Context);
 }
@@ -314,6 +323,28 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
         UE_LOG(LogTemp, Display, TEXT("[HDShip] quit"));
         UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
         break;
+    case EHDShipActionType::Adjust:
+    {
+        if (Action.Id != HDPlayerControllerShip::DifficultyItemId)
+        {
+            break;
+        }
+
+        UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+        NULL_CHECK(ProfileSubsystem);
+
+        // 끝 단계에서 더 누르면 값이 그대로다(감기지 않는다). 저장 로그는 서브시스템이 찍는다
+        const TArray<FHDDifficultyLevel>& DifficultyTable = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
+        const int32 Delta = Action.Value;
+        ProfileSubsystem->ModifyProfile([&DifficultyTable, Delta](FHDProfileData& Data)
+        {
+            Data.Difficulty = HDDifficulty::StepLevel(Data.Difficulty, Delta, DifficultyTable.Num());
+        });
+
+        const int32 Level = ProfileSubsystem->GetProfile().Difficulty;
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] difficulty %d %s"), Level, *HDDifficulty::GetLevel(DifficultyTable, Level).Label);
+        break;
+    }
     default:
         break;
     }

@@ -55,6 +55,11 @@ void UHDSpawnDirectorSubsystem::SetIntensity(float NewIntensity)
     Intensity = NewIntensity;
 }
 
+void UHDSpawnDirectorSubsystem::SetHeavyRatioOverride(float Ratio)
+{
+    HeavyRatioOverride = Ratio;
+}
+
 void UHDSpawnDirectorSubsystem::NotifyEnemyAlerted(AHDCharacterNonPlayer* Enemy, AActor* Target)
 {
     // 꺼져 있을 때 받은 경보는 들고 있지 않는다(켜는 순간 옛 경보로 웨이브가 오지 않게)
@@ -99,8 +104,8 @@ FString UHDSpawnDirectorSubsystem::DescribeStatus() const
     const float PatrolInterval = HDSpawnRules::ScaledInterval(Settings->PatrolInterval, Intensity);
     const FString LastBreachText = LastBreachTime < 0.0 ? FString(TEXT("never")) : FString::Printf(TEXT("%.1fs ago"), GetNow() - LastBreachTime);
 
-    // 예: "Director running=1 intensity=1.0 alive=12/30 alerts=1 patrol=10.2/25.0s lastBreach=never"
-    return FString::Printf(TEXT("Director running=%d intensity=%.1f alive=%d/%d alerts=%d patrol=%.1f/%.1fs lastBreach=%s"),
+    // 예: "Director running=1 intensity=1.0 alive=12/30 alerts=1 patrol=10.2/25.0s lastBreach=never heavy=0.10"
+    return FString::Printf(TEXT("Director running=%d intensity=%.1f alive=%d/%d alerts=%d patrol=%.1f/%.1fs lastBreach=%s heavy=%.2f"),
         bRunning ? 1 : 0,
         Intensity,
         GetAliveEnemyCount(),
@@ -108,7 +113,8 @@ FString UHDSpawnDirectorSubsystem::DescribeStatus() const
         Alerts.Num(),
         PatrolElapsed,
         PatrolInterval,
-        *LastBreachText);
+        *LastBreachText,
+        GetHeavyRatio());
 }
 
 void UHDSpawnDirectorSubsystem::Tick(float DeltaTime)
@@ -217,7 +223,7 @@ int32 UHDSpawnDirectorSubsystem::SpawnGroup(const FVector& Center, const int32 C
     NULL_CHECK_WITH_RETURNTYPE(World, 0);
 
     const UHDSpawnDirectorSettings* Settings = GetDefault<UHDSpawnDirectorSettings>();
-    const int32 HeavyCount = HDSpawnRules::HeavyCount(Count, Settings->HeavyRatio);
+    const int32 HeavyCount = HDSpawnRules::HeavyCount(Count, GetHeavyRatio());
     const int32 ShooterCount = HDSpawnRules::ShooterCount(Count, Settings->ShooterRatio);
     const bool bDebug = CVarHDDirectorDebug.GetValueOnGameThread() == 1;
 
@@ -365,4 +371,9 @@ double UHDSpawnDirectorSubsystem::GetNow() const
 {
     const UWorld* World = GetWorld();
     return World ? World->GetTimeSeconds() : 0.0;
+}
+
+float UHDSpawnDirectorSubsystem::GetHeavyRatio() const
+{
+    return HeavyRatioOverride >= 0.f ? HeavyRatioOverride : GetDefault<UHDSpawnDirectorSettings>()->HeavyRatio;
 }
