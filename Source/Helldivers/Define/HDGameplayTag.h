@@ -15,6 +15,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_IsDead);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_GrenadeReady);
 // 스팀으로 회복하는 중(UHDGA_Stim 의 ActivationOwnedTags, 네이티브 전용). 있는 동안 스팀을 또 쓰지 못한다
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_Stimmed);
+// 급강하로 몸을 던져 공중에 있는 중(루즈 태그, 네이티브 전용). AHDCharacterPlayer::Dive 가 세우고 착지·사망·래그돌이 내린다
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Character_State_Diving);
 
 // Block
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_All);

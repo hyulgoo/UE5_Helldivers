@@ -23,6 +23,7 @@
 #include "AbilitySystem/GameAbility/HDGA_Stim.h"
 #include "Attribute/HDHealthAttributeSet.h"
 #include "Character/Player/HDStimRules.h"
+#include "Character/Player/HDDiveRules.h"
 #include "Weapon/Projectile/HDProjectileGrenade.h"
 #include "Define/HDSocketNames.h"
 #include "TimerManager.h"
@@ -52,6 +53,18 @@ namespace HDCharacterPlayer
         case EHDCommandInput::Left:     return TEXT("Left");
         case EHDCommandInput::Right:    return TEXT("Right");
         default:                        return TEXT("None");
+        }
+    }
+
+    // 로그용 자세 이름
+    const TCHAR* GetStanceName(const EHDCharacterStanceState Stance)
+    {
+        switch (Stance)
+        {
+        case EHDCharacterStanceState::Idle:     return TEXT("Idle");
+        case EHDCharacterStanceState::Crouch:   return TEXT("Crouch");
+        case EHDCharacterStanceState::Prone:    return TEXT("Prone");
+        default:                                return TEXT("None");
         }
     }
 }
@@ -170,6 +183,11 @@ void AHDCharacterPlayer::SetRagdoll(const bool bRagdoll, const FVector& Impulse)
     if (bRagdoll == false)
     {
         SetCharacterStanceState(EHDCharacterStanceState::Prone, true);
+    }
+    else if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+    {
+        // 급강하 중에 넉백을 받으면 이동이 꺼져 Landed 가 오지 않을 수 있다
+        ASC->SetLooseGameplayTagCount(Tag_Character_State_Diving, 0);
     }
 }
 
@@ -432,6 +450,70 @@ void AHDCharacterPlayer::UseStim()
 
     // 규칙으로는 쓸 수 있는데 켜지지 않았으면 다른 태그(Block.All 등)에 막힌 것이다
     UE_LOG(LogTemp, Display, TEXT("[HDStim] refused (%s)"), Refusal == EHDStimRefusal::None ? TEXT("blocked") : HDStim::GetRefusalName(Refusal));
+}
+
+void AHDCharacterPlayer::Dive()
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (ASC == nullptr)
+    {
+        return;
+    }
+
+    const double Now = GetWorld()->GetTimeSeconds();
+    const EHDDiveRefusal Refusal = HDDive::CheckDive(
+        ASC->HasMatchingGameplayTag(Tag_Character_Action_Dead),
+        ASC->HasMatchingGameplayTag(Tag_Block_All),
+        GetMesh()->IsSimulatingPhysics(),
+        GetCharacterMovement()->IsFalling(),
+        MovementStateComp->GetStanceState() == EHDCharacterStanceState::Prone,
+        static_cast<float>(Now - LastDiveTime));
+
+    if (Refusal != EHDDiveRefusal::None)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDDive] refused (%s)"), HDDive::GetRefusalName(Refusal));
+        return;
+    }
+
+    LastDiveTime = Now;
+
+    const FVector LaunchVelocity = HDDive::ComputeLaunchVelocity(GetVelocity(), GetActorForwardVector());
+    LaunchCharacter(LaunchVelocity, true, true);
+    ASC->SetLooseGameplayTagCount(Tag_Character_State_Diving, 1);
+
+    // 엎드리기 GA(BPGA_Prone)가 켜지지 않으면(막는 태그 등) SetRagdoll(false) 처럼 자세만 바꾼다
+    const bool bProneByAbility = ASC->TryActivateAbilitiesByTag(FGameplayTagContainer(Tag_Trigger_Prone));
+    if (bProneByAbility == false)
+    {
+        SetCharacterStanceState(EHDCharacterStanceState::Prone, true);
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDDive] launch velocity=(%.0f, %.0f, %.0f) prone=%s"),
+        LaunchVelocity.X, LaunchVelocity.Y, LaunchVelocity.Z, bProneByAbility ? TEXT("ga") : TEXT("forced"));
+}
+
+FString AHDCharacterPlayer::GetDiveStatusText() const
+{
+    const UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+
+    return FString::Printf(TEXT("stance=%s diving=%d airborne=%d"),
+        HDCharacterPlayer::GetStanceName(MovementStateComp->GetStanceState()),
+        (ASC && ASC->HasMatchingGameplayTag(Tag_Character_State_Diving)) ? 1 : 0,
+        GetCharacterMovement()->IsFalling() ? 1 : 0);
+}
+
+void AHDCharacterPlayer::Landed(const FHitResult& Hit)
+{
+    Super::Landed(Hit);
+
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+    if (ASC == nullptr || ASC->HasMatchingGameplayTag(Tag_Character_State_Diving) == false)
+    {
+        return;
+    }
+
+    ASC->SetLooseGameplayTagCount(Tag_Character_State_Diving, 0);
+    UE_LOG(LogTemp, Display, TEXT("[HDDive] landed stance=%s"), HDCharacterPlayer::GetStanceName(MovementStateComp->GetStanceState()));
 }
 
 bool AHDCharacterPlayer::Resupply()
@@ -842,6 +924,8 @@ void AHDCharacterPlayer::SetDead()
         ASC->SetLooseGameplayTagCount(Tag_Character_Action_HoldStratagem, 0);
         // 수류탄을 든 상태도 푼다(같은 이유로 증원 뒤에도 남는다)
         ASC->SetLooseGameplayTagCount(Tag_Character_State_GrenadeReady, 0);
+        // 급강하로 뜬 채 죽으면 Landed 가 오지 않을 수 있다
+        ASC->SetLooseGameplayTagCount(Tag_Character_State_Diving, 0);
 
         // 좌클릭 직후 죽으면 AM_Throw 가 시체에서 계속 돌아 0.427초에 수류탄이 나간다. 투척 GA 를 취소해 몽타주를 멈춘다
         const FGameplayAbilitySpec* ThrowSpec = ASC->FindAbilitySpecFromClass(UHDGA_ThrowGrenade::StaticClass());

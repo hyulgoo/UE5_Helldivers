@@ -83,6 +83,14 @@ bool FHDDirectKeyRulesTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Stim: V ignored"), HDDirectKey::IsStimKey(EKeys::V, IE_Pressed));
     }
 
+    // LeftAlt → 급강하
+    {
+        TestTrue(TEXT("Dive: LeftAlt pressed"), HDDirectKey::IsDiveKey(EKeys::LeftAlt, IE_Pressed));
+        TestFalse(TEXT("Dive: LeftAlt repeat ignored"), HDDirectKey::IsDiveKey(EKeys::LeftAlt, IE_Repeat));
+        TestFalse(TEXT("Dive: LeftAlt release ignored"), HDDirectKey::IsDiveKey(EKeys::LeftAlt, IE_Released));
+        TestFalse(TEXT("Dive: RightAlt ignored"), HDDirectKey::IsDiveKey(EKeys::RightAlt, IE_Pressed));
+    }
+
     // 치트 문자열
     {
         TArray<TArray<FHDSimulatedKeyEvent>> Frames;

@@ -48,6 +48,15 @@ public:
     // 스팀 하나를 쓴다(Q 키, AHDPlayerController 가 원시 키로 넘긴다. 치트 HDUseStim 도 같은 경로). 회복 GA(UHDGA_Stim)가 켜지지 않으면 거부 사유를 로그로 남긴다
     void                                    UseStim();
 
+    // 급강하: 움직이던 방향(느리면 보는 방향)으로 몸을 던지고 엎드린다. 왼쪽 Alt(AHDPlayerController 가 원시 키로 넘긴다)·치트 HDDive 가 같은 경로로 부른다.
+    // 죽음·Block.All·래그돌·공중·엎드림·대기 중이면 거부 사유를 로그로 남긴다
+    void                                    Dive();
+    // 치트 HDDive status 용: "stance=<Idle|Crouch|Prone> diving=<0|1> airborne=<0|1>"
+    FString                                 GetDiveStatusText() const;
+
+    // 급강하로 뜬 뒤의 착지면 Diving 태그를 내린다. 점프·헬포드 뒤 스폰의 착지에는 아무것도 하지 않는다
+    virtual void                            Landed(const FHitResult& Hit) override;
+
 protected:
 	virtual void							SetDead() override final;
     virtual void							Tick(float DeltaTime) override final;
@@ -128,4 +137,6 @@ private:
     FTimerHandle                            CodeReloadEventTimerHandle;
     // 직전 코드 발사 이벤트 시각(월드 초). 아직 없으면 음수
     double                                  LastCodeFireEventTime = -1.0;
+    // 직전 급강하 시각(월드 초). 첫 급강하가 대기에 걸리지 않게 먼 과거로 둔다
+    double                                  LastDiveTime = -1000.0;
 };

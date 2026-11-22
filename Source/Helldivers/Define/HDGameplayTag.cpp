@@ -9,6 +9,7 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Character_Action_Dead,                 "Character.Sta
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_IsDead,                "Character.State.IsDead");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_GrenadeReady,          "Character.State.GrenadeReady");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_Stimmed,               "Character.State.Stimmed");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Character_State_Diving,                "Character.State.Diving");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_All,                             "Block.All");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Move,                            "Block.Move");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Fire,                            "Block.Fire");

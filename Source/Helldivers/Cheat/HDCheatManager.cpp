@@ -591,6 +591,25 @@ void UHDCheatManager::HDUseStim()
     HDPlayer->UseStim();
 }
 
+void UHDCheatManager::HDDive(const FString& Command)
+{
+    APlayerController* PlayerController = GetPlayerController();
+    AHDCharacterPlayer* HDPlayer = PlayerController ? Cast<AHDCharacterPlayer>(PlayerController->GetPawn()) : nullptr;
+    if (HDPlayer == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDDive] No player character"));
+        return;
+    }
+
+    if (Command.Equals(TEXT("status"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDDive] status %s"), *HDPlayer->GetDiveStatusText());
+        return;
+    }
+
+    HDPlayer->Dive();
+}
+
 void UHDCheatManager::HDSimulateKeys(const FString& Sequence)
 {
     TArray<TArray<FHDSimulatedKeyEvent>> Frames;

@@ -72,6 +72,11 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
         bPendingStim = true;
     }
 
+    if (HDDirectKey::IsDiveKey(Params.Key, Params.Event))
+    {
+        bPendingDive = true;
+    }
+
     return bResult;
 }
 
@@ -79,7 +84,7 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
 
-    if (PendingStratagemCommands.IsEmpty() && PendingWeaponSlots.IsEmpty() && bPendingStim == false)
+    if (PendingStratagemCommands.IsEmpty() && PendingWeaponSlots.IsEmpty() && bPendingStim == false && bPendingDive == false)
     {
         return;
     }
@@ -102,11 +107,17 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
         {
             HDPlayer->UseStim();
         }
+
+        if (bPendingDive)
+        {
+            HDPlayer->Dive();
+        }
     }
 
     PendingStratagemCommands.Reset();
     PendingWeaponSlots.Reset();
     bPendingStim = false;
+    bPendingDive = false;
 }
 
 void AHDPlayerController::SimulateKeyFrames(TArray<TArray<FHDSimulatedKeyEvent>> Frames)

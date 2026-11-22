@@ -23,6 +23,7 @@ bool FHDGameplayTagTest::RunTest(const FString& Parameters)
         &Tag_Character_State_IsDead,
         &Tag_Character_State_GrenadeReady,
         &Tag_Character_State_Stimmed,
+        &Tag_Character_State_Diving,
 
         // Block
         &Tag_Block_All,

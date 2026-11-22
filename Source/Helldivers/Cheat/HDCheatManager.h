@@ -84,6 +84,10 @@ public:
     UFUNCTION(Exec)
     void        HDUseStim();
 
+    // 플레이어 폰이 급강하한다(왼쪽 Alt 와 같은 AHDCharacterPlayer::Dive 경로). 인자가 status 면 던지지 않고 [HDDive] status stance=… diving=… airborne=… 만 찍는다
+    UFUNCTION(Exec)
+    void        HDDive(const FString& Command = TEXT(""));
+
     // 원시 키 이벤트를 프레임별로 PlayerController::InputKey 에 보낸다(실제 키보드와 같은 경로). 공백이 있으니 따옴표로 감싼다.
     // '|' 로 프레임을 나누고, 토큰은 <키 이름>+(누름) / <키 이름>-(뗌), 빈 프레임은 한 틱 기다림. 예: HDSimulateKeys "LeftControl+ | | Up+ | Up- | LeftControl-"
     // 누른 채 남지 않게 끝에 누른 키를 모두 떼는 토큰을 넣는다. 문자열이 틀리면 아무 키도 보내지 않는다
