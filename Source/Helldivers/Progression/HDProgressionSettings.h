@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "Progression/HDDifficulty.h"
+#include "Progression/HDMissionReward.h"
 #include "HDProgressionSettings.generated.h"
 
 // Project Settings > Game > HD Progression. 바꾸면 Config/DefaultGame.ini 에 저장된다
@@ -18,6 +19,15 @@ public:
     UHDProgressionSettings(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
     virtual FName               GetCategoryName() const override;
+
+    // 미션 보상 규칙(HDProgression::ComputeReward 에 넘긴다)
+    FHDRewardRules              MakeRewardRules() const
+    {
+        FHDRewardRules Rules;
+        Rules.RequisitionPerObjective = RequisitionPerObjective;
+        Rules.SuccessRequisitionBonus = SuccessRequisitionBonus;
+        return Rules;
+    }
 
 public:
     // 프로필 저장 슬롯 이름. 파일은 Saved/SaveGames/<슬롯>.sav
@@ -44,4 +54,16 @@ public:
     // Config 에 줄이 없으면 생성자가 채운 기본 표(HDDifficulty::GetDefaultTable)가 남는다
     UPROPERTY(Config, EditAnywhere, Category = "Difficulty")
     TArray<FHDDifficultyLevel>  DifficultyLevels;
+
+    // 완료한 목표 하나당 징발. 실패·포기도 받는다
+    UPROPERTY(Config, EditAnywhere, Category = "Reward")
+    int32                       RequisitionPerObjective = 40;
+
+    // 추출 성공 보너스 징발
+    UPROPERTY(Config, EditAnywhere, Category = "Reward")
+    int32                       SuccessRequisitionBonus = 100;
+
+    // 결과가 나온 뒤 이 시간(초) 동안 Enter·클릭을 받지 않는다(남은 Enter 연타로 바로 넘어가지 않게)
+    UPROPERTY(Config, EditAnywhere, Category = "Reward")
+    float                       ResultInputDelay = 1.f;
 };

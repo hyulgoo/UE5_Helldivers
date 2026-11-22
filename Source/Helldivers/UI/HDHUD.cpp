@@ -23,6 +23,8 @@
 #include "Mission/HDMissionObjective.h"
 #include "Controller/HDPlayerController.h"
 #include "Progression/HDProfileSubsystem.h"
+#include "Progression/HDProgressionSettings.h"
+#include "Progression/HDMissionReward.h"
 #include "UI/HDShipMenu.h"
 #include "Engine/Canvas.h"
 
@@ -103,6 +105,9 @@ namespace HDHUDShip
     constexpr float     DetailBottom = 140.f;
     constexpr float     HelpBottom = 80.f;
 
+    // 자원 줄과 그 아래 LAST MISSION 줄 사이
+    constexpr float     LastResultGap = 8.f;
+
     const TCHAR* const  TitleText = TEXT("HD SOLO OPERATIONS");
     const TCHAR* const  PromptText = TEXT("PRESS ENTER");
     const TCHAR* const  BridgeText = TEXT("SHIP BRIDGE");
@@ -139,6 +144,79 @@ namespace HDHUDShip
 
         OutIndex = FCString::Atoi(*IndexText);
         return true;
+    }
+}
+
+namespace HDHUDResult
+{
+    // 가운데 상자(결과 패널·포기 확인 창): 반투명 검정, 안쪽 여백, 줄 사이
+    const FLinearColor  PanelColor(0.f, 0.f, 0.f, 0.7f);
+    const FLinearColor  LineColor(1.f, 1.f, 1.f);
+    constexpr float     PanelPadding = 40.f;
+    constexpr float     LineGap = 12.f;
+
+    const TCHAR* const  ReturnText = TEXT("[ENTER] RETURN TO SHIP");
+    const FName         ReturnHitBoxName(TEXT("ResultReturn"));
+
+    const TCHAR* const  AbandonTitleText = TEXT("ABANDON MISSION?");
+    const TCHAR* const  AbandonHelpText = TEXT("[ENTER] CONFIRM   [P] CANCEL");
+    constexpr float     AbandonTitleScale = 2.f;
+
+    // 상자 안 한 줄
+    struct FPanelLine
+    {
+        FString         Text;
+        FLinearColor    Color;
+        UFont*          Font    = nullptr;
+        float           Scale   = 1.f;
+        // 참이면 이 줄에 ResultReturn 히트박스를 둔다
+        bool            bReturn = false;
+    };
+
+    // 초 → "mm:ss"
+    FString FormatTime(float Seconds)
+    {
+        const int32 TotalSeconds = FMath::Max(0, FMath::FloorToInt(Seconds));
+        return FString::Printf(TEXT("%02d:%02d"), TotalSeconds / 60, TotalSeconds % 60);
+    }
+
+    // 화면 가운데 상자에 줄마다 가로 가운데 정렬로 그린다. bReturn 줄은 상자 폭의 히트박스(ResultReturn)
+    void DrawPanel(AHUD& HUD, const UCanvas& Canvas, const TArray<FPanelLine>& Lines)
+    {
+        TArray<FVector2D> Sizes;
+        float MaxWidth = 0.f;
+        float TotalHeight = 0.f;
+        for (const FPanelLine& Line : Lines)
+        {
+            float Width = 0.f;
+            float Height = 0.f;
+            HUD.GetTextSize(Line.Text, Width, Height, Line.Font, Line.Scale);
+            Sizes.Add(FVector2D(Width, Height));
+            MaxWidth = FMath::Max(MaxWidth, Width);
+            TotalHeight += Height;
+        }
+        TotalHeight += LineGap * FMath::Max(0, Lines.Num() - 1);
+
+        const float PanelWidth = MaxWidth + PanelPadding * 2.f;
+        const float PanelHeight = TotalHeight + PanelPadding * 2.f;
+        const float PanelX = (Canvas.ClipX - PanelWidth) * 0.5f;
+        const float PanelY = (Canvas.ClipY - PanelHeight) * 0.5f;
+        HUD.DrawRect(PanelColor, PanelX, PanelY, PanelWidth, PanelHeight);
+
+        float LineY = PanelY + PanelPadding;
+        for (int32 Index = 0; Index < Lines.Num(); ++Index)
+        {
+            const FPanelLine& Line = Lines[Index];
+            const FVector2D& Size = Sizes[Index];
+            HUD.DrawText(Line.Text, Line.Color, (Canvas.ClipX - Size.X) * 0.5f, LineY, Line.Font, Line.Scale);
+
+            if (Line.bReturn)
+            {
+                HUD.AddHitBox(FVector2D(PanelX, LineY - LineGap * 0.5f), FVector2D(PanelWidth, Size.Y + LineGap), ReturnHitBoxName, true);
+            }
+
+            LineY += Size.Y + LineGap;
+        }
     }
 }
 
@@ -256,6 +334,7 @@ void AHDHUD::DrawHUD()
     DrawMissionText();
     DrawObjectiveMarkers();
     DrawHitMarker();
+    DrawAbandonPrompt();
 }
 
 void AHDHUD::NotifyHitBoxClick(FName BoxName)
@@ -263,6 +342,12 @@ void AHDHUD::NotifyHitBoxClick(FName BoxName)
     Super::NotifyHitBoxClick(BoxName);
 
     AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    if (HDPlayerController && BoxName == HDHUDResult::ReturnHitBoxName)
+    {
+        HDPlayerController->RequestReturnToShip();
+        return;
+    }
+
     int32 Index = 0;
     if (HDPlayerController && HDHUDShip::TryParseHitBoxName(BoxName, Index))
     {
@@ -327,6 +412,20 @@ void AHDHUD::DrawShipMenu()
     float ResourcesHeight = 0.f;
     GetTextSize(ResourcesText, ResourcesWidth, ResourcesHeight, MediumFont);
     DrawText(ResourcesText, ItemColor, ScreenWidth - HeaderMargin - ResourcesWidth, HeaderMargin, MediumFont);
+
+    // 자원 줄 아래: 게임 인스턴스가 기억하는 마지막 미션 결과(오른쪽 정렬)
+    const FHDMissionResultSummary* LastResult = ProfileSubsystem ? ProfileSubsystem->GetLastResult() : nullptr;
+    if (LastResult)
+    {
+        const FString LastResultText = FString::Printf(TEXT("LAST MISSION  %s  +%d REQ"),
+            LastResult->Outcome.bSuccess ? TEXT("COMPLETE") : TEXT("FAILED"),
+            LastResult->Reward.Requisition);
+
+        float LastResultWidth = 0.f;
+        float LastResultHeight = 0.f;
+        GetTextSize(LastResultText, LastResultWidth, LastResultHeight, MediumFont);
+        DrawText(LastResultText, ItemColor, ScreenWidth - HeaderMargin - LastResultWidth, HeaderMargin + ResourcesHeight + LastResultGap, MediumFont);
+    }
 
     // 줄 목록: 고른 줄은 "> " + 노랑, 다른 줄 흰색, 꺼진 줄 회색
     const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
@@ -472,8 +571,12 @@ void AHDHUD::DrawMissionText()
         LineY += LineHeight;
     }
 
-    // 끝나면 화면 가운데 결과
-    if ((Phase == EHDMissionPhase::Success || Phase == EHDMissionPhase::Fail) && Canvas)
+    // 끝나면 화면 가운데 결과. 정산한 결과가 있으면 결과 패널, 없으면 글자만
+    if (HDGameState->HasMissionResult())
+    {
+        DrawResultPanel();
+    }
+    else if ((Phase == EHDMissionPhase::Success || Phase == EHDMissionPhase::Fail) && Canvas)
     {
         const bool bSuccess = Phase == EHDMissionPhase::Success;
         const FString ResultText = bSuccess ? TEXT("MISSION COMPLETE") : TEXT("MISSION FAILED");
@@ -497,6 +600,79 @@ void AHDHUD::DrawMissionText()
         GetTextSize(RespawnText, TextWidth, TextHeight, LargeFont, RespawnTextScale);
         DrawText(RespawnText, TextColor, (Canvas->ClipX - TextWidth) * 0.5f, (Canvas->ClipY - TextHeight) * 0.5f, LargeFont, RespawnTextScale);
     }
+}
+
+void AHDHUD::DrawResultPanel()
+{
+    using namespace HDHUDResult;
+
+    const UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    if (Canvas == nullptr || HDGameState == nullptr || HDGameState->HasMissionResult() == false)
+    {
+        return;
+    }
+
+    const FHDMissionResultSummary& Summary = HDGameState->GetMissionResult();
+    const FHDMissionOutcome& Outcome = Summary.Outcome;
+    const FHDMissionReward& Reward = Summary.Reward;
+
+    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+    UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+
+    TArray<FPanelLine> Lines;
+
+    // 맨 위 글자는 결과 패널 전의 가운데 글자와 같다(큰 글꼴 ×2)
+    Lines.Add({ Outcome.bSuccess ? TEXT("MISSION COMPLETE") : TEXT("MISSION FAILED"),
+        Outcome.bSuccess ? HDHUDMission::TextColor : HDHUDMission::FailColor, LargeFont, HDHUDMission::ResultTextScale });
+
+    if (Outcome.bAbandoned)
+    {
+        Lines.Add({ TEXT("ABANDONED"), HDHUDMission::FailColor, MediumFont });
+    }
+
+    Lines.Add({ FString::Printf(TEXT("DIFFICULTY  %d  %s"), Outcome.Difficulty, *Outcome.DifficultyLabel), LineColor, MediumFont });
+    Lines.Add({ FString::Printf(TEXT("OBJECTIVES  %d/%d"), Outcome.CompletedObjectives, Outcome.RequiredObjectives), LineColor, MediumFont });
+    Lines.Add({ FString::Printf(TEXT("MISSION TIME  %s"), *FormatTime(Outcome.ElapsedSeconds)), LineColor, MediumFont });
+    Lines.Add({ FString::Printf(TEXT("REQUISITION  +%d   (TOTAL %d)"), Reward.Requisition, Summary.TotalRequisition), LineColor, MediumFont });
+
+    // 잃은 샘플이 있으면 그 줄을 빨강으로
+    if (Reward.LostSamples.IsEmpty() == false)
+    {
+        Lines.Add({ FString::Printf(TEXT("SAMPLES LOST  %d / %d / %d"), Reward.LostSamples.Common, Reward.LostSamples.Rare, Reward.LostSamples.Super), HDHUDMission::FailColor, MediumFont });
+    }
+    else
+    {
+        Lines.Add({ FString::Printf(TEXT("SAMPLES  +%d / +%d / +%d"), Reward.Samples.Common, Reward.Samples.Rare, Reward.Samples.Super), LineColor, MediumFont });
+    }
+
+    // 입력 지연이 지난 뒤에만 복귀 안내와 히트박스
+    if (HDProgression::CanLeaveResult(World->GetTimeSeconds(), Summary.ResultWorldTime, GetDefault<UHDProgressionSettings>()->ResultInputDelay))
+    {
+        Lines.Add({ ReturnText, HDHUDMission::TextColor, MediumFont, 1.f, true });
+    }
+
+    DrawPanel(*this, *Canvas, Lines);
+}
+
+void AHDHUD::DrawAbandonPrompt()
+{
+    using namespace HDHUDResult;
+
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    if (Canvas == nullptr || HDPlayerController == nullptr || HDPlayerController->IsAbandonPromptOpen() == false)
+    {
+        return;
+    }
+
+    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+    UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+
+    TArray<FPanelLine> Lines;
+    Lines.Add({ AbandonTitleText, HDHUDMission::FailColor, LargeFont, AbandonTitleScale });
+    Lines.Add({ AbandonHelpText, LineColor, MediumFont });
+
+    DrawPanel(*this, *Canvas, Lines);
 }
 
 void AHDHUD::DrawObjectiveMarkers()

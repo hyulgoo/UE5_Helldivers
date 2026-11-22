@@ -28,11 +28,11 @@ public:
     // 로드아웃을 바꾼 뒤 스트라타젬 목록을 다시 만든다. 위젯이 아직 없으면 아무것도 하지 않는다
     void                                RebuildStratagemList();
 
-    // 왼쪽 위 미션 글자, 미완료 목표 표식(라벨·거리), 증원 대기 중이면 가운데 REINFORCING IN <초> 를 캔버스에 그린다.
-    // 함선 단계면 함선 메뉴만 그린다
+    // 왼쪽 위 미션 글자, 미완료 목표 표식(라벨·거리), 증원 대기 중이면 가운데 REINFORCING IN <초>, 결과가 나오면 가운데 결과 패널,
+    // 작전 포기 확인 창이 열려 있으면 가운데 ABANDON MISSION? 을 캔버스에 그린다. 함선 단계면 함선 메뉴만 그린다
     virtual void                        DrawHUD() override;
 
-    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기
+    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기. 결과 패널 ResultReturn → 함선 복귀 요청
     virtual void                        NotifyHitBoxClick(FName BoxName) override;
     virtual void                        NotifyHitBoxBeginCursorOver(FName BoxName) override;
 
@@ -40,9 +40,13 @@ public:
     void                                NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint);
 
 private:
-    // 반투명 배경 + 타이틀(HD SOLO OPERATIONS / PRESS ENTER) 또는 Bridge(제목·자원 줄·줄 목록·설명·키 안내)와 히트박스
+    // 반투명 배경 + 타이틀(HD SOLO OPERATIONS / PRESS ENTER) 또는 Bridge(제목·자원 줄·마지막 결과 줄·줄 목록·설명·키 안내)와 히트박스
     void                                DrawShipMenu();
     void                                DrawMissionText();
+    // 게임스테이트의 결과를 가운데 반투명 상자에: 성공·실패, 포기, 난이도, 목표, 시간, 징발, 샘플, 입력 지연 뒤 [ENTER] RETURN TO SHIP(히트박스 ResultReturn)
+    void                                DrawResultPanel();
+    // 확인 창이 열려 있으면 가운데 ABANDON MISSION? 과 키 안내
+    void                                DrawAbandonPrompt();
     void                                DrawObjectiveMarkers();
     // 마지막 알림 뒤 잠깐 화면 가운데 X. 전부 빨강(약점 주황), 감소 흰색, 도탄 회색 + DEFLECT
     void                                DrawHitMarker();

@@ -78,6 +78,11 @@ public:
     // 치트용. 제한 시간(초, 0 = 제한 없음)을 바꾼다. 지난 시간이 이미 넘으면 다음 Tick 에서 Fail
     void                        DebugSetMissionTimeLimit(float NewMissionTimeLimit);
 
+    // 작전 포기. Deploy·InProgress·Extraction 에서만 -> Fail, 포기로 표시하고 true. 끝난 뒤면 false
+    bool                        Abandon();
+    // Abandon 으로 끝났는가(보통의 실패는 거짓)
+    bool                        IsAbandoned() const;
+
 private:
     FHDMissionConfig            Config;
     EHDMissionPhase             Phase = EHDMissionPhase::Deploy;
@@ -89,4 +94,6 @@ private:
     bool                        bPlayerInExtractionZone = false;
     // 한 번 부르면 사망·증원으로 지워지지 않는다
     bool                        bExtractionCalled = false;
+    // Abandon 이 Fail 로 바꿨는가
+    bool                        bAbandoned = false;
 };

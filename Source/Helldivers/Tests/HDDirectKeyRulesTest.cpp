@@ -91,6 +91,55 @@ bool FHDDirectKeyRulesTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Dive: RightAlt ignored"), HDDirectKey::IsDiveKey(EKeys::RightAlt, IE_Pressed));
     }
 
+    // Enter·P·Escape·BackSpace → 미션 메뉴 키(작전 포기·결과 화면)
+    {
+        struct FMissionMenuCase
+        {
+            const TCHAR*        Message;
+            FKey                Key;
+            EHDMissionMenuKey   Expected;
+        };
+
+        const FMissionMenuCase MissionMenuCases[] =
+        {
+            { TEXT("MissionMenu: Enter is Confirm"),        EKeys::Enter,       EHDMissionMenuKey::Confirm },
+            { TEXT("MissionMenu: P is ToggleAbandon"),      EKeys::P,           EHDMissionMenuKey::ToggleAbandon },
+            { TEXT("MissionMenu: Escape is ToggleAbandon"), EKeys::Escape,      EHDMissionMenuKey::ToggleAbandon },
+            { TEXT("MissionMenu: BackSpace is Cancel"),     EKeys::BackSpace,   EHDMissionMenuKey::Cancel },
+        };
+
+        for (const FMissionMenuCase& MissionMenuCase : MissionMenuCases)
+        {
+            // 기대값과 다른 값에서 시작해 실제로 채웠는지 본다
+            EHDMissionMenuKey MenuKey = EHDMissionMenuKey::Confirm == MissionMenuCase.Expected ? EHDMissionMenuKey::Cancel : EHDMissionMenuKey::Confirm;
+            const bool bResult = HDDirectKey::TryGetMissionMenuKey(MissionMenuCase.Key, IE_Pressed, MenuKey);
+            TestTrue(MissionMenuCase.Message, bResult && MenuKey == MissionMenuCase.Expected);
+        }
+    }
+
+    {
+        EHDMissionMenuKey MenuKey = EHDMissionMenuKey::Confirm;
+        TestFalse(TEXT("MissionMenu: P release ignored"), HDDirectKey::TryGetMissionMenuKey(EKeys::P, IE_Released, MenuKey));
+        TestFalse(TEXT("MissionMenu: Up ignored"), HDDirectKey::TryGetMissionMenuKey(EKeys::Up, IE_Pressed, MenuKey));
+        TestFalse(TEXT("MissionMenu: Q ignored"), HDDirectKey::TryGetMissionMenuKey(EKeys::Q, IE_Pressed, MenuKey));
+        TestFalse(TEXT("MissionMenu: LeftAlt ignored"), HDDirectKey::TryGetMissionMenuKey(EKeys::LeftAlt, IE_Pressed, MenuKey));
+    }
+
+    // 미션 메뉴 키 넷은 다른 원시 키 규칙(명령·무기 칸·스팀·급강하)에 걸리지 않는다
+    {
+        const FKey MissionMenuKeys[] = { EKeys::Enter, EKeys::P, EKeys::Escape, EKeys::BackSpace };
+        for (const FKey& Key : MissionMenuKeys)
+        {
+            const FString KeyName = Key.GetFName().ToString();
+            EHDCommandInput Command = EHDCommandInput::Count;
+            EHDWeaponSlot Slot = EHDWeaponSlot::Primary;
+            TestFalse(*FString::Printf(TEXT("MissionMenu: %s is not a command"), *KeyName), HDDirectKey::TryGetCommand(Key, IE_Pressed, Command));
+            TestFalse(*FString::Printf(TEXT("MissionMenu: %s is not a weapon slot"), *KeyName), HDDirectKey::TryGetWeaponSlot(Key, IE_Pressed, Slot));
+            TestFalse(*FString::Printf(TEXT("MissionMenu: %s is not stim"), *KeyName), HDDirectKey::IsStimKey(Key, IE_Pressed));
+            TestFalse(*FString::Printf(TEXT("MissionMenu: %s is not dive"), *KeyName), HDDirectKey::IsDiveKey(Key, IE_Pressed));
+        }
+    }
+
     // 치트 문자열
     {
         TArray<TArray<FHDSimulatedKeyEvent>> Frames;

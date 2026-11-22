@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Progression/HDProfileTypes.h"
+#include "Progression/HDMissionReward.h"
 #include "HDProfileSubsystem.generated.h"
 
 // 게임 인스턴스와 함께 산다(맵을 다시 열어도 남는다). 프로필을 읽고, 바꿀 때마다 저장한다. 규칙은 HDProgression, 슬롯은 UHDProgressionSettings
@@ -33,6 +34,11 @@ public:
     bool                            HasShownTitle() const;
     void                            MarkTitleShown();
 
+    // 마지막 미션 결과(함선 Bridge 의 LAST MISSION 줄). 저장하지 않고 게임 인스턴스가 살아 있는 동안만 기억한다
+    void                            SetLastResult(const FHDMissionResultSummary& Summary);
+    // 없으면 null
+    const FHDMissionResultSummary*  GetLastResult() const;
+
 private:
     // StartingRequisition 반영
     FHDProfileData                  MakeNewProfile() const;
@@ -42,4 +48,7 @@ private:
     FHDProfileData                  Profile;
 
     bool                            bTitleShown = false;
+
+    // 저장하지 않는다(SetLastResult)
+    TOptional<FHDMissionResultSummary> LastResult;
 };

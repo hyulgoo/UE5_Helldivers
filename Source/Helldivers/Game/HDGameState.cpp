@@ -17,6 +17,7 @@ AHDGameState::AHDGameState()
     , bExtractionCalled(false)
     , RespawnRemaining(-1.f)
     , bInShip(false)
+    , bHasMissionResult(false)
 {
 }
 
@@ -56,6 +57,12 @@ void AHDGameState::SetRespawnRemaining(float NewRespawnRemaining)
 void AHDGameState::SetInShip(bool bNewInShip)
 {
     bInShip = bNewInShip;
+}
+
+void AHDGameState::SetMissionResult(const FHDMissionResultSummary& Summary)
+{
+    MissionResult = Summary;
+    bHasMissionResult = true;
 }
 
 void AHDGameState::BeginPlay()

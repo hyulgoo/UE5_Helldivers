@@ -14,9 +14,11 @@
 #include "Character/Player/HDCharacterPlayer.h"
 #include "Cheat/HDCheatManager.h"
 #include "Game/HDGameMode.h"
+#include "Game/HDGameState.h"
 #include "Progression/HDProfileSubsystem.h"
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDDifficulty.h"
+#include "Progression/HDMissionReward.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
 
@@ -100,6 +102,13 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
         bPendingDive = true;
     }
 
+    // 작전 포기 확인 창·결과 화면 키. 이 키들은 IMC 에 매핑이 없다
+    EHDMissionMenuKey MissionMenuKey = EHDMissionMenuKey::Confirm;
+    if (HDDirectKey::TryGetMissionMenuKey(Params.Key, Params.Event, MissionMenuKey))
+    {
+        PendingMissionMenuKeys.Add(MissionMenuKey);
+    }
+
     return bResult;
 }
 
@@ -121,6 +130,18 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
             }
 
             HandleShipMenuKey(MenuKey);
+        }
+    }
+
+    // 미션 메뉴 키. 폰이 캐릭터가 아니어도(헬포드·폰 없음), 죽어 있어도 처리한다
+    if (PendingMissionMenuKeys.IsEmpty() == false)
+    {
+        const TArray<EHDMissionMenuKey> MissionMenuKeys = MoveTemp(PendingMissionMenuKeys);
+        PendingMissionMenuKeys.Reset();
+
+        for (const EHDMissionMenuKey MissionMenuKey : MissionMenuKeys)
+        {
+            HandleMissionMenuKey(MissionMenuKey);
         }
     }
 
@@ -348,6 +369,99 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
     default:
         break;
     }
+}
+
+void AHDPlayerController::RequestReturnToShip()
+{
+    UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    if (HDGameState == nullptr || HDGameState->HasMissionResult() == false)
+    {
+        return;
+    }
+
+    // 결과가 나온 직후의 남은 Enter 연타로 바로 넘어가지 않게 한다
+    const double Now = World->GetTimeSeconds();
+    const double ResultTime = HDGameState->GetMissionResult().ResultWorldTime;
+    const float Delay = GetDefault<UHDProgressionSettings>()->ResultInputDelay;
+    if (HDProgression::CanLeaveResult(Now, ResultTime, Delay) == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] return ignored (wait %.1fs)"), FMath::Max(0.0, Delay - (Now - ResultTime)));
+        return;
+    }
+
+    AHDGameMode* HDGameMode = World->GetAuthGameMode<AHDGameMode>();
+    NULL_CHECK(HDGameMode);
+
+    HDGameMode->ReturnToShip();
+}
+
+void AHDPlayerController::ShowMissionResult()
+{
+    SetAbandonPromptOpen(false);
+
+    // 결과 패널의 [ENTER] RETURN TO SHIP 을 마우스로도 누를 수 있게 한다. 함선 메뉴(bShipMenuActive)는 켜지 않는다
+    SetShowMouseCursor(true);
+    bEnableClickEvents      = true;
+    bEnableMouseOverEvents  = true;
+    SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+}
+
+bool AHDPlayerController::IsAbandonPromptOpen() const
+{
+    return bAbandonPromptOpen;
+}
+
+void AHDPlayerController::HandleMissionMenuKey(EHDMissionMenuKey Key)
+{
+    UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    NULL_CHECK(HDGameState);
+
+    // 결과가 있으면 Confirm 만 받는다(함선 복귀)
+    if (HDGameState->HasMissionResult())
+    {
+        if (Key == EHDMissionMenuKey::Confirm)
+        {
+            RequestReturnToShip();
+        }
+        return;
+    }
+
+    // 확인 창: Confirm = 포기, ToggleAbandon·Cancel = 닫기
+    if (bAbandonPromptOpen)
+    {
+        SetAbandonPromptOpen(false);
+
+        if (Key == EHDMissionMenuKey::Confirm)
+        {
+            AHDGameMode* HDGameMode = World->GetAuthGameMode<AHDGameMode>();
+            NULL_CHECK(HDGameMode);
+
+            HDGameMode->RequestAbandon();
+        }
+        return;
+    }
+
+    // 미션 진행 중(함선 아님)에만 창을 연다
+    const EHDMissionPhase Phase = HDGameState->GetMissionPhase();
+    const bool bMissionRunning = HDGameState->IsInShip() == false
+        && (Phase == EHDMissionPhase::Deploy || Phase == EHDMissionPhase::InProgress || Phase == EHDMissionPhase::Extraction);
+    if (bMissionRunning && Key == EHDMissionMenuKey::ToggleAbandon)
+    {
+        SetAbandonPromptOpen(true);
+    }
+}
+
+void AHDPlayerController::SetAbandonPromptOpen(bool bOpen)
+{
+    if (bAbandonPromptOpen == bOpen)
+    {
+        return;
+    }
+
+    bAbandonPromptOpen = bOpen;
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] abandon prompt %s"), bOpen ? TEXT("open") : TEXT("closed"));
 }
 
 void AHDPlayerController::BeginPlay()

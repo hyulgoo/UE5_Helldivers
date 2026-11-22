@@ -331,6 +331,59 @@ bool FHDMissionFlowTest::RunTest(const FString& Parameters)
         TestTrue(FString::Printf(TEXT("C10 NoOverlap: call command overlaps [ %s]"), *OverlapNames), OverlapNames.IsEmpty());
     }
 
+    // A1 진행 중 포기: Fail 이 되고, 그 뒤 목표·시간은 아무것도 바꾸지 않는다
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, false));
+        Flow.NotifyPlayerLanded();
+        TestTrue(TEXT("A1 AbandonInProgress: abandon accepted"), Flow.Abandon());
+        TestEqual(TEXT("A1 AbandonInProgress: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+        TestTrue(TEXT("A1 AbandonInProgress: abandoned"), Flow.IsAbandoned());
+        TestFalse(TEXT("A1 AbandonInProgress: objective ignored after abandon"), Flow.NotifyObjectiveCompleted());
+        TestEqual(TEXT("A1 AbandonInProgress: objectives stay 0"), Flow.GetCompletedObjectives(), 0);
+        TestFalse(TEXT("A1 AbandonInProgress: Tick(100) ignored after abandon"), Flow.Tick(100.f));
+        TestEqual(TEXT("A1 AbandonInProgress: elapsed stays 0"), Flow.GetElapsedSeconds(), 0.f);
+        TestEqual(TEXT("A1 AbandonInProgress: still Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+    }
+
+    // A2 강하 중(착지 전) 포기
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, false));
+        TestEqual(TEXT("A2 AbandonInDeploy: in Deploy"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Deploy));
+        TestTrue(TEXT("A2 AbandonInDeploy: abandon accepted"), Flow.Abandon());
+        TestEqual(TEXT("A2 AbandonInDeploy: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+    }
+
+    // A3 추출 중 포기
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, false));
+        AdvanceToExtraction(Flow);
+        TestEqual(TEXT("A3 AbandonInExtraction: in Extraction"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Extraction));
+        TestTrue(TEXT("A3 AbandonInExtraction: abandon accepted"), Flow.Abandon());
+        TestEqual(TEXT("A3 AbandonInExtraction: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+    }
+
+    // A4 끝난 뒤 포기는 거절된다
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, false));
+        AdvanceToExtraction(Flow);
+        Flow.SetPlayerInExtractionZone(true);
+        Flow.Tick(45.f);
+        TestEqual(TEXT("A4 AbandonAfterEnd: Success"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Success));
+        TestFalse(TEXT("A4 AbandonAfterEnd: abandon refused"), Flow.Abandon());
+        TestEqual(TEXT("A4 AbandonAfterEnd: still Success"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Success));
+        TestFalse(TEXT("A4 AbandonAfterEnd: not abandoned"), Flow.IsAbandoned());
+    }
+
+    // A5 보통 실패(증원 0 에서 사망)는 포기가 아니다
+    {
+        FHDMissionFlow Flow(MakeTestConfig(0.f, false));
+        Flow.NotifyPlayerLanded();
+        Flow.DebugSetReinforcementsLeft(0);
+        TestTrue(TEXT("A5 NormalFail: death with 0 reinforcements changes phase"), Flow.NotifyPlayerDied());
+        TestEqual(TEXT("A5 NormalFail: Fail"), PhaseName(Flow.GetPhase()), PhaseName(EHDMissionPhase::Fail));
+        TestFalse(TEXT("A5 NormalFail: not abandoned"), Flow.IsAbandoned());
+    }
+
     return true;
 }
 

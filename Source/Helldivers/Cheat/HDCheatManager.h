@@ -136,4 +136,16 @@ public:
     // 다음 출격부터 들어간다. 이미 시작한 미션은 바뀌지 않는다
     UFUNCTION(Exec)
     void        HDSetDifficulty(int32 Level);
+
+    // 작전 포기(확인 창 없이 AHDGameMode::RequestAbandon). 함선 단계·미션 없음·끝난 뒤면 [HDMission] abandon refused 줄
+    UFUNCTION(Exec)
+    void        HDAbandon();
+
+    // 결과 화면의 입력 지연을 보지 않고 함선으로 돌아간다(AHDGameMode::ReturnToShip). 미션이 안 끝났으면 [HDShip] return refused 줄
+    UFUNCTION(Exec)
+    void        HDReturnToShip();
+
+    // 이 월드의 미션 결과 한 줄: [HDMission] result <AHDGameMode 의 결과 로그와 같은 글자>, 없으면 [HDMission] no result
+    UFUNCTION(Exec)
+    void        HDMissionResult();
 };

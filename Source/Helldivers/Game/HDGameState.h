@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameStateBase.h"
 #include "Game/HDMissionTypes.h"
+#include "Progression/HDMissionReward.h"
 #include "HDGameState.generated.h"
 
 class AHDBattleShip;
@@ -41,6 +42,11 @@ public:
     // 함선 단계(폰 없음, 메뉴)인가. AHDGameMode 가 함선에 들어올 때 참, 출격할 때 거짓으로 둔다
     void                        SetInShip(bool bNewInShip);
     bool                        IsInShip() const { return bInShip; }
+
+    // 미션 결과(정산을 마친 요약). AHDGameMode 가 미션이 끝날 때 한 번 넣는다. 결과 패널과 결과 화면 입력이 쓴다
+    void                        SetMissionResult(const FHDMissionResultSummary& Summary);
+    bool                        HasMissionResult() const { return bHasMissionResult; }
+    const FHDMissionResultSummary& GetMissionResult() const { return MissionResult; }
 
 public:
     // SetMissionSnapshot 안에서 단계가 바뀌면 방송한다
@@ -85,4 +91,10 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, Category = "Mission")
     bool                        bInShip;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Mission")
+    FHDMissionResultSummary     MissionResult;
+
+    UPROPERTY(VisibleInstanceOnly, Category = "Mission")
+    bool                        bHasMissionResult;
 };

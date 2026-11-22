@@ -40,9 +40,11 @@ public:
     UHDAbilitySystemComponent*              GetAbilitySystemComponent();
 
     // 키 이벤트는 하나씩 누른 순서대로 온다. Super(Enhanced Input) 를 먼저 부르고, 화살표 누름은 스트라타젬 명령 큐에, 숫자 키 1~4 누름은 무기 칸 큐에 넣는다. Q 누름은 스팀 요청, 왼쪽 Alt 누름은 급강하 요청으로 세운다.
+    // 이어서 Enter·P·Escape·BackSpace 누름(HDDirectKey::TryGetMissionMenuKey)은 미션 메뉴 큐에 넣는다.
     // 함선 메뉴 중에는 메뉴 키(HDShipMenu::TryGetMenuKey)만 메뉴 큐에 넣고 나머지 큐는 건너뛴다
     virtual bool                            InputKey(const FInputKeyEventArgs& Params) override;
-    // Super 의 입력 처리(여기서 Ctrl 입력 모드 GA 가 켜진다) 뒤에 메뉴 큐를 먼저 비우고, 명령 큐, 이어서 무기 칸 큐, 스팀 요청, 급강하 요청을 순서대로 폰에 넘긴다
+    // Super 의 입력 처리(여기서 Ctrl 입력 모드 GA 가 켜진다) 뒤에 메뉴 큐를 먼저 비우고, 미션 메뉴 큐(폰이 캐릭터가 아니어도, 죽어 있어도),
+    // 명령 큐, 이어서 무기 칸 큐, 스팀 요청, 급강하 요청을 순서대로 폰에 넘긴다
     virtual void                            PlayerTick(float DeltaTime) override;
 
     // 치트 HDSimulateKeys 용. 첫 프레임을 바로 보내고 남은 프레임은 한 틱에 한 프레임씩 InputKey 로 보낸다. 보내는 중이면 무시
@@ -59,6 +61,13 @@ public:
     // HUD 마우스: 가리킨 줄로 커서를 옮기고, 누르면 그 줄을 확정한다(Index 가 -1 이면 타이틀 화면 전체)
     void                                    HoverShipMenuItem(int32 Index);
     void                                    ClickShipMenuItem(int32 Index);
+
+    // 결과 화면에서 함선으로(Enter·결과 패널 클릭). 결과가 없으면 무시, 결과 뒤 ResultInputDelay 가 안 지났으면 [HDShip] return ignored, 지났으면 AHDGameMode::ReturnToShip
+    void                                    RequestReturnToShip();
+    // 게임모드가 결과를 낸 뒤 부른다. 확인 창을 닫고 커서·클릭·가리키기 이벤트를 켠다(EnterShipMenu 와 같은 입력 모드, 함선 메뉴는 켜지 않는다)
+    void                                    ShowMissionResult();
+    // 작전 포기 확인 창(ABANDON MISSION?)이 열려 있는가
+    bool                                    IsAbandonPromptOpen() const;
 
 protected:
     virtual void							BeginPlay() override final;
@@ -83,6 +92,12 @@ private:
     void                                    HandleShipMenuKey(EHDShipMenuKey Key);
     // Deploy → AHDGameMode::RequestDeploy, Quit → UKismetSystemLibrary::QuitGame. 뒤 브리프가 Adjust·Select 갈래를 더한다
     void                                    ExecuteShipMenuAction(const FHDShipMenuAction& Action);
+
+    // 미션 메뉴 키 하나. 결과가 있으면 Confirm = RequestReturnToShip, 확인 창이 열려 있으면 Confirm = 닫고 AHDGameMode::RequestAbandon / 나머지 = 닫기,
+    // 미션 진행 중(Deploy·InProgress·Extraction, 함선 아님)이면 ToggleAbandon = 열기. 그 밖은 무시
+    void                                    HandleMissionMenuKey(EHDMissionMenuKey Key);
+    // 확인 창을 열고 닫는다. 바뀔 때만 [HDMission] abandon prompt open / closed
+    void                                    SetAbandonPromptOpen(bool bOpen);
 
 private:
 	UPROPERTY()
@@ -123,4 +138,9 @@ private:
     bool                                    bShipMenuActive = false;
     // InputKey 가 받은 메뉴 키. PlayerTick 이 다른 큐보다 먼저 비운다
     TArray<EHDShipMenuKey>                  PendingShipMenuKeys;
+
+    // InputKey 가 받은 미션 메뉴 키(Enter·P·Escape·BackSpace). PlayerTick 이 함선 메뉴 키 다음에 비운다
+    TArray<EHDMissionMenuKey>               PendingMissionMenuKeys;
+    // 작전 포기 확인 창. 열려 있어도 미션은 멈추지 않는다
+    bool                                    bAbandonPromptOpen = false;
 };

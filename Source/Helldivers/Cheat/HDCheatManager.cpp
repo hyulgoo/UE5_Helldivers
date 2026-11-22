@@ -36,6 +36,7 @@
 #include "Progression/HDProgressionRules.h"
 #include "Progression/HDProgressionSettings.h"
 #include "Progression/HDDifficulty.h"
+#include "Progression/HDMissionReward.h"
 
 namespace HDCheatManager
 {
@@ -879,4 +880,43 @@ void UHDCheatManager::HDSetDifficulty(int32 Level)
     const TArray<FHDDifficultyLevel>& DifficultyTable = GetDefault<UHDProgressionSettings>()->DifficultyLevels;
     const int32 NewLevel = ProfileSubsystem->GetProfile().Difficulty;
     UE_LOG(LogTemp, Display, TEXT("[HDShip] difficulty %d %s (next deploy)"), NewLevel, *HDDifficulty::GetLevel(DifficultyTable, NewLevel).Label);
+}
+
+void UHDCheatManager::HDAbandon()
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->RequestAbandon();
+}
+
+void UHDCheatManager::HDReturnToShip()
+{
+    UWorld* World = GetWorld();
+    AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    if (HDGameMode == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] No HDGameMode in this world"));
+        return;
+    }
+
+    HDGameMode->ReturnToShip();
+}
+
+void UHDCheatManager::HDMissionResult()
+{
+    UWorld* World = GetWorld();
+    const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
+    if (HDGameState == nullptr || HDGameState->HasMissionResult() == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] no result"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] result %s"), *HDProgression::DescribeResult(HDGameState->GetMissionResult()));
 }

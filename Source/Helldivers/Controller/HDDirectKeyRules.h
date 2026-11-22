@@ -15,6 +15,14 @@ struct FHDSimulatedKeyEvent
     EInputEvent     Event = IE_Pressed;
 };
 
+// 미션 중 원시 키가 만드는 메뉴 키(작전 포기 확인 창·결과 화면). AHDPlayerController::HandleMissionMenuKey 가 처리한다
+enum class EHDMissionMenuKey : uint8
+{
+    Confirm,
+    ToggleAbandon,
+    Cancel
+};
+
 // AHDPlayerController::InputKey 가 받는 원시 키 규칙. 월드와 무관한 순수 함수라 자동 테스트(Helldivers.Input.DirectKeys)로 고정한다
 namespace HDDirectKey
 {
@@ -29,6 +37,10 @@ namespace HDDirectKey
 
     // 급강하 키 LeftAlt 의 IE_Pressed 만 참. IE_Repeat·IE_Released·RightAlt·다른 키는 거짓
     HELLDIVERS_API bool     IsDiveKey(const FKey& Key, const EInputEvent Event);
+
+    // 미션 메뉴 키. IE_Pressed 만: Enter = Confirm, P·Escape = ToggleAbandon, BackSpace = Cancel. IE_Repeat·IE_Released·다른 키는 거짓.
+    // 이 네 키는 IMC 에 매핑이 없다
+    HELLDIVERS_API bool     TryGetMissionMenuKey(const FKey& Key, const EInputEvent Event, EHDMissionMenuKey& OutKey);
 
     // "LeftControl+ | Up+ Right+ | Up- Right-" → 프레임 배열.
     // '|' 로 프레임을 나누고 프레임 안은 공백으로 나눈 토큰이다. 빈 프레임은 한 틱 기다림이다.

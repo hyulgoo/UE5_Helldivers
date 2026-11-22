@@ -80,6 +80,34 @@ bool HDDirectKey::IsDiveKey(const FKey& Key, const EInputEvent Event)
     return Event == IE_Pressed && Key == EKeys::LeftAlt;
 }
 
+bool HDDirectKey::TryGetMissionMenuKey(const FKey& Key, const EInputEvent Event, EHDMissionMenuKey& OutKey)
+{
+    if (Event != IE_Pressed)
+    {
+        return false;
+    }
+
+    if (Key == EKeys::Enter)
+    {
+        OutKey = EHDMissionMenuKey::Confirm;
+        return true;
+    }
+
+    if (Key == EKeys::P || Key == EKeys::Escape)
+    {
+        OutKey = EHDMissionMenuKey::ToggleAbandon;
+        return true;
+    }
+
+    if (Key == EKeys::BackSpace)
+    {
+        OutKey = EHDMissionMenuKey::Cancel;
+        return true;
+    }
+
+    return false;
+}
+
 bool HDDirectKey::ParseSimulatedKeys(const FString& Text, TArray<TArray<FHDSimulatedKeyEvent>>& OutFrames, FString& OutError)
 {
     OutFrames.Reset();

@@ -38,6 +38,7 @@ FHDMissionFlow::FHDMissionFlow(const FHDMissionConfig& InConfig)
     , bPlayerAlive(true)
     , bPlayerInExtractionZone(false)
     , bExtractionCalled(false)
+    , bAbandoned(false)
 {
 }
 
@@ -209,4 +210,22 @@ void FHDMissionFlow::DebugSetMissionTimeLimit(float NewMissionTimeLimit)
     }
 
     Config.MissionTimeLimit = NewMissionTimeLimit;
+}
+
+bool FHDMissionFlow::Abandon()
+{
+    // 끝난 뒤(Success·Fail)에는 바꾸지 않는다. 남은 단계는 Deploy·InProgress·Extraction 뿐이다
+    if (IsFinished())
+    {
+        return false;
+    }
+
+    Phase = EHDMissionPhase::Fail;
+    bAbandoned = true;
+    return true;
+}
+
+bool FHDMissionFlow::IsAbandoned() const
+{
+    return bAbandoned;
 }

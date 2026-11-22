@@ -18,6 +18,8 @@
 #include "Controller/HDPlayerController.h"
 #include "Progression/HDProfileSubsystem.h"
 #include "Progression/HDProgressionSettings.h"
+#include "Progression/HDMissionReward.h"
+#include "Kismet/GameplayStatics.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -353,6 +355,118 @@ void AHDGameMode::DebugSetMissionTimeLimit(float Seconds)
     ApplyMissionChange([Seconds](FHDMissionFlow& Flow) { Flow.DebugSetMissionTimeLimit(Seconds); });
 }
 
+bool AHDGameMode::RequestAbandon()
+{
+    if (bInShip)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] abandon refused (in ship)"));
+        return false;
+    }
+
+    if (MissionFlow.IsValid() == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] abandon refused (no mission)"));
+        return false;
+    }
+
+    // 받아들인 줄을 단계 줄(HandlePhaseChanged)보다 먼저 찍는다. ApplyMissionChange 는 Change 를 부른 뒤에 단계 변화를 처리한다
+    bool bAbandoned = false;
+    ApplyMissionChange([&bAbandoned](FHDMissionFlow& Flow)
+    {
+        bAbandoned = Flow.Abandon();
+        if (bAbandoned)
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDMission] abandon"));
+        }
+    });
+
+    if (bAbandoned == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDMission] abandon refused (finished)"));
+    }
+
+    return bAbandoned;
+}
+
+bool AHDGameMode::ReturnToShip()
+{
+    if (MissionFlow.IsValid() == false || MissionFlow->IsFinished() == false)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] return refused (mission not finished)"));
+        return false;
+    }
+
+    UWorld* World = GetWorld();
+    NULL_CHECK_WITH_RETURNTYPE(World, false);
+
+    // PIE 패키지 이름(UEDPIE_0_ 접두사)에서 접두사를 떼어 원래 맵 경로로 연다. 새 월드는 InitGame → 함선 단계로 시작한다
+    const FString MapName = UWorld::RemovePIEPrefix(World->GetOutermost()->GetName());
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] return to ship map=%s"), *MapName);
+
+    UGameplayStatics::OpenLevel(this, FName(*MapName));
+    return true;
+}
+
+void AHDGameMode::FinishMission(EHDMissionPhase NewPhase)
+{
+    // 성공 뒤 같은 월드에서 다시 끝나는 일은 없지만 보상이 두 번 들어가지 않게 막는다
+    if (bResultApplied || MissionFlow.IsValid() == false)
+    {
+        return;
+    }
+    bResultApplied = true;
+
+    FHDMissionOutcome Outcome;
+    Outcome.bSuccess            = NewPhase == EHDMissionPhase::Success;
+    Outcome.bAbandoned          = MissionFlow->IsAbandoned();
+    Outcome.CompletedObjectives = MissionFlow->GetCompletedObjectives();
+    Outcome.RequiredObjectives  = MissionFlow->GetRequiredObjectives();
+    Outcome.Difficulty          = MissionDifficultyLevel;
+    Outcome.DifficultyLabel     = MissionDifficulty.Label;
+    Outcome.RewardMultiplier    = MissionDifficulty.RewardMultiplier;
+    Outcome.ElapsedSeconds      = MissionFlow->GetElapsedSeconds();
+    // 소지 샘플(CarriedSamples)은 브리프 5 가 채운다. 지금은 빈 값이다
+
+    const FHDMissionReward Reward = HDProgression::ComputeReward(Outcome, GetDefault<UHDProgressionSettings>()->MakeRewardRules());
+
+    // 저장 로그([HDProfile] saved)는 서브시스템이 찍는다
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    if (ProfileSubsystem)
+    {
+        ProfileSubsystem->ModifyProfile([&Outcome, &Reward](FHDProfileData& Data)
+        {
+            HDProgression::ApplyMissionResult(Data, Outcome, Reward);
+        });
+    }
+
+    const UWorld* World = GetWorld();
+
+    FHDMissionResultSummary Summary;
+    Summary.Outcome             = Outcome;
+    Summary.Reward              = Reward;
+    Summary.TotalRequisition    = ProfileSubsystem ? ProfileSubsystem->GetProfile().Requisition : 0;
+    Summary.ResultWorldTime     = World ? World->GetTimeSeconds() : 0.0;
+
+    AHDGameState* HDGameState = GetGameState<AHDGameState>();
+    if (HDGameState)
+    {
+        HDGameState->SetMissionResult(Summary);
+    }
+
+    if (ProfileSubsystem)
+    {
+        ProfileSubsystem->SetLastResult(Summary);
+    }
+
+    AHDPlayerController* HDPlayerController = World ? Cast<AHDPlayerController>(World->GetFirstPlayerController()) : nullptr;
+    if (HDPlayerController)
+    {
+        HDPlayerController->ShowMissionResult();
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDMission] result %s"), *HDProgression::DescribeResult(Summary));
+}
+
 int32 AHDGameMode::PlaceObjectives(const UHDMissionSettings& Settings, int32 RequiredCount)
 {
     using namespace HDPlaceObjective;
@@ -664,5 +778,7 @@ void AHDGameMode::HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase N
         StopForMissionEnd();
 
         UE_LOG(LogTemp, Display, TEXT("[HDMission] mission %s"), NewPhase == EHDMissionPhase::Success ? TEXT("Success") : TEXT("Fail"));
+
+        FinishMission(NewPhase);
     }
 }

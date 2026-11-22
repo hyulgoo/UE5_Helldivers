@@ -52,6 +52,13 @@ public:
     void                        DebugSetReinforcementsLeft(int32 Count);
     void                        DebugSetMissionTimeLimit(float Seconds);
 
+    // 작전 포기(확인 창 Enter·치트 HDAbandon). 함선 단계·미션 로직 없음·이미 끝났으면 거짓(abandon refused 로그).
+    // 받아들이면 [HDMission] abandon 뒤 보통의 Fail 경로(HandlePhaseChanged → FinishMission)로 끝난다
+    bool                        RequestAbandon();
+
+    // 결과 화면에서 함선으로(Enter·클릭·치트 HDReturnToShip). 미션이 끝났을 때만 같은 맵을 다시 연다(새 월드는 함선 단계로 시작한다)
+    bool                        ReturnToShip();
+
 private:
     // 프로필의 난이도 행을 정하고, 목표를 배치하고 FHDMissionFlow 를 만든다([HDMission] start 로그까지)
     void                        BeginMission();
@@ -80,6 +87,9 @@ private:
     void                        SyncGameState() const;
     void                        HandlePhaseChanged(EHDMissionPhase OldPhase, EHDMissionPhase NewPhase);
 
+    // Success·Fail 뒤 한 미션에 한 번만: 보상 계산 → 프로필 반영·저장 → 게임스테이트·서브시스템에 요약 → 결과 화면 → [HDMission] result 로그
+    void                        FinishMission(EHDMissionPhase NewPhase);
+
 private:
     TUniquePtr<FHDMissionFlow>  MissionFlow;
 
@@ -96,4 +106,7 @@ private:
     // 이번 미션의 난이도 단계(1 부터, BeginMission 전에는 0)와 그 행. BeginMission 이 프로필에서 정한다
     int32                       MissionDifficultyLevel = 0;
     FHDDifficultyLevel          MissionDifficulty;
+
+    // 이번 미션의 보상을 이미 넣었는가(FinishMission)
+    bool                        bResultApplied = false;
 };

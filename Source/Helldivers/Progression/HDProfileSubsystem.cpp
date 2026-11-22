@@ -95,6 +95,16 @@ void UHDProfileSubsystem::MarkTitleShown()
     bTitleShown = true;
 }
 
+void UHDProfileSubsystem::SetLastResult(const FHDMissionResultSummary& Summary)
+{
+    LastResult = Summary;
+}
+
+const FHDMissionResultSummary* UHDProfileSubsystem::GetLastResult() const
+{
+    return LastResult.IsSet() ? &LastResult.GetValue() : nullptr;
+}
+
 FHDProfileData UHDProfileSubsystem::MakeNewProfile() const
 {
     FHDProfileData NewProfile;
