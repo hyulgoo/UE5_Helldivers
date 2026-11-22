@@ -79,19 +79,38 @@ void AHDWeapon::SpawnProjectile(const FVector& HitTarget)
     UWorld* World = GetWorld();
 
     const FTransform& MuzzleSocketTransform = WeaponMesh->GetSocketTransform(HDSOCKETNAME_MUZZLEFLASH);
-    const FVector ToTarget = HitTarget - MuzzleSocketTransform.GetLocation();
-    const FTransform SpawnTransform(ToTarget.Rotation(), MuzzleSocketTransform.GetLocation());
+    const FVector MuzzleLocation = MuzzleSocketTransform.GetLocation();
+    const FVector ToTarget = HitTarget - MuzzleLocation;
 
     // Instigator 를 넘겨야 탄이 BeginPlay 에서 쏜 캐릭터를 무시한다
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = GetOwner();
     SpawnParams.Instigator = Cast<APawn>(GetOwner());
 
-    AHDProjectileBase* SpawnedProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform, SpawnParams);
-    NULL_CHECK(SpawnedProjectile);
+    // 산탄총은 한 번에 PelletCount 개. 하나면 지금처럼 조준점으로 곧게 쏜다
+    const int32 SpawnCount = FMath::Max(1, PelletCount);
+    const FVector AimDirection = ToTarget.GetSafeNormal();
+    const float SpreadHalfAngle = FMath::DegreesToRadians(PelletSpreadDegrees);
 
-    // 판정은 맞을 때 읽으므로 BeginPlay 뒤에 넣어도 된다
-    SpawnedProjectile->SetArmorPenetration(ArmorPenetration);
+    int32 SpawnedCount = 0;
+    for (int32 PelletIndex = 0; PelletIndex < SpawnCount; ++PelletIndex)
+    {
+        const FRotator SpawnRotation = SpawnCount > 1 ? FMath::VRandCone(AimDirection, SpreadHalfAngle).Rotation() : ToTarget.Rotation();
+        const FTransform SpawnTransform(SpawnRotation, MuzzleLocation);
+
+        AHDProjectileBase* SpawnedProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform, SpawnParams);
+        if (SpawnedProjectile == nullptr)
+        {
+            continue;
+        }
+
+        // 판정은 맞을 때 읽으므로 BeginPlay 뒤에 넣어도 된다
+        SpawnedProjectile->SetArmorPenetration(ArmorPenetration);
+        ++SpawnedCount;
+    }
+
+    // 하나도 못 만들었으면 지금처럼 탄피도 내지 않는다
+    CONDITION_CHECK(SpawnedCount > 0);
 
     const FTransform& EjectSocketTransform = WeaponMesh->GetSocketTransform(HDSOCKETNAME_AMMOEJECT);
     CONDITION_CHECK(EjectSocketTransform.IsValid());

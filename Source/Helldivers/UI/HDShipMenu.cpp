@@ -5,6 +5,7 @@
 #include "Progression/HDProgressionRules.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Progression/HDWeaponCatalog.h"
 #include "Stratagem/HDStratagemCatalog.h"
 
 namespace HDShipMenuItemId
@@ -73,8 +74,58 @@ namespace HDShipMenuPrivate
         QuitItem.ConfirmAction      = EHDShipActionType::Quit;
     }
 
+    // Loadout 화면의 무기 세 줄(Primary·Secondary·Grenade, 브리프 9): "PRIMARY  < <DisplayName> >"(GetChosen 값).
+    // ← → 는 Adjust(컨트롤러가 그 칸의 열린 무기를 돌린다), 확정은 아무것도 하지 않는다
+    void AddWeaponLoadoutItems(TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context)
+    {
+        for (const EHDLoadoutWeapon Slot : { EHDLoadoutWeapon::Primary, EHDLoadoutWeapon::Secondary, EHDLoadoutWeapon::Grenade })
+        {
+            const FHDWeaponOption* Option = HDWeaponCatalog::Find(HDWeaponCatalog::GetChosen(Context.Profile, Slot));
+            if (Option == nullptr)
+            {
+                continue;
+            }
+
+            const FString SlotName  = HDWeaponCatalog::GetSlotName(Slot);
+
+            FHDShipMenuItem& Item   = Items.AddDefaulted_GetRef();
+            Item.Id                 = FName(*SlotName);
+            Item.Label              = FString::Printf(TEXT("%s  < %s >"), *SlotName.ToUpper(), *Option->DisplayName);
+            Item.Detail             = Option->Detail;
+            Item.bAdjustable        = true;
+            Item.ConfirmAction      = EHDShipActionType::None;
+        }
+    }
+
+    // Armory 화면의 무기 줄(브리프 9): 표 순서로 가격 > 0 인 무기마다 "<DisplayName>  <가격> REQ" 또는 "<DisplayName>  UNLOCKED".
+    // 잠겨 있고 징발이 충분할 때만 켜짐, 해금했으면 꺼짐
+    void AddWeaponArmoryItems(TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context)
+    {
+        for (const FHDWeaponOption& Option : HDWeaponCatalog::GetOptions())
+        {
+            if (Option.UnlockCost <= 0)
+            {
+                continue;
+            }
+
+            const bool bUnlocked    = HDWeaponCatalog::IsUnlocked(Context.Profile, Option.Id);
+
+            FHDCost Cost;
+            Cost.Requisition = Option.UnlockCost;
+
+            FHDShipMenuItem& Item   = Items.AddDefaulted_GetRef();
+            Item.Id                 = Option.Id;
+            Item.Label              = bUnlocked
+                ? FString::Printf(TEXT("%s  UNLOCKED"), *Option.DisplayName)
+                : FString::Printf(TEXT("%s  %d REQ"), *Option.DisplayName, Option.UnlockCost);
+            Item.Detail             = Option.Detail;
+            Item.bEnabled           = bUnlocked == false && HDProgression::CanAfford(Context.Profile, Cost);
+            Item.ConfirmAction      = EHDShipActionType::Select;
+        }
+    }
+
     // Loadout 화면: 정리한 로드아웃의 칸마다 한 줄(Slot1~Slot4). ← → 는 Adjust(컨트롤러가 해금된 이름을 돌린다), 확정은 아무것도 하지 않는다.
-    // 설명의 값은 정의 값이다(업그레이드 적용 전)
+    // 설명의 값은 정의 값이다(업그레이드 적용 전). 칸 줄 뒤에 무기 세 줄을 붙인다
     TArray<FHDShipMenuItem> BuildLoadoutItems(const FHDShipMenuContext& Context)
     {
         TArray<FHDShipMenuItem> Items;
@@ -105,10 +156,12 @@ namespace HDShipMenuPrivate
             }
         }
 
+        AddWeaponLoadoutItems(Items, Context);
         return Items;
     }
 
-    // Armory 화면: 카탈로그 파일 순서로 UnlockCost > 0 인 행마다 한 줄. 잠겨 있고 징발이 충분할 때만 켜짐, 해금했으면 꺼짐
+    // Armory 화면: 카탈로그 파일 순서로 UnlockCost > 0 인 행마다 한 줄. 잠겨 있고 징발이 충분할 때만 켜짐, 해금했으면 꺼짐.
+    // 스트라타젬 줄 뒤에 무기 줄을 붙인다. 스트라타젬 카탈로그가 없으면 Loadout 과 같이 무기 줄도 넣지 않는다(헤더 BuildItems 설명 그대로)
     TArray<FHDShipMenuItem> BuildArmoryItems(const FHDShipMenuContext& Context)
     {
         TArray<FHDShipMenuItem> Items;
@@ -144,6 +197,7 @@ namespace HDShipMenuPrivate
             Item.ConfirmAction      = EHDShipActionType::Select;
         }
 
+        AddWeaponArmoryItems(Items, Context);
         return Items;
     }
 

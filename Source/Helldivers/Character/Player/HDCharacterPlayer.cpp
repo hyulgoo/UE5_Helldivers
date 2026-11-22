@@ -31,6 +31,7 @@
 #include "Progression/HDProfileSubsystem.h"
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Progression/HDWeaponCatalog.h"
 #include "Engine/World.h"
 
 namespace
@@ -402,7 +403,9 @@ void AHDCharacterPlayer::ThrowGrenade()
 
     // 회전 없이 만든다. ProjectileMovement 는 bInitialVelocityInLocalSpace 라 생성 회전으로 속도를 한 번 더 돌린다
     const FTransform SpawnTransform(ThrowStart);
-    AHDProjectileGrenade* Grenade = World->SpawnActorDeferred<AHDProjectileGrenade>(AHDProjectileGrenade::StaticClass(), SpawnTransform, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    // 로드아웃에서 고른 수류탄(SpawnDefaultWeapon 이 채운다). 비었으면 파편 수류탄
+    UClass* ThrowClass = GrenadeClass ? GrenadeClass.Get() : AHDProjectileGrenade::StaticClass();
+    AHDProjectileGrenade* Grenade = World->SpawnActorDeferred<AHDProjectileGrenade>(ThrowClass, SpawnTransform, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
     NULL_CHECK(Grenade);
 
     Grenade->SetThrowVelocity(ThrowVelocity);
@@ -704,21 +707,42 @@ void AHDCharacterPlayer::SetWeaponActive(const bool bActive)
 
 void AHDCharacterPlayer::SpawnDefaultWeapon(const FGameplayEventData* Payload)
 {
-    AHDWeapon* Weapon = Combat->SpawnDefaultWeapon();
+    // 로드아웃에서 고른 무기(브리프 9). 강하·증원·함선 속 헬다이버가 모두 여기를 지나므로 함선에서 바꾼 무기는 다음 스폰부터다
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+    const FHDProfileData Profile = ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData();
+    const FName PrimaryId = HDWeaponCatalog::GetChosen(Profile, EHDLoadoutWeapon::Primary);
+    const FName SecondaryId = HDWeaponCatalog::GetChosen(Profile, EHDLoadoutWeapon::Secondary);
+    const FName GrenadeId = HDWeaponCatalog::GetChosen(Profile, EHDLoadoutWeapon::Grenade);
+
+    // 주무기: 표의 클래스가 없으면(돌격소총) 지금처럼 캐릭터 기본(BP_Rifle)
+    UClass* PrimaryClass = HDWeaponCatalog::GetWeaponClass(PrimaryId);
+    AHDWeapon* Weapon = PrimaryClass ? GetWorld()->SpawnActor<AHDWeapon>(PrimaryClass) : Combat->SpawnDefaultWeapon();
     NULL_CHECK(Weapon);
     EquipWeapon(Weapon);
 
-    // 보조무기(권총)는 집어넣은 채로 지급한다. 주무기가 쓰는 칸으로 남는다
-    AHDSecondaryWeapon* SecondaryWeapon = GetWorld()->SpawnActor<AHDSecondaryWeapon>(AHDSecondaryWeapon::StaticClass());
+    // 보조무기는 집어넣은 채로 지급한다. 주무기가 쓰는 칸으로 남는다
+    UClass* SecondaryClass = HDWeaponCatalog::GetWeaponClass(SecondaryId);
+    if (SecondaryClass == nullptr || SecondaryClass->IsChildOf(AHDSecondaryWeapon::StaticClass()) == false)
+    {
+        SecondaryClass = AHDSecondaryWeapon::StaticClass();
+    }
+    AHDSecondaryWeapon* SecondaryWeapon = GetWorld()->SpawnActor<AHDSecondaryWeapon>(SecondaryClass);
     NULL_CHECK(SecondaryWeapon);
     Combat->StowWeapon(SecondaryWeapon);
+
+    // 수류탄은 던질 때(ThrowGrenade) 이 클래스로 만든다
+    UClass* ChosenGrenadeClass = HDWeaponCatalog::GetWeaponClass(GrenadeId);
+    GrenadeClass = (ChosenGrenadeClass && ChosenGrenadeClass->IsChildOf(AHDProjectileGrenade::StaticClass()))
+        ? ChosenGrenadeClass
+        : AHDProjectileGrenade::StaticClass();
+
+    UE_LOG(LogTemp, Display, TEXT("[HDWeapon] loadout primary=%s secondary=%s grenade=%s"), *PrimaryId.ToString(), *SecondaryId.ToString(), *GrenadeId.ToString());
 
     UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
     NULL_CHECK(ASC);
     ASC->GenericGameplayEventCallbacks.Remove(Tag_Event_PlayerHUD_Initialize);
 
     // 함선 업그레이드(ExtraStimsAndGrenades)만큼 더 받는다. 보급은 Max 로 채우므로 따라 늘어난다
-    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
     const FHDUpgradeModifiers Upgrades = ProfileSubsystem
         ? HDUpgrade::ComputeModifiers(ProfileSubsystem->GetProfile(), FHDUpgradeCatalog::GetProjectCatalog())
         : FHDUpgradeModifiers();

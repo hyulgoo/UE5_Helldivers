@@ -38,6 +38,10 @@ public:
     // 칸 규칙(GetWeaponSlot)과 따로 둔다: 노티파이가 있는 지원 무기가 생기면 이벤트가 두 번 가기 때문이다
     virtual bool                        SendsMontageEventsFromCode() const { return false; }
 
+    // 한 번 쏠 때 나가는 탄 수(산탄총 8, 그 밖 1)
+    int32                               GetPelletCount() const { return PelletCount; }
+    bool                                IsAutoFireWeapon() const { return bIsAutoFire; }
+
     // 손에서 떼어 Location 에 놓는다. 줍기 구는 PickupRearmDelay 뒤에 되살린다(바로 켜면 발밑에 버린 무기를 그 자리에서 다시 줍는다)
     void                                DropAt(const FVector& Location);
 
@@ -91,7 +95,14 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Weapon|Default")
     int32                               ArmorPenetration = 2;
 
-    EWeaponState                        WeaponState = EWeaponState::Drop;
+    // 한 번 쏠 때 나가는 탄 수. 둘 이상이면 탄마다 PelletSpreadDegrees 원뿔 안에서 방향을 흩뜨린다(탄피는 하나)
+    UPROPERTY(EditDefaultsOnly, Category = "Weapon|Default")
+    int32                               PelletCount = 1;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Weapon|Default")
+    float                               PelletSpreadDegrees = 0.f;
+
+    EWeaponState                       WeaponState = EWeaponState::Drop;
 
 private:
     FTimerHandle                        PickupRearmTimerHandle;

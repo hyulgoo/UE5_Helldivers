@@ -22,6 +22,7 @@
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
 #include "Progression/HDArmoryRules.h"
+#include "Progression/HDWeaponCatalog.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Stratagem/HDStratagemSettings.h"
 #include "Ship/HDShipHubRules.h"
@@ -55,6 +56,21 @@ namespace HDPlayerControllerShip
 
         const int32 SlotNumber = FCString::Atoi(*NumberText);
         return (SlotNumber >= 1 && SlotNumber <= FHDStratagemLoadout::MaxSlots) ? SlotNumber - 1 : INDEX_NONE;
+    }
+
+    // HDShipMenu::BuildItems 의 Loadout 무기 줄 Id "Primary"·"Secondary"·"Grenade"(HDWeaponCatalog::GetSlotName) → 칸. 아니면 거짓
+    bool TryGetLoadoutWeapon(const FName ItemId, EHDLoadoutWeapon& OutSlot)
+    {
+        for (const EHDLoadoutWeapon Slot : { EHDLoadoutWeapon::Primary, EHDLoadoutWeapon::Secondary, EHDLoadoutWeapon::Grenade })
+        {
+            if (ItemId == FName(HDWeaponCatalog::GetSlotName(Slot)))
+            {
+                OutSlot = Slot;
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
@@ -568,6 +584,25 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
             break;
         }
 
+        // Loadout 화면의 무기 줄: 그 칸의 열린 다음 무기를 프로필에 저장한다(다음 스폰부터, 브리프 9). 저장 로그는 서브시스템이 찍는다
+        EHDLoadoutWeapon WeaponSlot = EHDLoadoutWeapon::Primary;
+        if (HDPlayerControllerShip::TryGetLoadoutWeapon(Action.Id, WeaponSlot))
+        {
+            UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+            NULL_CHECK(ProfileSubsystem);
+
+            const int32 Delta = Action.Value;
+            FName NewWeapon = NAME_None;
+            ProfileSubsystem->ModifyProfile([&NewWeapon, WeaponSlot, Delta](FHDProfileData& Data)
+            {
+                NewWeapon = HDWeaponCatalog::Cycle(Data, WeaponSlot, Delta);
+                HDWeaponCatalog::SetChosen(Data, WeaponSlot, NewWeapon);
+            });
+
+            UE_LOG(LogTemp, Display, TEXT("[HDLoadout] %s -> %s"), *FString(HDWeaponCatalog::GetSlotName(WeaponSlot)).ToLower(), *NewWeapon.ToString());
+            break;
+        }
+
         if (Action.Id != HDPlayerControllerShip::DifficultyItemId)
         {
             break;
@@ -590,11 +625,30 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
     }
     case EHDShipActionType::Select:
     {
-        // Armory 화면의 줄 = 스트라타젬 이름. 꺼진 줄(해금함·징발 모자람)은 메뉴가 None 을 돌려주므로 여기까지 오지 않는다
+        // Armory 화면의 줄 = 스트라타젬 이름 또는 무기 Id. 꺼진 줄(해금함·징발 모자람)은 메뉴가 None 을 돌려주므로 여기까지 오지 않는다
         if (ShipMenu.GetScreen() == EHDShipScreen::Armory)
         {
             UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
             NULL_CHECK(ProfileSubsystem);
+
+            // 무기 표에 있으면 무기 해금(브리프 9). 해금한 무기는 다음에 LOADOUT 무기 줄 후보로 나온다
+            if (HDWeaponCatalog::Find(Action.Id))
+            {
+                const FName WeaponId = Action.Id;
+                const int32 OldRequisition = ProfileSubsystem->GetProfile().Requisition;
+                EHDUnlockResult Result = EHDUnlockResult::Unknown;
+                ProfileSubsystem->ModifyProfile([&Result, WeaponId](FHDProfileData& Data)
+                {
+                    Result = HDWeaponCatalog::TryUnlock(Data, WeaponId);
+                });
+
+                UE_LOG(LogTemp, Display, TEXT("[HDArmory] unlock weapon %s (%s) requisition %d -> %d"),
+                    *WeaponId.ToString(),
+                    HDArmory::GetUnlockResultName(Result),
+                    OldRequisition,
+                    ProfileSubsystem->GetProfile().Requisition);
+                break;
+            }
 
             // 해금한 스트라타젬은 다음에 LOADOUT 후보로 나온다. 저장 로그는 서브시스템이 찍는다
             const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();

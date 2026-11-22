@@ -89,4 +89,18 @@ struct HELLDIVERS_API FHDProfileData
 
     UPROPERTY()
     int32               MissionsWon = 0;
+
+    // 고른 무기(HDWeaponCatalog 표의 Id, 브리프 9). 비면 그 칸의 기본 무기
+    UPROPERTY()
+    FName               PrimaryWeapon;
+
+    UPROPERTY()
+    FName               SecondaryWeapon;
+
+    UPROPERTY()
+    FName               Grenade;
+
+    // 값을 치르고 해금한 무기 Id(처음부터 열린 것은 넣지 않는다)
+    UPROPERTY()
+    TArray<FName>       UnlockedWeapons;
 };

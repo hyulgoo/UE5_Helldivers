@@ -106,6 +106,7 @@ namespace HDProgression
 
         RemoveDuplicateNames(Data.UnlockedStratagems);
         RemoveDuplicateNames(Data.Loadout);
+        RemoveDuplicateNames(Data.UnlockedWeapons);
     }
 
     FString Describe(const FHDProfileData& Data)

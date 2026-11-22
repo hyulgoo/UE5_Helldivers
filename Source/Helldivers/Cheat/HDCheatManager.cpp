@@ -42,6 +42,7 @@
 #include "Progression/HDUpgradeCatalog.h"
 #include "Progression/HDUpgradeRules.h"
 #include "Progression/HDArmoryRules.h"
+#include "Progression/HDWeaponCatalog.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Stratagem/HDStratagemSettings.h"
 #include "Ship/HDShipHubRules.h"
@@ -1167,6 +1168,63 @@ void UHDCheatManager::HDArmory()
     }
 
     UE_LOG(LogTemp, Display, TEXT("[HDArmory] loadout %s"), *FString::Join(LoadoutNames, TEXT(",")));
+
+    // 무기 표(브리프 9)
+    for (const FHDWeaponOption& Option : HDWeaponCatalog::GetOptions())
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmory] weapon %s cost=%d unlocked=%d"),
+            *Option.Id.ToString(),
+            Option.UnlockCost,
+            HDWeaponCatalog::IsUnlocked(Profile, Option.Id) ? 1 : 0);
+    }
+}
+
+void UHDCheatManager::HDLoadout()
+{
+    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDLoadout] No profile subsystem"));
+        return;
+    }
+
+    // 다음 스폰의 무기(AHDCharacterPlayer::SpawnDefaultWeapon 과 같은 GetChosen)와 칸(UHDStratagemComponent::BindLoadout 과 같은 정리)
+    const FHDProfileData& Profile = ProfileSubsystem->GetProfile();
+    UE_LOG(LogTemp, Display, TEXT("[HDLoadout] %s"), *HDWeaponCatalog::Describe(Profile));
+
+    const TArray<FName> Loadout = ::HDArmory::ValidateLoadout(Profile.Loadout, Profile, FHDStratagemCatalog::GetProjectCatalog(), GetDefault<UHDStratagemSettings>()->Loadout);
+    TArray<FString> LoadoutNames;
+    for (const FName& StratagemName : Loadout)
+    {
+        LoadoutNames.Add(StratagemName.ToString());
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDLoadout] stratagems %s"), *FString::Join(LoadoutNames, TEXT(",")));
+}
+
+void UHDCheatManager::HDUnlockWeapon(const FString& Id)
+{
+    UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(GetPlayerController());
+    if (ProfileSubsystem == nullptr)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDArmory] No profile subsystem"));
+        return;
+    }
+
+    // 메뉴(AHDPlayerController::ExecuteShipMenuAction 의 Armory 무기 줄 Select)와 같은 경로·같은 로그. 거부도 저장 경로를 탄다(프로필은 그대로)
+    const FName WeaponId(*Id);
+    const int32 OldRequisition = ProfileSubsystem->GetProfile().Requisition;
+    EHDUnlockResult Result = EHDUnlockResult::Unknown;
+    ProfileSubsystem->ModifyProfile([&Result, WeaponId](FHDProfileData& Data)
+    {
+        Result = HDWeaponCatalog::TryUnlock(Data, WeaponId);
+    });
+
+    UE_LOG(LogTemp, Display, TEXT("[HDArmory] unlock weapon %s (%s) requisition %d -> %d"),
+        *WeaponId.ToString(),
+        ::HDArmory::GetUnlockResultName(Result),
+        OldRequisition,
+        ProfileSubsystem->GetProfile().Requisition);
 }
 
 void UHDCheatManager::HDUnlockStratagem(const FString& Name)

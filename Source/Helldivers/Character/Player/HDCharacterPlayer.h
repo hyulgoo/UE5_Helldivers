@@ -14,6 +14,7 @@ class UHDCombatComponent;
 class UHDMovementStateComponent;
 class UHDStratagemComponent;
 class UHDCharacterControlData;
+class AHDProjectileGrenade;
 struct FGameplayEventData;
 enum class EHDCharacterMovementState : uint8;
 enum class EHDCharacterStanceState : uint8;
@@ -133,6 +134,10 @@ private:
     
     UPROPERTY(EditAnywhere)
     TSubclassOf<UGameplayEffect>            WeaponAttributeSetEffect;
+
+    // 던질 수류탄 클래스. SpawnDefaultWeapon 이 프로필에서 고른 것으로 채운다(비면 파편 수류탄)
+    UPROPERTY()
+    TSubclassOf<AHDProjectileGrenade>       GrenadeClass;
 
     FTimerHandle                            CodeReloadEventTimerHandle;
     // 직전 코드 발사 이벤트 시각(월드 초). 아직 없으면 음수

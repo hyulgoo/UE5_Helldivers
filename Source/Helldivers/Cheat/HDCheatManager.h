@@ -170,13 +170,22 @@ public:
     UFUNCTION(Exec)
     void        HDBuyUpgrade(const FString& Name);
 
-    // 스트라타젬 카탈로그 행마다 [HDArmory] <이름> cost=<UnlockCost> unlocked=0|1, 마지막에 [HDArmory] loadout <정리한 프로필 로드아웃, 쉼표로>
+    // 스트라타젬 카탈로그 행마다 [HDArmory] <이름> cost=<UnlockCost> unlocked=0|1, 이어서 [HDArmory] loadout <정리한 프로필 로드아웃, 쉼표로>,
+    // 끝에 무기 표 행마다 [HDArmory] weapon <Id> cost=<가격> unlocked=0|1
     UFUNCTION(Exec)
     void        HDArmory();
 
     // 함선 메뉴 ARMORY 줄 확정과 같은 ModifyProfile(TryUnlock) 경로. [HDArmory] unlock <이름> (unlocked|cannot afford|already unlocked|unknown) requisition <전> -> <후>
     UFUNCTION(Exec)
     void        HDUnlockStratagem(const FString& Name);
+
+    // 다음 스폰의 무기·스트라타젬: [HDLoadout] primary=<Id> secondary=<Id> grenade=<Id> unlocked=<쉼표로>, [HDLoadout] stratagems <정리한 프로필 로드아웃, 쉼표로>
+    UFUNCTION(Exec)
+    void        HDLoadout();
+
+    // 함선 메뉴 ARMORY 무기 줄 확정과 같은 ModifyProfile(HDWeaponCatalog::TryUnlock) 경로. [HDArmory] unlock weapon <Id> (unlocked|cannot afford|already unlocked|unknown) requisition <전> -> <후>
+    UFUNCTION(Exec)
+    void        HDUnlockWeapon(const FString& Id);
 
     // 걸어 다니는 함선 상태: [HDShipHub] interior=0|1 crew=0|1 menu=<화면|none> root=<뿌리> launch=<남은 초|-1> pawnLocal=<방 기준 위치|none>,
     // 이어서 단말기마다 [HDShipHub] terminal <번호> <Id> world=<월드 위치|none> dist=<폰과 XY 거리|-1>
