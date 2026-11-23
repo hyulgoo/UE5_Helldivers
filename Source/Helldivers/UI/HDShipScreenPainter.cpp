@@ -6,6 +6,7 @@
 #include "UI/HDShipUILayout.h"
 #include "UI/HDShipMenu.h"
 #include "UI/HDShipMenuView.h"
+#include "Ship/HDShipHubRules.h"
 
 namespace HDShipScreenPainterPrivate
 {
@@ -36,9 +37,12 @@ namespace HDShipScreenPainterPrivate
     constexpr float     CountdownNumberY    = 520.f;
     constexpr float     CountdownCancelY    = 720.f;
 
-    // 함선 안: 단말기 안내 가운데 y 900, 최대 폭 900
-    constexpr float     PromptY             = 900.f;
-    constexpr float     PromptMaxWidth      = 900.f;
+    // 함선 안 단말기 태그(설계 단위): 좌우 여백 12, 높이 수동 28·활성 40. 키 상자 폭 = 글자 + 20(KeyCap 양옆 여백 10)
+    constexpr float     TagPadding          = 12.f;
+    constexpr float     PassiveTagHeight    = 28.f;
+    constexpr float     ActiveTagHeight     = 40.f;
+    constexpr float     KeyCapPaddingTotal  = 20.f;
+    const TCHAR* const  InteractKeyText     = TEXT("E");
 
     const TCHAR* const  CountdownHeaderText = TEXT("HELLPOD LAUNCH");
     const TCHAR* const  CancelKeyText       = TEXT("BACKSPACE");
@@ -258,7 +262,7 @@ void FHDShipScreenPainter::PaintCountdown(FHDShipUICanvas& Canvas, int32 Display
     Canvas.HitBox(HintBox, HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Key, static_cast<int32>(EHDShipMenuKey::Back)));
 }
 
-void FHDShipScreenPainter::PaintInteriorOverlay(FHDShipUICanvas& Canvas, const FHDResourceView& Resources, const FString& Prompt)
+void FHDShipScreenPainter::PaintInteriorOverlay(FHDShipUICanvas& Canvas, const FHDResourceView& Resources)
 {
     using namespace HDShipScreenPainterPrivate;
 
@@ -266,9 +270,64 @@ void FHDShipScreenPainter::PaintInteriorOverlay(FHDShipUICanvas& Canvas, const F
 
     const FVector2D HelpPoint = ToPoint(Canvas, Margin, BottomCenterY);
     PaintKeyHint(Canvas, ShipMenuKeyText, ShipMenuActionText, static_cast<float>(HelpPoint.X), static_cast<float>(HelpPoint.Y), static_cast<float>(ToPoint(Canvas, DesignWidth * 0.5f, 0.f).X));
+}
 
-    if (Prompt.IsEmpty() == false)
+FVector2D FHDShipScreenPainter::MeasurePromptTag(const FHDShipUICanvas& Canvas, const FString& Label, bool bActive)
+{
+    using namespace HDShipScreenPainterPrivate;
+
+    const float Scale = Canvas.GetScale();
+    if (bActive == false)
     {
-        Canvas.Text(Prompt, EHDShipFont::Body, ToPoint(Canvas, DesignWidth * 0.5f, PromptY), EHDShipTextAlign::Center, Accent, Canvas.Px(PromptMaxWidth));
+        const float NameWidth = Canvas.Measure(Label, GetFontPx(EHDShipFont::Small, Scale), IsBold(EHDShipFont::Small));
+        return FVector2D(NameWidth + Canvas.Px(TagPadding) * 2.f, Canvas.Px(PassiveTagHeight));
+    }
+
+    const float KeyWidth = Canvas.Measure(InteractKeyText, GetFontPx(EHDShipFont::KeyCap, Scale), true) + Canvas.Px(KeyCapPaddingTotal);
+    const float NameWidth = Canvas.Measure(Label, GetFontPx(EHDShipFont::Body, Scale), IsBold(EHDShipFont::Body));
+    return FVector2D(KeyWidth + Canvas.Px(HintInnerGap) + NameWidth + Canvas.Px(TagPadding) * 2.f, Canvas.Px(ActiveTagHeight));
+}
+
+void FHDShipScreenPainter::PaintPromptTags(FHDShipUICanvas& Canvas, const TArray<FHDPromptTag>& Tags, const TArray<FHDPromptTagInput>& Inputs, const TArray<FString>& Labels)
+{
+    using namespace HDShipScreenPainterPrivate;
+
+    for (int32 Index = 0; Index < Tags.Num(); ++Index)
+    {
+        const FHDPromptTag& Tag = Tags[Index];
+        if (Tag.bVisible == false || Inputs.IsValidIndex(Index) == false || Labels.IsValidIndex(Index) == false)
+        {
+            continue;
+        }
+
+        const FBox2D& Rect = Tag.Rect;
+        const FVector2D Anchor = Inputs[Index].ScreenAnchor;
+
+        // 투영점까지 선: 상자 아래 가운데에서 내려간 뒤 옆으로(1px)
+        if (Tag.bEdgeClamped == false && Inputs[Index].bProjected && Anchor.Y > Rect.Max.Y)
+        {
+            const double CenterX = Rect.GetCenter().X;
+            Canvas.Fill(FBox2D(FVector2D(CenterX, Rect.Max.Y), FVector2D(CenterX + 1.0, Anchor.Y)), Line);
+            if (FMath::Abs(Anchor.X - CenterX) > 1.0)
+            {
+                Canvas.Fill(FBox2D(FVector2D(FMath::Min(CenterX, Anchor.X), Anchor.Y - 1.0), FVector2D(FMath::Max(CenterX, Anchor.X), Anchor.Y)), Line);
+            }
+        }
+
+        const float CenterY = static_cast<float>(Rect.GetCenter().Y);
+        const float InnerWidth = FMath::Max(0.f, static_cast<float>(Rect.GetSize().X) - Canvas.Px(TagPadding) * 2.f);
+        if (Tag.bActive)
+        {
+            Canvas.Fill(Rect, Card);
+            Canvas.Border(Rect, BorderThin, Accent);
+            const FBox2D KeyBox = Canvas.KeyCap(InteractKeyText, FVector2D(Rect.Min.X + Canvas.Px(TagPadding), CenterY));
+            const float NameLeft = static_cast<float>(KeyBox.Max.X) + Canvas.Px(HintInnerGap);
+            Canvas.Text(Labels[Index], EHDShipFont::Body, FVector2D(NameLeft, CenterY), EHDShipTextAlign::Left, Text, FMath::Max(0.f, static_cast<float>(Rect.Max.X) - Canvas.Px(TagPadding) - NameLeft));
+        }
+        else
+        {
+            Canvas.Fill(Rect, Panel);
+            Canvas.Text(Labels[Index], EHDShipFont::Small, FVector2D(Rect.GetCenter().X, CenterY), EHDShipTextAlign::Center, TextDim, InnerWidth);
+        }
     }
 }

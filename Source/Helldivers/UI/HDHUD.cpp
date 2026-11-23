@@ -30,6 +30,8 @@
 #include "Progression/HDSampleRules.h"
 #include "UI/HDShipMenu.h"
 #include "Ship/HDShipHubRules.h"
+#include "Ship/HDShipInterior.h"
+#include "GameFramework/Pawn.h"
 #include "Engine/Canvas.h"
 #include "Engine/Font.h"
 #include "UI/HDShipUIStyle.h"
@@ -121,6 +123,8 @@ namespace HDHUDShip
 
     // 검사 로그의 화면 이름(메뉴 화면이 아닌 층)
     const TCHAR* const  InteriorScreenName = TEXT("Interior");
+    // 단말기 태그 사이·투영점과의 간격(설계 단위)
+    constexpr float     PromptTagGap = 6.f;
     const TCHAR* const  CountdownScreenName = TEXT("Countdown");
 
     // 프로필 자원과 마지막 미션 줄
@@ -559,21 +563,98 @@ void AHDHUD::DrawShipOverlay()
     const FHDShipUIFrame Frame = HDShipUILayout::ComputeFrame(FVector2D(Canvas->ClipX, Canvas->ClipY));
     FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, 1.f, 1.f, FVector2D::ZeroVector, true);
 
-    // 범위 안 단말기 안내(브리프 2 가 태그로 바꾼다)
-    FString Prompt;
     const int32 TerminalIndex = HDPlayerController->FindShipTerminalInRange();
     const TArray<FHDShipTerminalInfo>& Terminals = HDShipHub::GetTerminals();
-    if (Terminals.IsValidIndex(TerminalIndex))
-    {
-        Prompt = HDShipHub::FormatInteractPrompt(Terminals[TerminalIndex]);
-    }
 
-    FHDShipScreenPainter::PaintInteriorOverlay(UICanvas, HDHUDShip::MakeResourceView(this), Prompt);
+    FHDShipScreenPainter::PaintInteriorOverlay(UICanvas, HDHUDShip::MakeResourceView(this));
+    DrawShipPromptTags(UICanvas, TerminalIndex);
     CheckShipTexts(HDHUDShip::InteriorScreenName, UICanvas, Terminals.IsValidIndex(TerminalIndex) ? TerminalIndex : INDEX_NONE);
 
     if (CVarHDShipUIDebug.GetValueOnGameThread() > 0)
     {
         UICanvas.DrawDebug();
+    }
+}
+
+void AHDHUD::DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex)
+{
+    UWorld* World = GetWorld();
+    if (World == nullptr || PlayerOwner == nullptr)
+    {
+        return;
+    }
+
+    if (CachedShipInterior.IsValid() == false)
+    {
+        for (TActorIterator<AHDShipInterior> It(World); It; ++It)
+        {
+            CachedShipInterior = *It;
+            break;
+        }
+    }
+
+    const AHDShipInterior* ShipInterior = CachedShipInterior.Get();
+    const APawn* Pawn = PlayerOwner->GetPawn();
+    if (ShipInterior == nullptr || Pawn == nullptr)
+    {
+        return;
+    }
+
+    // 카메라 뒤 점을 거르기 위한 시점
+    FVector ViewLocation = FVector::ZeroVector;
+    FRotator ViewRotation = FRotator::ZeroRotator;
+    PlayerOwner->GetPlayerViewPoint(ViewLocation, ViewRotation);
+    const FVector ViewForward = ViewRotation.Vector();
+
+    const FHDShipUIFrame& Frame = UICanvas.GetFrame();
+    const FVector PawnLocation = Pawn->GetActorLocation();
+    const TArray<FHDShipTerminalInfo>& Terminals = HDShipHub::GetTerminals();
+
+    TArray<FHDPromptTagInput> Inputs;
+    TArray<FString> Labels;
+    for (int32 Index = 0; Index < Terminals.Num(); ++Index)
+    {
+        const FHDShipTerminalInfo& Terminal = Terminals[Index];
+        const FVector WorldAnchor = ShipInterior->GetActorTransform().TransformPosition(HDShipHub::GetPromptAnchor(Terminal));
+        const FVector WorldTerminal = ShipInterior->GetTerminalWorldLocation(Index);
+
+        FHDPromptTagInput Input;
+        Input.Id            = Terminal.Id;
+        Input.bInRange      = Index == ActiveTerminalIndex;
+        Input.Distance2D    = static_cast<float>(FVector::Dist2D(PawnLocation, WorldTerminal));
+        Input.bProjected    = PlayerOwner->ProjectWorldLocationToScreen(WorldAnchor, Input.ScreenAnchor, true)
+            && FVector::DotProduct(WorldAnchor - ViewLocation, ViewForward) > 0.0;
+        Input.Size          = FHDShipScreenPainter::MeasurePromptTag(UICanvas, Terminal.Label, Input.bInRange);
+        Inputs.Add(Input);
+        Labels.Add(Terminal.Label);
+    }
+
+    const TArray<FHDPromptTag> PromptTags = HDShipHub::PlacePromptTags(Inputs, Frame.Safe, UICanvas.Px(HDHUDShip::PromptTagGap), HDShipHub::DefaultTagShowDistance);
+    FHDShipScreenPainter::PaintPromptTags(UICanvas, PromptTags, Inputs, Labels);
+
+    // 보이는 태그 집합이나 활성 단말기가 바뀌면 남긴다. 겹침 수는 보이는 상자에 FindTextProblems
+    TArray<HDShipUILayout::FHDDrawnText> Boxes;
+    FString VisibleIds;
+    for (const FHDPromptTag& Tag : PromptTags)
+    {
+        if (Tag.bVisible == false)
+        {
+            continue;
+        }
+        HDShipUILayout::FHDDrawnText Drawn;
+        Drawn.Rect  = Tag.Rect;
+        Drawn.Text  = Tag.Id.ToString();
+        Boxes.Add(Drawn);
+        VisibleIds += Tag.Id.ToString() + TEXT(",");
+    }
+
+    const FString ActiveName = Terminals.IsValidIndex(ActiveTerminalIndex) ? Terminals[ActiveTerminalIndex].Id.ToString() : FString(TEXT("none"));
+    const FString Key = VisibleIds + TEXT("|") + ActiveName;
+    if (Key != LastPromptTagKey)
+    {
+        LastPromptTagKey = Key;
+        const HDShipUILayout::FHDTextProblems Problems = HDShipUILayout::FindTextProblems(Boxes, Frame.View);
+        UE_LOG(LogTemp, Display, TEXT("[HDShipUI] prompt tags=%d visible=%d active=%s overlaps=%d"), PromptTags.Num(), Boxes.Num(), *ActiveName, Problems.Overlaps);
     }
 }
 

@@ -9,6 +9,8 @@ class FHDShipMenu;
 struct FHDShipMenuItem;
 struct FHDKeyHint;
 struct FHDResourceView;
+struct FHDPromptTag;
+struct FHDPromptTagInput;
 
 // 함선 화면별 그리기. 로직 상태(FHDShipMenu·줄·화면 데이터)는 읽기만 한다. 좌표는 설계 단위(1920×1080)를 캔버스 틀로 바꿔 쓴다
 class FHDShipScreenPainter
@@ -24,8 +26,13 @@ public:
     static void         PaintList(FHDShipUICanvas& Canvas, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items);
     // 출격 대기: 한 겹 더 어둡게, 가운데 HELLPOD LAUNCH·큰 숫자·[BACKSPACE] CANCEL
     static void         PaintCountdown(FHDShipUICanvas& Canvas, int32 DisplaySeconds);
-    // 함선 안(메뉴 닫힘): 오른쪽 위 자원(배경 없음), 왼쪽 아래 [P] SHIP MENU, Prompt 가 있으면 아래 가운데
-    static void         PaintInteriorOverlay(FHDShipUICanvas& Canvas, const FHDResourceView& Resources, const FString& Prompt);
+    // 함선 안(메뉴 닫힘): 오른쪽 위 자원(배경 없음), 왼쪽 아래 [P] SHIP MENU
+    static void         PaintInteriorOverlay(FHDShipUICanvas& Canvas, const FHDResourceView& Resources);
+    // 단말기 태그 상자 크기(캔버스 px). 수동 = Small 이름 + 좌우 여백, 활성 = [E] 키 상자 + Body 이름 + 여백
+    static FVector2D    MeasurePromptTag(const FHDShipUICanvas& Canvas, const FString& Label, bool bActive);
+    // HDShipHub::PlacePromptTags 결과를 그린다(Tags·Inputs·Labels 는 같은 순서). 수동 Panel + TextDim, 활성 Card + Accent 테두리 + [E] + Text.
+    // 가장자리에 붙지 않은 태그는 상자 아래 가운데에서 투영점 쪽으로 Line 색 1px 선
+    static void         PaintPromptTags(FHDShipUICanvas& Canvas, const TArray<FHDPromptTag>& Tags, const TArray<FHDPromptTagInput>& Inputs, const TArray<FString>& Labels);
 
 private:
     // 오른쪽 끝(설계 x 1872)에 맞춘 자원 줄과 그 아래 마지막 미션 줄. 자원 줄의 왼쪽 끝(캔버스 x)을 돌려준다

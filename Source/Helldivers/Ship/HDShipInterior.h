@@ -34,8 +34,6 @@ protected:
 private:
     // 조각 하나: 가운데 Location(방 기준), 크기 SizeCm(기본 도형 100 단위라 / 100 = 스케일), 색, 충돌(BlockAll / NoCollision)
     UStaticMeshComponent*                   AddPiece(UStaticMesh* Mesh, const FVector& Location, const FRotator& Rotation, const FVector& SizeCm, const FLinearColor& Color, bool bCollision);
-    // 노란 이름 글자. 스폰 지점에서 읽히게 그쪽을 본다
-    void                                    AddLabel(const FString& Text, const FVector& Location);
     void                                    AddLight(const FVector& Location);
 
 private:

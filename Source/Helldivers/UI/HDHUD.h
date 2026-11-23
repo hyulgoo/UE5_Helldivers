@@ -10,6 +10,7 @@
 #include "HDHUD.generated.h"
 
 class AHDGameState;
+class AHDShipInterior;
 class FHDShipUICanvas;
 class UFont;
 class UAbilitySystemComponent;
@@ -51,8 +52,10 @@ private:
     void                                DrawShipTitle();
     // 공통 틀(배경·위 바·목록·아래 키 안내 바). bInteractive 가 거짓이면(닫는 중) 히트박스·로그·검사 없이 그린다
     void                                DrawShipMenu(bool bInteractive);
-    // 함선 안(메뉴 닫힘, 배경 없음): 오른쪽 위 자원, 아래 가운데 범위 안 단말기 [E] <이름>, 왼쪽 아래 [P] SHIP MENU
+    // 함선 안(메뉴 닫힘, 배경 없음): 오른쪽 위 자원, 왼쪽 아래 [P] SHIP MENU, 단말기 위치에 투영한 이름 태그(범위 안이면 [E] + 이름)
     void                                DrawShipOverlay();
+    // 단말기 태그를 놓고 그린다. 보이는 태그나 활성 단말기가 바뀌면 [HDShipUI] prompt 줄
+    void                                DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex);
     // 맨 위 층: 어둡게 + 가운데 HELLPOD LAUNCH, 큰 숫자, [BACKSPACE] CANCEL
     void                                DrawLaunchCountdown(float RemainingSeconds);
     // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)
@@ -116,4 +119,8 @@ private:
     // 검사 줄을 남긴 (화면|뷰)와 (화면|뷰|커서)
     TSet<FString>                           CheckedShipViews;
     TSet<FString>                           CheckedShipCursors;
+
+    // 함선 안 단말기 태그: 처음 찾은 방 액터와 마지막으로 남긴 prompt 줄(보이는 태그|활성)
+    TWeakObjectPtr<AHDShipInterior>         CachedShipInterior;
+    FString                                 LastPromptTagKey;
 };

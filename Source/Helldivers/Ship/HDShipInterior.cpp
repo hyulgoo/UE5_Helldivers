@@ -5,7 +5,6 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/CollisionProfile.h"
 #include "Materials/MaterialInterface.h"
@@ -27,7 +26,6 @@ namespace HDShipInteriorLayout
     const FLinearColor  ScreenColor(0.2f, 0.8f, 1.f);
     const FLinearColor  PodColor(0.5f, 0.5f, 0.52f);
     const FLinearColor  PodTipColor(0.9f, 0.7f, 0.1f);
-    const FColor        LabelColor(255, 217, 51);
 
     // 방 껍데기(바닥 윗면 Z 0, 안쪽 40×24m·높이 7m, 두께 20)
     const FVector       FloorLocation(0.f, 0.f, -10.f);
@@ -48,22 +46,18 @@ namespace HDShipInteriorLayout
     const FVector       TableSize(300.f, 300.f, 100.f);
     constexpr float     HologramZ = 220.f;
     const FVector       HologramSize(160.f, 160.f, 160.f);
-    constexpr float     TableLabelZ = 360.f;
 
     // 함선 관리·무기고 콘솔(단말기 위치 기준, 앞면 = +X 를 LocalYaw 로 돌린다)
     constexpr float     ConsoleBodyZ = 60.f;
     const FVector       ConsoleBodySize(60.f, 120.f, 120.f);
     const FVector       ScreenOffset(25.f, 0.f, 160.f);
     const FVector       ScreenSize(10.f, 100.f, 70.f);
-    constexpr float     ConsoleLabelZ = 260.f;
 
     // 헬포드 베이(장식)
     const FVector       PodLocation(1500.f, 0.f, 150.f);
     const FVector       PodSize(200.f, 200.f, 300.f);
     constexpr float     PodTipZ = 350.f;
     const FVector       PodTipSize(200.f, 200.f, 100.f);
-    constexpr float     PodLabelZ = 460.f;
-    const TCHAR* const  PodLabelText = TEXT("HELLPOD BAY");
 
     // 점광 4개: (±LightX, ±LightY, LightZ)
     constexpr float     LightX = 1000.f;
@@ -71,8 +65,6 @@ namespace HDShipInteriorLayout
     constexpr float     LightZ = 600.f;
     constexpr float     LightIntensity = 5000.f;
     constexpr float     LightAttenuationRadius = 2500.f;
-
-    constexpr float     LabelWorldSize = 40.f;
 }
 
 AHDShipInterior::AHDShipInterior(const FObjectInitializer& ObjectInitializer)
@@ -166,20 +158,17 @@ void AHDShipInterior::BeginPlay()
         {
             AddPiece(CubeMesh, Base + FVector(0.f, 0.f, TableZ), FRotator::ZeroRotator, TableSize, TableColor, true);
             AddPiece(SphereMesh, Base + FVector(0.f, 0.f, HologramZ), FRotator::ZeroRotator, HologramSize, HologramColor, false);
-            AddLabel(Terminal.Label, Base + FVector(0.f, 0.f, TableLabelZ));
             continue;
         }
 
         const FRotator Facing(0.f, Terminal.LocalYaw, 0.f);
         AddPiece(CubeMesh, Base + FVector(0.f, 0.f, ConsoleBodyZ), Facing, ConsoleBodySize, ConsoleColor, true);
         AddPiece(CubeMesh, Base + Facing.RotateVector(ScreenOffset), Facing, ScreenSize, ScreenColor, true);
-        AddLabel(Terminal.Label, Base + FVector(0.f, 0.f, ConsoleLabelZ));
     }
 
     // 헬포드 베이(장식, 상호작용 없음)
     AddPiece(CylinderMesh, PodLocation, FRotator::ZeroRotator, PodSize, PodColor, true);
     AddPiece(ConeMesh, FVector(PodLocation.X, PodLocation.Y, PodTipZ), FRotator::ZeroRotator, PodTipSize, PodTipColor, true);
-    AddLabel(PodLabelText, FVector(PodLocation.X, PodLocation.Y, PodLabelZ));
 
     for (const float SignX : { -1.f, 1.f })
     {
@@ -189,7 +178,7 @@ void AHDShipInterior::BeginPlay()
         }
     }
 
-    UE_LOG(LogTemp, Display, TEXT("[HDShip] interior built at %s pieces=%d terminals=%d"), *GetActorLocation().ToString(), Pieces.Num(), HDShipHub::GetTerminals().Num());
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] interior built at %s pieces=%d terminals=%d labels=0"), *GetActorLocation().ToString(), Pieces.Num(), HDShipHub::GetTerminals().Num());
 }
 
 UStaticMeshComponent* AHDShipInterior::AddPiece(UStaticMesh* Mesh, const FVector& Location, const FRotator& Rotation, const FVector& SizeCm, const FLinearColor& Color, bool bCollision)
@@ -220,29 +209,6 @@ UStaticMeshComponent* AHDShipInterior::AddPiece(UStaticMesh* Mesh, const FVector
     Piece->RegisterComponent();
     Pieces.Add(Piece);
     return Piece;
-}
-
-void AHDShipInterior::AddLabel(const FString& Text, const FVector& Location)
-{
-    using namespace HDShipInteriorLayout;
-
-    NULL_CHECK(Root);
-
-    UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
-    NULL_CHECK(Label);
-
-    // 글자 앞면은 컴포넌트 +X 쪽이다(엔진 TextRenderComponent 의 정점 법선). 스폰 지점을 보게 돌린다
-    const FVector ToSpawn = HDShipHub::GetCrewSpawnLocation() - Location;
-    const FRotator Facing(0.f, FVector(ToSpawn.X, ToSpawn.Y, 0.f).Rotation().Yaw, 0.f);
-
-    Label->SetupAttachment(Root);
-    Label->SetText(FText::FromString(Text));
-    Label->SetHorizontalAlignment(EHTA_Center);
-    Label->SetWorldSize(LabelWorldSize);
-    Label->SetTextRenderColor(LabelColor);
-    Label->SetRelativeLocationAndRotation(Location, Facing);
-    Label->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
-    Label->RegisterComponent();
 }
 
 void AHDShipInterior::AddLight(const FVector& Location)

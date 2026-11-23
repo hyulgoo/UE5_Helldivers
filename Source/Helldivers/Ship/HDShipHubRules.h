@@ -52,6 +52,41 @@ namespace HDShipHub
     HELLDIVERS_API FString                          FormatCountdown(float RemainingSeconds);
 }
 
+// 화면 태그 하나의 입력. HUD 가 매 프레임 만든다
+struct FHDPromptTagInput
+{
+    FName               Id;
+    FVector2D           ScreenAnchor    = FVector2D::ZeroVector;
+    bool                bProjected      = false;    // 카메라 앞에서 투영됐다
+    float               Distance2D      = 0.f;      // 폰 → 단말기 XY 거리
+    bool                bInRange        = false;    // FindTerminalInRange 가 고른 단말기
+    FVector2D           Size            = FVector2D::ZeroVector;   // 그릴 상자(px)
+};
+
+struct FHDPromptTag
+{
+    FName               Id;
+    FBox2D              Rect            = FBox2D(ForceInit);
+    bool                bVisible        = false;
+    bool                bActive         = false;
+    bool                bEdgeClamped    = false;
+};
+
+namespace HDShipHub
+{
+    constexpr float                 TableAnchorZ            = 300.f;
+    constexpr float                 ConsoleAnchorZ          = 230.f;
+    constexpr float                 DefaultTagShowDistance  = 1800.f;
+    constexpr int32                 MaxTagPushes            = 4;
+
+    // 방 기준 태그 기준점(단말기 위치 + Z). 작전 테이블 TableAnchorZ, 콘솔 ConsoleAnchorZ
+    HELLDIVERS_API FVector                  GetPromptAnchor(const FHDShipTerminalInfo& Terminal);
+    // 태그 자리 정하기(자동 테스트 Helldivers.FrontEnd.ShipPrompt). 결과는 입력과 같은 순서.
+    // 활성(bInRange)은 늘 보이고 먼저 놓인다. 수동은 투영됐고 SafeRect 안이고 Distance2D <= ShowDistance 일 때만 보인다.
+    // 상자 가운데 X = 투영점 X, 아래 변 = 투영점 Y - Gap 에서 시작해 SafeRect 안으로 밀고, 앞서 놓은 상자와 겹치면 위로(넘치면 아래로) 민다
+    HELLDIVERS_API TArray<FHDPromptTag>     PlacePromptTags(const TArray<FHDPromptTagInput>& Inputs, const FBox2D& SafeRect, float Gap, float ShowDistance);
+}
+
 // 출격 대기(READY 뒤 카운트다운). 게임 모드가 Tick 에서 돌린다
 class HELLDIVERS_API FHDLaunchCountdown
 {
