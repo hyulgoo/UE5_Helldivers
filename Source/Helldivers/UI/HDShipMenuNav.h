@@ -28,4 +28,6 @@ namespace HDShipMenuNav
     HELLDIVERS_API TArray<FHDNavCell>   MakePickerCells(const TArray<FHDShipMenuOption>& Options, int32 Columns);
     // Loadout 고정 배치: Slot1~Slot4 = (0~3, 0), Primary·Secondary·Grenade = (0~2, 1), Ready = (4, 0) 행 폭 2. 모르는 Id 는 행 2 에 차례로
     HELLDIVERS_API TArray<FHDNavCell>   MakeLoadoutCells(const TArray<FHDShipMenuItem>& Items);
+    // 함선 관리 배치: 분야(Group)를 처음 나온 순서로 열 묶음 g, 가장 많은 단계 수 T 일 때 단계 k 카드 = (g × T + k, 분야 안 순번). SubCount 0 인 줄은 칸이 없다
+    HELLDIVERS_API TArray<FHDNavCell>   MakeUpgradeCells(const TArray<FHDShipMenuItem>& Items);
 }

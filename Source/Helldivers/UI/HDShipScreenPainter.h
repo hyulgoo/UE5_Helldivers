@@ -14,6 +14,8 @@ struct FHDPromptTagInput;
 struct FHDShipUIFrame;
 struct FHDWarTableView;
 struct FHDLoadoutDetail;
+struct FHDUpgradeDetail;
+class FHDHoldConfirm;
 class UTexture;
 
 // 함선 화면별 그리기. 로직 상태(FHDShipMenu·줄·화면 데이터)는 읽기만 한다. 좌표는 설계 단위(1920×1080)를 캔버스 틀로 바꿔 쓴다
@@ -34,6 +36,9 @@ public:
     // 로드아웃: 주 영역 아래 헬다이버 칸(스트라타젬 카드 넷·무기 카드 셋·READY, ShipItem_<i>), 창이 열려 있으면 그 위 고르기 창(분류 머리·4열 타일, ShipPick_<i>),
     // 오른쪽 상세(큰 아이콘·제목·분류·두 열 줄·호출 화살표·능력치 막대·상태 줄). CommandTextures 는 Detail.Command 와 같은 순서(nullptr 면 글자)
     static void         PaintLoadout(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDLoadoutDetail& Detail, const TArray<UTexture*>& CommandTextures);
+    // 함선 관리: 주 영역을 분야 열로(간격 16, 4열 넘으면 다음 줄), 열 머리(분야 이름·선), 업그레이드마다 이름 + 단계 카드 줄(ShipCard_<줄>_<단계>).
+    // CardDetails 는 HDShipMenuNav::MakeUpgradeCells(Items) 와 같은 순서. 오른쪽 상세 = 커서 카드. Hold 가 그 카드면 진행 막대와 HOLD
+    static void         PaintUpgrades(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const TArray<FHDUpgradeDetail>& CardDetails, const FHDHoldConfirm& Hold, const FHDResourceView& Resources);
     // 출격 대기: 한 겹 더 어둡게, 가운데 HELLPOD LAUNCH·큰 숫자·[BACKSPACE] CANCEL
     static void         PaintCountdown(FHDShipUICanvas& Canvas, int32 DisplaySeconds);
     // 함선 안(메뉴 닫힘): 오른쪽 위 자원(배경 없음), 왼쪽 아래 [P] SHIP MENU

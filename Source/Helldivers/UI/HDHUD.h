@@ -41,8 +41,11 @@ public:
 
     // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기(고르기 창이 열려 있으면 가리키기는 무시),
     // ShipPick_<i> → 고르기 창 타일 확정 / 가리키기, ShipKey_<키> → 그 키(클릭만). 결과 패널 ResultReturn → 함선 복귀 요청
+    // ShipCard_<줄>_<단계>(함선 관리): 누름 → PressShipCard, 뗌 → ReleaseShipCard, 벗어남 → LeaveShipCard, 가리키기 → HoverShipCard
     virtual void                        NotifyHitBoxClick(FName BoxName) override;
+    virtual void                        NotifyHitBoxRelease(FName BoxName) override;
     virtual void                        NotifyHitBoxBeginCursorOver(FName BoxName) override;
+    virtual void                        NotifyHitBoxEndCursorOver(FName BoxName) override;
 
     // 플레이어가 쏜 탄이 적에 맞은 결과. 조준점에 히트마커를 잠깐 그린다(투사체가 부른다)
     void                                NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint);
@@ -64,6 +67,8 @@ private:
     void                                DrawWarTable(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
     // 로드아웃 화면: 컨트롤러 문맥으로 상세를 만들고 호출 화살표 텍스처(못 읽으면 글자)와 함께 그린다
     void                                DrawLoadout(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
+    // 함선 관리 화면: 카드마다 상세를 만들고 컨트롤러의 길게 누르기 상태와 함께 그린다
+    void                                DrawUpgrades(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
     // 맨 위 층: 어둡게 + 가운데 HELLPOD LAUNCH, 큰 숫자, [BACKSPACE] CANCEL
     void                                DrawLaunchCountdown(float RemainingSeconds);
     // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)

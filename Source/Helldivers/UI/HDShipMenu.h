@@ -10,6 +10,7 @@
 
 class FHDUpgradeCatalog;
 class FHDStratagemCatalog;
+class FHDShipMenu;
 
 // 함선 메뉴의 화면
 enum class EHDShipScreen : uint8
@@ -85,6 +86,11 @@ struct FHDShipMenuItem
     FName               IconId;
     // Loadout 고르기 창의 선택지(칸 줄 = 카탈로그 전체, 무기 줄 = 그 칸 무기). 비면 창이 없다
     TArray<FHDShipMenuOption> Options;
+    // 함선 관리(브리프 6): 분야 이름(비면 OTHER), 단계 수, 산 단계 수([0, SubCount]), 확정을 길게 눌러야 하는가
+    FString             Group;
+    int32               SubCount        = 0;
+    int32               ActiveSub       = 0;
+    bool                bHoldToConfirm  = false;
 };
 
 // HandleKey 의 결과. Value 는 Adjust 의 −1 / +1
@@ -131,6 +137,8 @@ namespace HDShipMenu
     HELLDIVERS_API const TCHAR*             GetScreenTitle(EHDShipScreen Screen);
     HELLDIVERS_API const TCHAR*             GetKeyName(EHDShipMenuKey Key);
     HELLDIVERS_API const TCHAR*             GetActionName(EHDShipActionType Type);
+    // 지금 Confirm 이 행동을 만들고(None 아님) 그 줄이 bHoldToConfirm 이면 참(메뉴 사본으로 HandleKey 를 불러 본다)
+    HELLDIVERS_API bool                     NeedsHold(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items);
 }
 
 // 화면·커서·키 처리. 월드와 무관한 순수 로직이라 자동 테스트(Helldivers.FrontEnd.ShipMenu)로 고정한다
@@ -159,10 +167,15 @@ public:
     int32               GetPickerCursor() const { return PickerCursor; }
     // 창이 열려 있고 [0, OptionCount) 안일 때만 바꾼다
     void                SetPickerCursor(int32 NewCursor, int32 OptionCount);
-    // 함선 관리의 단계 카드(브리프 6). 지금은 늘 0
+    // 함선 관리의 단계 카드(브리프 6). SetScreen·OpenTerminal·SetCursor 가 0 으로
     int32               GetSubCursor() const { return SubCursor; }
+    // 마우스가 가리킨 단계 카드. 지금 줄의 [0, SubCount − 1] 로 자른다
+    void                SetSubCursor(int32 NewSub, const TArray<FHDShipMenuItem>& Items);
 
 private:
+    // Upgrades 의 방향키(HDShipMenuNav::MakeUpgradeCells)와 단계 커서를 본 Confirm. 공통 규칙(Back, 산 단계의 Confirm)으로 넘길 키면 거짓
+    bool                HandleUpgradeKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction);
+
     // Loadout 의 방향키·창 열기·창 안 키. 공통 규칙(READY Confirm, 창이 닫힌 Back)으로 넘길 키면 거짓
     bool                HandleLoadoutKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction);
 

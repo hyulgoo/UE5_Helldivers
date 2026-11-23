@@ -9,6 +9,7 @@
 #include "InputKeyEventArgs.h"
 #include "Controller/HDDirectKeyRules.h"
 #include "UI/HDShipMenu.h"
+#include "UI/HDHoldConfirm.h"
 #include "HDPlayerController.generated.h"
 
 class ACharacter;
@@ -80,6 +81,14 @@ public:
     void                                    ClickShipPickerItem(int32 Index);
     // HUD 아래 바 키 안내 상자를 눌렀다. 메뉴가 열려 있을 때만 그 키를 누른 것과 같다(HandleShipMenuKey)
     void                                    ClickShipKeyHint(EHDShipMenuKey Key);
+    // HUD 함선 관리 카드(ShipCard_<줄>_<단계>): 누름 = 커서·단계 커서를 옮기고 Confirm(길게 누르기 시작), 뗌 = 다 차기 전이면 취소(release),
+    // 벗어남 = 누르던 카드면 취소(mouse), 가리키기 = 커서·단계 커서를 옮긴다(3px 규칙은 줄과 같다)
+    void                                    PressShipCard(int32 ItemIndex, int32 SubIndex);
+    void                                    ReleaseShipCard();
+    void                                    LeaveShipCard(int32 ItemIndex, int32 SubIndex);
+    void                                    HoverShipCard(int32 ItemIndex, int32 SubIndex);
+    // 길게 눌러 확정하기 상태(HUD 진행 막대)
+    const FHDHoldConfirm&                   GetShipHold() const { return ShipHold; }
     // 출격 대기 중인가(AHDGameMode::IsLaunching). 게임 모드가 없으면 거짓
     bool                                    IsShipLaunching() const;
 
@@ -116,6 +125,9 @@ private:
     // CloseTerminal → CloseShipTerminal, Launch → AHDGameMode::RequestLaunch(메뉴는 열어 둔다),
     // Equip(로드아웃 칸 = HDArmory::TrySetSlot, 무기 줄 = 그 칸의 열린 무기만 SetChosen), OpenPicker·ClosePicker(로그만)
     void                                    ExecuteShipMenuAction(const FHDShipMenuAction& Action);
+
+    // 길게 누르는 중이면 끄고 [HDShip] hold cancel <Id> reason=<Reason>
+    void                                    CancelShipHold(const TCHAR* Reason);
 
     // 미션 메뉴 키 하나. 결과가 있으면 Confirm = RequestReturnToShip, 확인 창이 열려 있으면 Confirm = 닫고 AHDGameMode::RequestAbandon / 나머지 = 닫기,
     // 미션 진행 중(Deploy·InProgress·Extraction, 함선 아님)이면 ToggleAbandon = 열기. 그 밖은 무시
@@ -163,6 +175,10 @@ private:
 
     // 함선 메뉴의 화면·커서
     FHDShipMenu                             ShipMenu;
+    // 함선 관리 구매의 길게 누르기. PlayerTick 이 진행하고, 다 차면 그때 Confirm 을 처리한다
+    FHDHoldConfirm                          ShipHold;
+    // 참이면 HandleShipMenuKey(Confirm) 이 길게 누르기를 다시 시작하지 않고 바로 처리한다(다 찬 뒤 한 번)
+    bool                                    bShipHoldCompleting = false;
     bool                                    bShipMenuActive = false;
     // InputKey 가 받은 메뉴 키. PlayerTick 이 다른 큐보다 먼저 비운다
     TArray<EHDShipMenuKey>                  PendingShipMenuKeys;

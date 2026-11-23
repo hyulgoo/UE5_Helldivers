@@ -71,6 +71,10 @@ public:
     UPROPERTY(Config, EditAnywhere, Category = "Ship")
     bool                        bWarTableMapCapture = true;
 
+    // 함선 관리 구매처럼 되돌릴 수 없는 확정에서 Enter·마우스를 누르고 있어야 하는 시간(초). 0 이하면 바로 확정
+    UPROPERTY(EditAnywhere, Category = "Ship")
+    float                       HoldConfirmSeconds = 0.8f;
+
     // 난이도 표(1 단계부터). 함선 메뉴 DIFFICULTY 줄에서 고르고 출격할 때 미션에 들어간다.
     // Config 에 줄이 없으면 생성자가 채운 기본 표(HDDifficulty::GetDefaultTable)가 남는다
     UPROPERTY(Config, EditAnywhere, Category = "Difficulty")

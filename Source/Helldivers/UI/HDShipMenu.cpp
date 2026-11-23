@@ -300,6 +300,11 @@ namespace HDShipMenuPrivate
             Item.Id                 = UpgradeName;
             Item.Label              = FString::Printf(TEXT("%s  %d/%d"), *Definition->DisplayName, Level, LevelCount);
             Item.ConfirmAction      = EHDShipActionType::Select;
+            // 함선 관리 카드(브리프 ship-terminal-ui 6): 분야 열, 단계 수, 산 단계, 구매는 길게 눌러 확정
+            Item.Group              = Definition->Group.IsEmpty() ? FString(TEXT("OTHER")) : Definition->Group;
+            Item.SubCount           = LevelCount;
+            Item.ActiveSub          = Level;
+            Item.bHoldToConfirm     = true;
 
             const FHDUpgradeLevel* NextLevel = HDUpgrade::GetNextLevel(*Definition, Level);
             if (NextLevel)
@@ -546,6 +551,7 @@ void FHDShipMenu::SetScreen(EHDShipScreen NewScreen)
 {
     Screen      = NewScreen;
     Cursor      = 0;
+    SubCursor   = 0;
     bPickerOpen = false;
 }
 
@@ -564,6 +570,7 @@ void FHDShipMenu::SetCursor(int32 NewCursor, int32 ItemCount)
     }
 
     Cursor      = NewCursor;
+    SubCursor   = 0;
     bPickerOpen = false;
 }
 
@@ -682,6 +689,14 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
         return Action;
     }
 
+    // Upgrades: 단계가 있는 줄이 있으면 카드 이동과 단계 커서를 본 Confirm(브리프 ship-terminal-ui 6). 없으면 목록 규칙
+    const bool bUpgradeCards = Screen == EHDShipScreen::Upgrades
+        && Items.ContainsByPredicate([](const FHDShipMenuItem& Candidate) { return Candidate.SubCount > 0; });
+    if (bUpgradeCards && HandleUpgradeKey(Key, Items, Action))
+    {
+        return Action;
+    }
+
     if (Key == EHDShipMenuKey::Back)
     {
         // 하위 화면에서는 뿌리 화면으로, 들어갈 때의 커서로 돌아간다(Id = 뿌리 이름, Bridge 면 "Bridge")
@@ -689,6 +704,7 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
         {
             Screen      = RootScreen;
             Cursor      = RootCursor;
+            SubCursor   = 0;
             Action.Type = EHDShipActionType::OpenScreen;
             Action.Id   = FName(HDShipMenu::GetScreenName(RootScreen));
         }
@@ -757,4 +773,57 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
     }
 
     return Action;
+}
+
+bool HDShipMenu::NeedsHold(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items)
+{
+    if (Items.IsEmpty())
+    {
+        return false;
+    }
+
+    // 사본으로 Confirm 을 눌러 본다(원래 메뉴의 화면·커서는 그대로)
+    FHDShipMenu Probe = Menu;
+    const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
+    return Probe.HandleKey(EHDShipMenuKey::Confirm, Items).Type != EHDShipActionType::None && Item.bHoldToConfirm;
+}
+
+void FHDShipMenu::SetSubCursor(int32 NewSub, const TArray<FHDShipMenuItem>& Items)
+{
+    if (Items.IsValidIndex(Cursor) == false)
+    {
+        return;
+    }
+
+    SubCursor = FMath::Clamp(NewSub, 0, FMath::Max(0, Items[Cursor].SubCount - 1));
+}
+
+bool FHDShipMenu::HandleUpgradeKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction)
+{
+    const FHDShipMenuItem& Item = Items[Cursor];
+    const bool bDirection = Key == EHDShipMenuKey::Up || Key == EHDShipMenuKey::Down || Key == EHDShipMenuKey::Left || Key == EHDShipMenuKey::Right;
+
+    if (bDirection)
+    {
+        // 줄 수·단계 수가 바뀌었을 수 있으므로 단계 커서도 자른다
+        SubCursor = FMath::Clamp(SubCursor, 0, FMath::Max(0, Item.SubCount - 1));
+
+        const TArray<FHDNavCell> Cells = HDShipMenuNav::MakeUpgradeCells(Items);
+        const int32 Next = HDShipMenuNav::Move(Cells, HDShipMenuNav::FindCell(Cells, Cursor, SubCursor), Key);
+        if (Cells.IsValidIndex(Next))
+        {
+            Cursor      = Cells[Next].ItemIndex;
+            SubCursor   = Cells[Next].SubIndex;
+        }
+        return true;
+    }
+
+    // 다음에 살 단계 카드만 공통 Confirm(켜진 줄이면 Select)으로 넘긴다. 산 단계·뒤 단계 카드는 None
+    if (Key == EHDShipMenuKey::Confirm)
+    {
+        return SubCursor != Item.ActiveSub;
+    }
+
+    // Back 은 공통 규칙
+    return false;
 }

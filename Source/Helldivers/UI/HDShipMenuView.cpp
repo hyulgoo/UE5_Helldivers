@@ -4,6 +4,7 @@
 #include "Progression/HDMissionReward.h"
 #include "Progression/HDDifficulty.h"
 #include "Progression/HDUpgradeRules.h"
+#include "Progression/HDUpgradeCatalog.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Stratagem/HDStratagemLoadout.h"
 #include "UI/HDShipIcons.h"
@@ -43,6 +44,10 @@ TArray<FHDKeyHint> HDShipMenuView::GetKeyHints(const FHDShipMenu& Menu, const TA
         return Hints;
     }
 
+    // Upgrades 에 단계가 있는 줄이 있으면 카드 화면(FHDShipMenu::HandleKey 와 같은 조건)
+    const bool bUpgradeCards = Screen == EHDShipScreen::Upgrades
+        && Items.ContainsByPredicate([](const FHDShipMenuItem& Candidate) { return Candidate.SubCount > 0; });
+
     // Loadout: 칸 이동(방향키 넷)과 고르기 창
     if (Screen == EHDShipScreen::Loadout)
     {
@@ -79,13 +84,23 @@ TArray<FHDKeyHint> HDShipMenuView::GetKeyHints(const FHDShipMenu& Menu, const TA
             }
         }
     }
+    else if (bUpgradeCards)
+    {
+        // Upgrades 카드: 다음에 살 수 있는 카드에서만 길게 눌러 구매(안내만, 클릭 상자 아님)
+        Hints.Add(MakeHint(TEXT("ARROWS"), TEXT("MOVE"), EHDShipMenuKey::Up, false));
+        const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
+        if (GetTierState(Item, Menu.GetSubCursor()) == EHDTierState::Available)
+        {
+            Hints.Add(MakeHint(TEXT("HOLD ENTER"), TEXT("BUY"), EHDShipMenuKey::Confirm, false));
+        }
+    }
     else
     {
         Hints.Add(MakeHint(TEXT("UP/DOWN"), TEXT("SELECT"), EHDShipMenuKey::Up, false));
     }
 
     // FHDShipMenu::HandleKey 처럼 커서를 줄 수로 자른다
-    if (Screen != EHDShipScreen::Loadout && Items.IsEmpty() == false)
+    if (Screen != EHDShipScreen::Loadout && bUpgradeCards == false && Items.IsEmpty() == false)
     {
         const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
         if (Item.bAdjustable && Item.bEnabled)
@@ -365,4 +380,93 @@ FString HDShipMenuView::FormatSeconds(float Seconds)
     return FMath::IsNearlyEqual(Seconds, static_cast<float>(Rounded), 0.01f)
         ? FString::Printf(TEXT("%d S"), Rounded)
         : FString::Printf(TEXT("%.1f S"), Seconds);
+}
+
+TArray<FString> HDShipMenuView::GetUpgradeGroups(const FHDUpgradeCatalog& Catalog)
+{
+    TArray<FString> Groups;
+    for (const FName& Name : Catalog.GetNames())
+    {
+        const FHDUpgradeDefinition* Definition = Catalog.Find(Name);
+        if (Definition == nullptr)
+        {
+            continue;
+        }
+
+        Groups.AddUnique(Definition->Group.IsEmpty() ? FString(TEXT("OTHER")) : Definition->Group);
+    }
+    return Groups;
+}
+
+EHDTierState HDShipMenuView::GetTierState(const FHDShipMenuItem& Item, int32 SubIndex)
+{
+    if (SubIndex < Item.ActiveSub)
+    {
+        return EHDTierState::Owned;
+    }
+    if (SubIndex == Item.ActiveSub)
+    {
+        return Item.bEnabled ? EHDTierState::Available : EHDTierState::Insufficient;
+    }
+    return EHDTierState::NeedsPrevious;
+}
+
+FString HDShipMenuView::GetTierStateLabel(const FHDShipMenuItem& Item, int32 SubIndex)
+{
+    switch (GetTierState(Item, SubIndex))
+    {
+    case EHDTierState::Owned:           return TEXT("OWNED");
+    case EHDTierState::Available:       return TEXT("AVAILABLE");
+    case EHDTierState::Insufficient:    return TEXT("NOT ENOUGH");
+    default:                            return FString::Printf(TEXT("REQUIRES TIER %d"), SubIndex);
+    }
+}
+
+FHDUpgradeDetail HDShipMenuView::BuildUpgradeDetail(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context, int32 ItemIndex, int32 SubIndex)
+{
+    FHDUpgradeDetail Detail;
+    if (Items.IsValidIndex(ItemIndex) == false || Context.Upgrades == nullptr)
+    {
+        return Detail;
+    }
+
+    const FHDShipMenuItem& Item = Items[ItemIndex];
+    const FHDUpgradeDefinition* Definition = Context.Upgrades->Find(Item.Id);
+    if (Definition == nullptr || Definition->Levels.IsValidIndex(SubIndex) == false)
+    {
+        return Detail;
+    }
+
+    const FHDUpgradeLevel& Level = Definition->Levels[SubIndex];
+    Detail.IconId       = Item.Id;
+    Detail.Title        = Definition->DisplayName;
+    Detail.Group        = Item.Group;
+    Detail.Description  = Definition->Description;
+    Detail.TierLabel    = FString::Printf(TEXT("TIER %d / %d"), SubIndex + 1, Definition->Levels.Num());
+    Detail.State        = GetTierState(Item, SubIndex);
+    Detail.StateLabel   = GetTierStateLabel(Item, SubIndex);
+    Detail.Current      = Definition->Levels.IsValidIndex(Item.ActiveSub - 1)
+        ? HDUpgrade::FormatEffect(Definition->Effect, Definition->Levels[Item.ActiveSub - 1].Value)
+        : FString(TEXT("NONE"));
+    Detail.ThisTier     = HDUpgrade::FormatEffect(Definition->Effect, Level.Value);
+
+    // 비용: 0 인 항목은 빼고, 가진 양과 비교한다
+    const FHDProfileData& Profile = Context.Profile;
+    auto AddCost = [&Detail](const TCHAR* IconId, int32 Amount, int32 Owned)
+    {
+        if (Amount <= 0)
+        {
+            return;
+        }
+
+        FHDCostPart& Part = Detail.Cost.AddDefaulted_GetRef();
+        Part.IconId     = FName(IconId);
+        Part.Amount     = Amount;
+        Part.bEnough    = Owned >= Amount;
+    };
+    AddCost(TEXT("Requisition"), Level.Requisition, Profile.Requisition);
+    AddCost(TEXT("SampleCommon"), Level.Common, Profile.Samples.Common);
+    AddCost(TEXT("SampleRare"), Level.Rare, Profile.Samples.Rare);
+    AddCost(TEXT("SampleSuper"), Level.Super, Profile.Samples.Super);
+    return Detail;
 }

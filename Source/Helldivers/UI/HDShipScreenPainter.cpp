@@ -7,6 +7,7 @@
 #include "UI/HDShipMenu.h"
 #include "UI/HDShipMenuView.h"
 #include "UI/HDShipMenuNav.h"
+#include "UI/HDHoldConfirm.h"
 #include "Progression/HDArmoryRules.h"
 #include "Progression/HDWeaponCatalog.h"
 #include "Ship/HDShipHubRules.h"
@@ -1051,6 +1052,299 @@ void FHDShipScreenPainter::PaintLoadout(FHDShipUICanvas& Canvas, const FHDShipUI
     }
 
     PaintDetail(Canvas, Frame.Detail, Detail, CommandTextures);
+
+    Canvas.SetRegion(FBox2D(ForceInit));
+    Canvas.SetContentLayer(false);
+}
+
+namespace HDShipUpgradesPrivate
+{
+    using namespace HDShipUIStyle;
+
+    // 함선 관리 배치(설계 단위)
+    constexpr int32     MaxColumns          = 4;
+    constexpr float     ColumnGap           = 16.f;
+    constexpr float     ColumnHeaderHeight  = 40.f;
+    constexpr float     NameHeight          = 36.f;
+    constexpr float     CardGap             = 12.f;
+    constexpr float     CardHeight          = 200.f;
+    constexpr float     UpgradeGap          = 16.f;
+    constexpr float     CardInset           = 8.f;
+    constexpr float     CardIconSize        = 48.f;
+    constexpr float     EffectTop           = 62.f;
+    constexpr float     EffectBottom        = 112.f;
+    constexpr float     CostRow0            = 124.f;
+    constexpr float     CostRowStep         = 28.f;
+    constexpr float     CostIconSize        = 18.f;
+    constexpr float     CostIconGap         = 4.f;
+    constexpr float     BandTop             = 164.f;
+    constexpr float     BandHeight          = 28.f;
+    constexpr float     CardBarHeight       = 6.f;
+    constexpr float     DetailPadding       = 24.f;
+    constexpr float     DetailIconSize      = 120.f;
+    constexpr float     DetailLineHeight    = 32.f;
+    constexpr float     DetailLabelWidth    = 150.f;
+    constexpr float     DetailCostIcon      = 22.f;
+    constexpr float     DetailBarHeight     = 10.f;
+    const TCHAR* const  HoldBandText        = TEXT("HOLD");
+    const TCHAR* const  HoldDetailText      = TEXT("HOLD TO BUY");
+
+    FBox2D MakeRect(float X, float Y, float W, float H)
+    {
+        return FBox2D(FVector2D(X, Y), FVector2D(X + W, Y + H));
+    }
+
+    // 상태 색: OWNED Good, AVAILABLE Accent, NOT ENOUGH Warn, REQUIRES TIER n TextDisabled
+    FLinearColor GetStateColor(EHDTierState State)
+    {
+        switch (State)
+        {
+        case EHDTierState::Owned:           return Good;
+        case EHDTierState::Available:       return Accent;
+        case EHDTierState::Insufficient:    return Warn;
+        default:                            return TextDisabled;
+        }
+    }
+
+    int32 GetOwned(const FHDResourceView& Resources, FName IconId)
+    {
+        if (IconId == FName(TEXT("Requisition")))   { return Resources.Requisition; }
+        if (IconId == FName(TEXT("SampleCommon")))  { return Resources.Samples.Common; }
+        if (IconId == FName(TEXT("SampleRare")))    { return Resources.Samples.Rare; }
+        if (IconId == FName(TEXT("SampleSuper")))   { return Resources.Samples.Super; }
+        return 0;
+    }
+
+    bool IsHolding(const FHDHoldConfirm& Hold, const FHDShipMenuItem& Item, int32 SubIndex)
+    {
+        return Hold.IsActive() && Hold.GetItemId() == Item.Id && Hold.GetSubIndex() == SubIndex;
+    }
+
+    void PaintCard(FHDShipUICanvas& Canvas, const FBox2D& CardRect, const FHDUpgradeDetail& Detail, int32 SubIndex, bool bSelected, bool bHolding, float Progress)
+    {
+        const bool bDim = Detail.State == EHDTierState::NeedsPrevious;
+        const float X = static_cast<float>(CardRect.Min.X);
+        const float Y = static_cast<float>(CardRect.Min.Y);
+        const float W = static_cast<float>(CardRect.GetSize().X);
+        const float Inset = Canvas.Px(CardInset);
+        const FLinearColor TextColor = bDim ? TextDisabled : Text;
+
+        Canvas.Fill(CardRect, Card);
+        if (bSelected)
+        {
+            Canvas.Fill(CardRect, AccentFill);
+            Canvas.Border(CardRect, BorderSelected, Accent);
+        }
+        else
+        {
+            Canvas.Border(CardRect, BorderThin, Line);
+        }
+        Canvas.SetRegion(CardRect);
+
+        // 위: 아이콘 + TIER k
+        const float Icon = Canvas.Px(CardIconSize);
+        const FBox2D IconRect = MakeRect(X + Inset, Y + Inset, Icon, Icon);
+        Canvas.Icon(Detail.IconId, IconRect, bDim);
+        const float TierLeft = static_cast<float>(IconRect.Max.X) + Inset;
+        Canvas.Text(FString::Printf(TEXT("TIER %d"), SubIndex + 1), EHDShipFont::Small, FVector2D(TierLeft, static_cast<float>(IconRect.GetCenter().Y)), EHDShipTextAlign::Left,
+            bSelected ? Accent : TextColor, static_cast<float>(CardRect.Max.X) - Inset - TierLeft);
+
+        // 가운데: 효과(2줄)
+        Canvas.Paragraph(Detail.ThisTier, EHDShipFont::Small, FBox2D(FVector2D(X + Inset, Y + Canvas.Px(EffectTop)), FVector2D(X + W - Inset, Y + Canvas.Px(EffectBottom))), TextColor, 2);
+
+        // 아래: 비용 2열 × 2행(아이콘 + 수, 모자라면 Warn)
+        const float ColumnWidth = (W - Inset * 2.f) * 0.5f;
+        const float CostIcon = Canvas.Px(CostIconSize);
+        for (int32 Index = 0; Index < FMath::Min(Detail.Cost.Num(), 4); ++Index)
+        {
+            const FHDCostPart& Part = Detail.Cost[Index];
+            const float CellLeft = X + Inset + (Index % 2) * ColumnWidth;
+            const float CenterY = Y + Canvas.Px(CostRow0 + (Index / 2) * CostRowStep);
+            Canvas.Icon(Part.IconId, MakeRect(CellLeft, CenterY - CostIcon * 0.5f, CostIcon, CostIcon), bDim);
+            const float NumberLeft = CellLeft + CostIcon + Canvas.Px(CostIconGap);
+            Canvas.Text(FString::FromInt(Part.Amount), EHDShipFont::Small, FVector2D(NumberLeft, CenterY), EHDShipTextAlign::Left,
+                bDim ? TextDisabled : (Part.bEnough ? Text : Warn), CellLeft + ColumnWidth - NumberLeft - Canvas.Px(2.f));
+        }
+
+        // 맨 아래: 상태 띠(누르는 중이면 HOLD)와 진행 막대
+        const FBox2D BandRect = MakeRect(X + Inset, Y + Canvas.Px(BandTop), W - Inset * 2.f, Canvas.Px(BandHeight));
+        const FLinearColor StateColor = bHolding ? Accent : GetStateColor(Detail.State);
+        Canvas.Border(BandRect, BorderThin, StateColor);
+        Canvas.SetRegion(BandRect);
+        Canvas.Text(bHolding ? FString(HoldBandText) : Detail.StateLabel, EHDShipFont::Small, BandRect.GetCenter(), EHDShipTextAlign::Center, StateColor, static_cast<float>(BandRect.GetSize().X) - Canvas.Px(4.f));
+        if (bHolding)
+        {
+            const float BarTop = static_cast<float>(CardRect.Max.Y) - Canvas.Px(CardBarHeight);
+            Canvas.Fill(FBox2D(FVector2D(X, BarTop), FVector2D(X + W * FMath::Clamp(Progress, 0.f, 1.f), static_cast<float>(CardRect.Max.Y))), Accent);
+        }
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+
+    void PaintUpgradeDetail(FHDShipUICanvas& Canvas, const FBox2D& Area, const FHDUpgradeDetail& View, const FHDResourceView& Resources, bool bHolding, float Progress)
+    {
+        Canvas.Fill(Area, Panel);
+        Canvas.Border(Area, BorderThin, Line);
+        if (View.Title.IsEmpty())
+        {
+            return;
+        }
+        Canvas.SetRegion(Area);
+
+        const float Pad = Canvas.Px(DetailPadding);
+        const float Left = static_cast<float>(Area.Min.X) + Pad;
+        const float Right = static_cast<float>(Area.Max.X) - Pad;
+        const float InnerWidth = Right - Left;
+        const float LinePx = Canvas.Px(DetailLineHeight);
+        float Y = static_cast<float>(Area.Min.Y) + Pad;
+
+        const FBox2D IconRect = MakeRect(Left, Y, Canvas.Px(DetailIconSize), Canvas.Px(DetailIconSize));
+        Canvas.SetRegion(IconRect);
+        Canvas.Icon(View.IconId, IconRect, false);
+        Canvas.SetRegion(Area);
+        Y = static_cast<float>(IconRect.Max.Y) + Canvas.Px(Gap * 0.5f);
+
+        Canvas.Text(View.Title, EHDShipFont::Header, FVector2D(Left, Y + LinePx * 0.6f), EHDShipTextAlign::Left, Accent, InnerWidth);
+        Y += LinePx * 1.25f;
+        Canvas.Text(View.Group, EHDShipFont::Small, FVector2D(Left, Y + LinePx * 0.4f), EHDShipTextAlign::Left, TextDim, InnerWidth);
+        Y += LinePx * 0.9f;
+        Y += Canvas.Paragraph(View.Description, EHDShipFont::Small, FBox2D(FVector2D(Left, Y), FVector2D(Right, Y + LinePx * 3.5f)), Text, 4);
+        Y += Canvas.Px(Gap * 0.5f);
+
+        Canvas.Text(View.TierLabel, EHDShipFont::Body, FVector2D(Left, Y + LinePx * 0.5f), EHDShipTextAlign::Left, Text, InnerWidth);
+        Y += LinePx;
+        Canvas.Text(View.StateLabel, EHDShipFont::Body, FVector2D(Left, Y + LinePx * 0.5f), EHDShipTextAlign::Left, GetStateColor(View.State), InnerWidth);
+        Y += LinePx + Canvas.Px(Gap * 0.5f);
+
+        // CURRENT / THIS TIER 두 줄(라벨 TextDim, 값 Text)
+        const float ValueLeft = Left + Canvas.Px(DetailLabelWidth);
+        const TCHAR* const Labels[2] = { TEXT("CURRENT"), TEXT("THIS TIER") };
+        const FString* const Values[2] = { &View.Current, &View.ThisTier };
+        for (int32 Row = 0; Row < 2; ++Row)
+        {
+            const float CenterY = Y + LinePx * 0.5f;
+            Canvas.Text(Labels[Row], EHDShipFont::Small, FVector2D(Left, CenterY), EHDShipTextAlign::Left, TextDim, ValueLeft - Left - Canvas.Px(8.f));
+            Canvas.Text(*Values[Row], EHDShipFont::Body, FVector2D(ValueLeft, CenterY), EHDShipTextAlign::Left, Text, Right - ValueLeft);
+            Y += LinePx;
+        }
+        Y += Canvas.Px(Gap * 0.5f);
+
+        // 비용 줄: 아이콘 + 필요량(모자라면 Warn) + "/ 가진 양"
+        const float CostIcon = Canvas.Px(DetailCostIcon);
+        for (const FHDCostPart& Part : View.Cost)
+        {
+            const float CenterY = Y + LinePx * 0.5f;
+            Canvas.Icon(Part.IconId, MakeRect(Left, CenterY - CostIcon * 0.5f, CostIcon, CostIcon), false);
+            const float AmountLeft = Left + CostIcon + Canvas.Px(10.f);
+            const FBox2D AmountBox = Canvas.Text(FString::FromInt(Part.Amount), EHDShipFont::Body, FVector2D(AmountLeft, CenterY), EHDShipTextAlign::Left, Part.bEnough ? Text : Warn, Canvas.Px(90.f));
+            const float OwnedLeft = (AmountBox.bIsValid ? static_cast<float>(AmountBox.Max.X) : AmountLeft) + Canvas.Px(8.f);
+            Canvas.Text(FString::Printf(TEXT("/ %d"), GetOwned(Resources, Part.IconId)), EHDShipFont::Small, FVector2D(OwnedLeft, CenterY), EHDShipTextAlign::Left, TextDim, Right - OwnedLeft);
+            Y += LinePx;
+        }
+
+        // 맨 아래: 누르는 중이면 진행 막대와 HOLD TO BUY
+        if (bHolding)
+        {
+            const float BarBottom = static_cast<float>(Area.Max.Y) - Pad;
+            const float BarTop = BarBottom - Canvas.Px(DetailBarHeight);
+            Canvas.Text(HoldDetailText, EHDShipFont::Body, FVector2D(Left, BarTop - Canvas.Px(Gap) - LinePx * 0.5f), EHDShipTextAlign::Left, Accent, InnerWidth);
+            Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Right, BarBottom)), Line);
+            Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Left + InnerWidth * FMath::Clamp(Progress, 0.f, 1.f), BarBottom)), Accent);
+        }
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+}
+
+void FHDShipScreenPainter::PaintUpgrades(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const TArray<FHDUpgradeDetail>& CardDetails, const FHDHoldConfirm& Hold, const FHDResourceView& Resources)
+{
+    using namespace HDShipUpgradesPrivate;
+
+    Canvas.SetContentLayer(true);
+
+    const TArray<FHDNavCell> Cells = HDShipMenuNav::MakeUpgradeCells(Items);
+    const int32 Cursor = Items.IsEmpty() ? INDEX_NONE : FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1);
+
+    // 분야(처음 나온 순서)와 단계 수 T
+    TArray<FString> Groups;
+    int32 MaxTiers = 1;
+    for (const FHDShipMenuItem& Item : Items)
+    {
+        if (Item.SubCount > 0)
+        {
+            Groups.AddUnique(Item.Group);
+            MaxTiers = FMath::Max(MaxTiers, Item.SubCount);
+        }
+    }
+
+    const int32 ColumnCount = FMath::Clamp(Groups.Num(), 1, MaxColumns);
+    const float MainLeft = static_cast<float>(Frame.Main.Min.X);
+    const float MainTop = static_cast<float>(Frame.Main.Min.Y);
+    const float ColumnWidth = (static_cast<float>(Frame.Main.GetSize().X) - Canvas.Px(ColumnGap) * (ColumnCount - 1)) / ColumnCount;
+    const float CardWidth = (ColumnWidth - Canvas.Px(CardGap) * (MaxTiers - 1)) / MaxTiers;
+    const float UpgradeHeight = Canvas.Px(NameHeight + CardHeight + UpgradeGap);
+
+    // 분야 줄(4열 넘으면 다음 줄)의 높이 = 머리 + 그 줄에서 가장 많은 업그레이드 수 × 한 업그레이드 높이
+    TArray<int32> GroupRows;
+    GroupRows.Init(0, Groups.Num());
+    for (const FHDNavCell& Cell : Cells)
+    {
+        const int32 GroupIndex = Groups.IndexOfByKey(Items[Cell.ItemIndex].Group);
+        GroupRows[GroupIndex] = FMath::Max(GroupRows[GroupIndex], Cell.Row + 1);
+    }
+    TArray<float> BandTops;
+    float BandY = MainTop;
+    for (int32 GroupIndex = 0; GroupIndex < Groups.Num(); GroupIndex += MaxColumns)
+    {
+        BandTops.Add(BandY);
+        int32 MostRows = 0;
+        for (int32 Index = GroupIndex; Index < FMath::Min(GroupIndex + MaxColumns, Groups.Num()); ++Index)
+        {
+            MostRows = FMath::Max(MostRows, GroupRows[Index]);
+        }
+        BandY += Canvas.Px(ColumnHeaderHeight) + MostRows * UpgradeHeight;
+    }
+
+    auto ColumnLeft = [&](int32 GroupIndex) { return MainLeft + (GroupIndex % MaxColumns) * (ColumnWidth + Canvas.Px(ColumnGap)); };
+
+    // 열 머리: 분야 이름(Header, TextDim) + 아래 Line 선
+    for (int32 GroupIndex = 0; GroupIndex < Groups.Num(); ++GroupIndex)
+    {
+        const float Left = ColumnLeft(GroupIndex);
+        const float Top = BandTops[GroupIndex / MaxColumns];
+        const FBox2D HeaderRect = MakeRect(Left, Top, ColumnWidth, Canvas.Px(ColumnHeaderHeight));
+        Canvas.SetRegion(HeaderRect);
+        Canvas.Text(Groups[GroupIndex], EHDShipFont::Header, FVector2D(Left, Top + Canvas.Px(ColumnHeaderHeight) * 0.45f), EHDShipTextAlign::Left, TextDim, ColumnWidth);
+        Canvas.Fill(MakeRect(Left, static_cast<float>(HeaderRect.Max.Y) - Canvas.Px(2.f), ColumnWidth, FMath::Max(1.f, Canvas.Px(1.f))), Line);
+    }
+
+    // 업그레이드 이름과 단계 카드
+    const FHDUpgradeDetail EmptyDetail;
+    for (int32 CellIndex = 0; CellIndex < Cells.Num(); ++CellIndex)
+    {
+        const FHDNavCell& Cell = Cells[CellIndex];
+        const FHDShipMenuItem& Item = Items[Cell.ItemIndex];
+        const int32 GroupIndex = Groups.IndexOfByKey(Item.Group);
+        const float Left = ColumnLeft(GroupIndex);
+        const float Top = BandTops[GroupIndex / MaxColumns] + Canvas.Px(ColumnHeaderHeight) + Cell.Row * UpgradeHeight;
+        const FHDUpgradeDetail& Detail = CardDetails.IsValidIndex(CellIndex) ? CardDetails[CellIndex] : EmptyDetail;
+
+        if (Cell.SubIndex == 0)
+        {
+            const FBox2D NameRect = MakeRect(Left, Top, ColumnWidth, Canvas.Px(NameHeight));
+            Canvas.SetRegion(NameRect);
+            Canvas.Text(Detail.Title, EHDShipFont::Body, FVector2D(Left, Top + Canvas.Px(NameHeight) * 0.5f), EHDShipTextAlign::Left, Cell.ItemIndex == Cursor ? Accent : Text, ColumnWidth);
+        }
+
+        const FBox2D CardRect = MakeRect(Left + Cell.SubIndex * (CardWidth + Canvas.Px(CardGap)), Top + Canvas.Px(NameHeight), CardWidth, Canvas.Px(CardHeight));
+        const bool bSelected = Cell.ItemIndex == Cursor && Cell.SubIndex == Menu.GetSubCursor();
+        PaintCard(Canvas, CardRect, Detail, Cell.SubIndex, bSelected, IsHolding(Hold, Item, Cell.SubIndex), Hold.GetProgress());
+        Canvas.HitBox(CardRect, HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Card, Cell.ItemIndex, Cell.SubIndex));
+    }
+
+    // 상세 패널 = 커서 카드
+    const int32 CursorCell = HDShipMenuNav::FindCell(Cells, Cursor, Menu.GetSubCursor());
+    const FHDUpgradeDetail& CursorDetail = CardDetails.IsValidIndex(CursorCell) ? CardDetails[CursorCell] : EmptyDetail;
+    const bool bCursorHolding = Items.IsValidIndex(Cursor) && IsHolding(Hold, Items[Cursor], Menu.GetSubCursor());
+    PaintUpgradeDetail(Canvas, Frame.Detail, CursorDetail, Resources, bCursorHolding, Hold.GetProgress());
 
     Canvas.SetRegion(FBox2D(ForceInit));
     Canvas.SetContentLayer(false);

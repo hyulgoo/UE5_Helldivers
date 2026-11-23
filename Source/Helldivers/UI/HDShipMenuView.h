@@ -68,10 +68,48 @@ struct FHDLoadoutDetail
     FString                 Status;
 };
 
+class FHDUpgradeCatalog;
+
+// 함선 관리 단계 카드의 상태: 산 단계, 다음 단계이고 살 수 있음, 다음 단계인데 모자람, 앞 단계를 아직 안 삼
+enum class EHDTierState : uint8 { Owned, Available, Insufficient, NeedsPrevious };
+
+// 비용 한 항목(아이콘·필요량·가진 양으로 충분한가)
+struct FHDCostPart
+{
+    FName                   IconId;
+    int32                   Amount      = 0;
+    bool                    bEnough     = true;
+};
+
+// 함선 관리 카드·상세 패널의 그릴 내용
+struct FHDUpgradeDetail
+{
+    FName                   IconId;
+    FString                 Title;
+    FString                 Group;
+    FString                 Description;
+    FString                 TierLabel;      // "TIER 2 / 2"
+    EHDTierState            State = EHDTierState::NeedsPrevious;
+    FString                 StateLabel;
+    FString                 Current;        // FormatEffect(산 단계 값) 또는 "NONE"
+    FString                 ThisTier;       // FormatEffect(이 카드 값)
+    TArray<FHDCostPart>     Cost;           // 0 인 항목은 뺀다. IconId 는 Requisition·SampleCommon·SampleRare·SampleSuper
+};
+
 // 함선 화면의 "그릴 내용". 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipUI)로 고정한다
 namespace HDShipMenuView
 {
+    // 분야 이름을 파일에서 처음 나온 순서로. 빈 분야는 "OTHER"
+    HELLDIVERS_API TArray<FString>      GetUpgradeGroups(const FHDUpgradeCatalog& Catalog);
+    // k < ActiveSub → Owned, k == ActiveSub → 줄이 켜져 있으면 Available 아니면 Insufficient, k > ActiveSub → NeedsPrevious
+    HELLDIVERS_API EHDTierState         GetTierState(const FHDShipMenuItem& Item, int32 SubIndex);
+    // "OWNED"·"AVAILABLE"·"NOT ENOUGH"·"REQUIRES TIER <앞 단계 번호>"
+    HELLDIVERS_API FString              GetTierStateLabel(const FHDShipMenuItem& Item, int32 SubIndex);
+    // 줄 ItemIndex 의 단계 SubIndex 카드(상세 패널은 커서 카드로 부른다). 카탈로그나 줄이 없으면 빈 값
+    HELLDIVERS_API FHDUpgradeDetail     BuildUpgradeDetail(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context, int32 ItemIndex, int32 SubIndex);
+
     // 그 화면·상태에서 실제로 동작하는 키만(왼쪽부터). Title 은 빈 배열, 출격 대기 중이면 [BACKSPACE] CANCEL 하나.
+    // Upgrades(단계가 있는 줄이 있을 때): [ARROWS] MOVE, 커서 카드가 AVAILABLE 이면 [HOLD ENTER] BUY(클릭 안 됨), 그 뒤 Back 규칙.
     // Loadout: [ARROWS] MOVE, 창이 닫혀 있으면 카드 [ENTER] CHANGE·READY [ENTER] READY 와 Back 규칙,
     // 창이 열려 있으면 지금 낀 것 [ENTER] KEEP·고를 수 있는 것 [ENTER] EQUIP(잠김·다른 칸은 없음) 뒤 [BACKSPACE] CLOSE.
     // 목록 화면: [UP/DOWN] SELECT, 고른 줄이 켜진 조절 줄이면 [LEFT/RIGHT] CHANGE(WarTable 의 Difficulty 줄은 DIFFICULTY),

@@ -118,9 +118,19 @@ bool AHDPlayerController::InputKey(const FInputKeyEventArgs& Params)
     // 함선 메뉴 중에는 메뉴 키만 받는다. 방향키가 스트라타젬 명령 큐로 가지 않게 나머지 큐(화살표·숫자·Q·Alt)는 건너뛴다
     if (bShipMenuActive)
     {
+        // 길게 누르는 중: Enter 를 떼면 취소, 다른 메뉴 키를 누르면 취소한 뒤 그 키는 그대로 처리한다
+        if (ShipHold.IsActive() && Params.Key == EKeys::Enter && Params.Event == IE_Released)
+        {
+            CancelShipHold(TEXT("release"));
+        }
+
         EHDShipMenuKey MenuKey = EHDShipMenuKey::Confirm;
         if (HDShipMenu::TryGetMenuKey(Params.Key, Params.Event, MenuKey))
         {
+            if (ShipHold.IsActive() && MenuKey != EHDShipMenuKey::Confirm)
+            {
+                CancelShipHold(TEXT("key"));
+            }
             PendingShipMenuKeys.Add(MenuKey);
         }
 
@@ -204,6 +214,22 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
             }
 
             HandleShipMenuKey(MenuKey);
+        }
+    }
+
+    // 길게 누르기: 메뉴가 닫혔으면 끄고, 다 찼으면 그때 Confirm 을 처리한다(key Confirm → buy 로그)
+    if (ShipHold.IsActive())
+    {
+        if (bShipMenuActive == false)
+        {
+            CancelShipHold(TEXT("screen"));
+        }
+        else if (ShipHold.Tick(DeltaTime))
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDShip] hold complete %s"), *ShipHold.GetItemId().ToString());
+            bShipHoldCompleting = true;
+            HandleShipMenuKey(EHDShipMenuKey::Confirm);
+            bShipHoldCompleting = false;
         }
     }
 
@@ -364,6 +390,7 @@ void AHDPlayerController::EnterShipMenu(bool bShowTitle)
 
 void AHDPlayerController::ExitShipMenu()
 {
+    CancelShipHold(TEXT("screen"));
     bShipMenuActive = false;
     PendingShipMenuKeys.Reset();
 
@@ -469,6 +496,10 @@ void AHDPlayerController::HoverShipMenuItem(int32 Index)
         return;
     }
 
+    if (Index != ShipMenu.GetCursor())
+    {
+        CancelShipHold(TEXT("cursor"));
+    }
     ShipMenu.SetCursor(Index, BuildShipMenuItems().Num());
 }
 
@@ -531,6 +562,80 @@ void AHDPlayerController::ClickShipKeyHint(EHDShipMenuKey Key)
     HandleShipMenuKey(Key);
 }
 
+void AHDPlayerController::PressShipCard(int32 ItemIndex, int32 SubIndex)
+{
+    if (bShipMenuActive == false)
+    {
+        return;
+    }
+
+    const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+    if (Items.IsValidIndex(ItemIndex) == false)
+    {
+        return;
+    }
+
+    if (ItemIndex != ShipMenu.GetCursor() || SubIndex != ShipMenu.GetSubCursor())
+    {
+        CancelShipHold(TEXT("cursor"));
+    }
+    ShipMenu.SetCursor(ItemIndex, Items.Num());
+    ShipMenu.SetSubCursor(SubIndex, Items);
+
+    HandleShipMenuKey(EHDShipMenuKey::Confirm);
+}
+
+void AHDPlayerController::ReleaseShipCard()
+{
+    CancelShipHold(TEXT("release"));
+}
+
+void AHDPlayerController::LeaveShipCard(int32 ItemIndex, int32 SubIndex)
+{
+    if (ShipHold.IsActive() == false)
+    {
+        return;
+    }
+
+    const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+    if (Items.IsValidIndex(ItemIndex) && Items[ItemIndex].Id == ShipHold.GetItemId() && SubIndex == ShipHold.GetSubIndex())
+    {
+        CancelShipHold(TEXT("mouse"));
+    }
+}
+
+void AHDPlayerController::HoverShipCard(int32 ItemIndex, int32 SubIndex)
+{
+    if (bShipMenuActive == false || ConsumeShipMouseMoved() == false)
+    {
+        return;
+    }
+
+    const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+    if (Items.IsValidIndex(ItemIndex) == false)
+    {
+        return;
+    }
+
+    if (ItemIndex != ShipMenu.GetCursor() || SubIndex != ShipMenu.GetSubCursor())
+    {
+        CancelShipHold(TEXT("cursor"));
+    }
+    ShipMenu.SetCursor(ItemIndex, Items.Num());
+    ShipMenu.SetSubCursor(SubIndex, Items);
+}
+
+void AHDPlayerController::CancelShipHold(const TCHAR* Reason)
+{
+    if (ShipHold.IsActive() == false)
+    {
+        return;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] hold cancel %s reason=%s"), *ShipHold.GetItemId().ToString(), Reason);
+    ShipHold.Cancel();
+}
+
 bool AHDPlayerController::IsShipLaunching() const
 {
     const UWorld* World = GetWorld();
@@ -582,8 +687,41 @@ void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
         return;
     }
 
+    // 함선 관리 구매: 행동을 만드는 Confirm 이면 길게 누르기만 시작한다(다 차면 PlayerTick 이 이 함수를 다시 부른다). 시간 0 이면 바로 처리
+    if (Key == EHDShipMenuKey::Confirm && bShipHoldCompleting == false)
+    {
+        if (ShipHold.IsActive())
+        {
+            return;
+        }
+
+        const TArray<FHDShipMenuItem> HoldItems = BuildShipMenuItems();
+        if (HDShipMenu::NeedsHold(ShipMenu, HoldItems) && HoldItems.IsValidIndex(ShipMenu.GetCursor()))
+        {
+            const FName HoldId = HoldItems[ShipMenu.GetCursor()].Id;
+            const float Seconds = GetDefault<UHDProgressionSettings>()->HoldConfirmSeconds;
+            if (ShipHold.Start(HoldId, ShipMenu.GetSubCursor(), Seconds))
+            {
+                UE_LOG(LogTemp, Display, TEXT("[HDShip] hold start %s sub=%d seconds=%s"), *HoldId.ToString(), ShipMenu.GetSubCursor(), *FString::SanitizeFloat(Seconds));
+                return;
+            }
+        }
+    }
+
     const EHDShipScreen OldScreen = ShipMenu.GetScreen();
+    const int32 OldCursor = ShipMenu.GetCursor();
+    const int32 OldSubCursor = ShipMenu.GetSubCursor();
     const FHDShipMenuAction Action = ShipMenu.HandleKey(Key, BuildShipMenuItems());
+
+    // 화면·커서가 바뀌면 길게 누르기는 끝난다(키로 누른 것은 InputKey 가 이미 취소했다. 키 안내 상자 클릭은 여기서)
+    if (ShipMenu.GetScreen() != OldScreen)
+    {
+        CancelShipHold(TEXT("screen"));
+    }
+    else if (ShipMenu.GetCursor() != OldCursor || ShipMenu.GetSubCursor() != OldSubCursor)
+    {
+        CancelShipHold(TEXT("cursor"));
+    }
 
     // 키 처리 뒤의 화면·커서와 그 줄(화면이 바뀌었으면 새 화면의 줄)
     const EHDShipScreen NewScreen = ShipMenu.GetScreen();

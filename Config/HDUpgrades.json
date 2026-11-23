@@ -3,6 +3,7 @@
 		"Name": "EaglePayloadBay",
 		"DisplayName": "EAGLE PAYLOAD BAY",
 		"Description": "More bombs per Eagle sortie.",
+		"Group": "AIR SUPPORT",
 		"Effect": "EagleExtraUses",
 		"Levels": [ { "Requisition": 150, "Common": 10, "Value": 1 } ]
 	},
@@ -10,6 +11,7 @@
 		"Name": "EagleFastRearm",
 		"DisplayName": "EAGLE FAST REARM",
 		"Description": "Eagle returns from rearming sooner.",
+		"Group": "AIR SUPPORT",
 		"Effect": "EagleRearmScale",
 		"Levels": [ { "Requisition": 100, "Common": 5, "Value": 0.8 }, { "Requisition": 200, "Common": 10, "Rare": 3, "Value": 0.6 } ]
 	},
@@ -17,6 +19,7 @@
 		"Name": "OrbitalCoolant",
 		"DisplayName": "ORBITAL COOLANT",
 		"Description": "Orbital strikes are ready again sooner.",
+		"Group": "ORBITAL",
 		"Effect": "OrbitalCooldownScale",
 		"Levels": [ { "Requisition": 100, "Common": 5, "Value": 0.9 }, { "Requisition": 250, "Common": 10, "Rare": 5, "Value": 0.8 } ]
 	},
@@ -24,6 +27,7 @@
 		"Name": "LogisticsPriority",
 		"DisplayName": "LOGISTICS PRIORITY",
 		"Description": "Supply, sentry and support weapon drops are ready again sooner.",
+		"Group": "LOGISTICS",
 		"Effect": "SupportCooldownScale",
 		"Levels": [ { "Requisition": 100, "Common": 5, "Value": 0.9 }, { "Requisition": 200, "Common": 10, "Rare": 3, "Value": 0.8 } ]
 	},
@@ -31,6 +35,7 @@
 		"Name": "TargetingUplink",
 		"DisplayName": "TARGETING UPLINK",
 		"Description": "Stratagems arrive sooner after the beacon lands.",
+		"Group": "COMMAND",
 		"Effect": "ActivationDelayReduction",
 		"Levels": [ { "Requisition": 150, "Common": 8, "Value": 0.5 }, { "Requisition": 300, "Common": 15, "Rare": 5, "Super": 1, "Value": 1.0 } ]
 	},
@@ -38,6 +43,7 @@
 		"Name": "FieldKit",
 		"DisplayName": "FIELD KIT",
 		"Description": "Carry more stims and grenades into every drop.",
+		"Group": "LOGISTICS",
 		"Effect": "ExtraStimsAndGrenades",
 		"Levels": [ { "Requisition": 100, "Common": 5, "Value": 1 }, { "Requisition": 250, "Common": 10, "Rare": 3, "Value": 2 } ]
 	},
@@ -45,6 +51,7 @@
 		"Name": "ReinforcementBudget",
 		"DisplayName": "REINFORCEMENT BUDGET",
 		"Description": "More reinforcements per mission.",
+		"Group": "COMMAND",
 		"Effect": "ExtraReinforcements",
 		"Levels": [ { "Requisition": 150, "Common": 8, "Value": 1 }, { "Requisition": 400, "Common": 15, "Rare": 5, "Super": 2, "Value": 2 } ]
 	}

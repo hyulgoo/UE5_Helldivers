@@ -165,3 +165,50 @@ TArray<FHDNavCell> HDShipMenuNav::MakeLoadoutCells(const TArray<FHDShipMenuItem>
     }
     return Cells;
 }
+
+TArray<FHDNavCell> HDShipMenuNav::MakeUpgradeCells(const TArray<FHDShipMenuItem>& Items)
+{
+    // 가장 많은 단계 수 T(열 묶음 하나의 폭)
+    int32 MaxTiers = 0;
+    for (const FHDShipMenuItem& Item : Items)
+    {
+        MaxTiers = FMath::Max(MaxTiers, Item.SubCount);
+    }
+
+    TArray<FHDNavCell> Cells;
+    if (MaxTiers <= 0)
+    {
+        return Cells;
+    }
+
+    // 분야 → 열 묶음 번호(처음 나온 순서)와 그 분야에 놓인 줄 수
+    TArray<FString> Groups;
+    TArray<int32> GroupRows;
+    for (int32 Index = 0; Index < Items.Num(); ++Index)
+    {
+        const FHDShipMenuItem& Item = Items[Index];
+        if (Item.SubCount <= 0)
+        {
+            continue;
+        }
+
+        int32 GroupIndex = Groups.IndexOfByKey(Item.Group);
+        if (GroupIndex == INDEX_NONE)
+        {
+            GroupIndex = Groups.Add(Item.Group);
+            GroupRows.Add(0);
+        }
+        const int32 Row = GroupRows[GroupIndex]++;
+
+        for (int32 Sub = 0; Sub < Item.SubCount; ++Sub)
+        {
+            FHDNavCell Cell;
+            Cell.ItemIndex  = Index;
+            Cell.SubIndex   = Sub;
+            Cell.Col        = GroupIndex * MaxTiers + Sub;
+            Cell.Row        = Row;
+            Cells.Add(Cell);
+        }
+    }
+    return Cells;
+}

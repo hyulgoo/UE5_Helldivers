@@ -46,6 +46,8 @@
 #include "Progression/HDWeaponCatalog.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "UI/HDShipScreenPainter.h"
+#include "UI/HDShipMenuNav.h"
+#include "UI/HDHoldConfirm.h"
 #include "Ship/HDWarTableMap.h"
 #include "Game/HDMissionSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -427,6 +429,10 @@ void AHDHUD::NotifyHitBoxClick(FName BoxName)
     {
         HDPlayerController->ClickShipMenuItem(A);
     }
+    else if (Kind == HDShipUILayout::EHDShipHitKind::Card)
+    {
+        HDPlayerController->PressShipCard(A, B);
+    }
     else if (Kind == HDShipUILayout::EHDShipHitKind::Pick)
     {
         HDPlayerController->ClickShipPickerItem(A);
@@ -458,6 +464,39 @@ void AHDHUD::NotifyHitBoxBeginCursorOver(FName BoxName)
     else if (Kind == HDShipUILayout::EHDShipHitKind::Pick)
     {
         HDPlayerController->HoverShipPickerItem(A);
+    }
+    else if (Kind == HDShipUILayout::EHDShipHitKind::Card)
+    {
+        HDPlayerController->HoverShipCard(A, B);
+    }
+}
+
+void AHDHUD::NotifyHitBoxRelease(FName BoxName)
+{
+    Super::NotifyHitBoxRelease(BoxName);
+
+    AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    HDShipUILayout::EHDShipHitKind Kind = HDShipUILayout::EHDShipHitKind::None;
+    int32 A = 0;
+    int32 B = 0;
+    if (HDPlayerController && HDShipUILayout::ParseHitBoxName(BoxName, Kind, A, B) && Kind == HDShipUILayout::EHDShipHitKind::Card)
+    {
+        HDPlayerController->ReleaseShipCard();
+    }
+}
+
+void AHDHUD::NotifyHitBoxEndCursorOver(FName BoxName)
+{
+    Super::NotifyHitBoxEndCursorOver(BoxName);
+
+    // 누르던 카드 밖으로 나가면 길게 누르기를 취소한다(밖에서 뗀 경우도 여기서 끝난다)
+    AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    HDShipUILayout::EHDShipHitKind Kind = HDShipUILayout::EHDShipHitKind::None;
+    int32 A = 0;
+    int32 B = 0;
+    if (HDPlayerController && HDShipUILayout::ParseHitBoxName(BoxName, Kind, A, B) && Kind == HDShipUILayout::EHDShipHitKind::Card)
+    {
+        HDPlayerController->LeaveShipCard(A, B);
     }
 }
 
@@ -630,6 +669,10 @@ void AHDHUD::DrawShipMenu(bool bInteractive)
     {
         DrawLoadout(UICanvas, ShipMenu, Items);
     }
+    else if (Screen == EHDShipScreen::Upgrades && Items.ContainsByPredicate([](const FHDShipMenuItem& Item) { return Item.SubCount > 0; }))
+    {
+        DrawUpgrades(UICanvas, ShipMenu, Items);
+    }
     else
     {
         FHDShipScreenPainter::PaintList(UICanvas, ShipMenu, Items);
@@ -755,6 +798,22 @@ void AHDHUD::DrawLoadout(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu,
     }
 
     FHDShipScreenPainter::PaintLoadout(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, Detail, CommandTextures);
+}
+
+void AHDHUD::DrawUpgrades(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items)
+{
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    NULL_CHECK(HDPlayerController);
+
+    // 카드 순서 = HDShipMenuNav::MakeUpgradeCells
+    const FHDShipMenuContext Context = HDPlayerController->BuildShipMenuContext();
+    TArray<FHDUpgradeDetail> CardDetails;
+    for (const FHDNavCell& Cell : HDShipMenuNav::MakeUpgradeCells(Items))
+    {
+        CardDetails.Add(HDShipMenuView::BuildUpgradeDetail(ShipMenu, Items, Context, Cell.ItemIndex, Cell.SubIndex));
+    }
+
+    FHDShipScreenPainter::PaintUpgrades(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, CardDetails, HDPlayerController->GetShipHold(), HDHUDShip::MakeResourceView(this));
 }
 
 void AHDHUD::DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex)

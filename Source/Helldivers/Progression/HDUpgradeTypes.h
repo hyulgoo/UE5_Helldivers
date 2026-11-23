@@ -67,6 +67,10 @@ struct HELLDIVERS_API FHDUpgradeDefinition : public FTableRowBase
     UPROPERTY(EditAnywhere)
     FString                 Description;
 
+    // 함선 관리 화면의 열 이름(영어). 비면 OTHER
+    UPROPERTY(EditAnywhere)
+    FString                 Group;
+
     UPROPERTY(EditAnywhere)
     EHDUpgradeEffect        Effect = EHDUpgradeEffect::EagleExtraUses;
 

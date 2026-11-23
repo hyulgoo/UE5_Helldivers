@@ -253,10 +253,10 @@ bool FHDShipUITest::RunTest(const FString& Parameters)
         FHDShipMenu Upgrades;
         Upgrades.OpenTerminal(EHDShipScreen::Upgrades);
         TestEqual(TEXT("S4: Upgrades can buy"), HDShipMenuView::JoinKeyHints(HDShipMenuView::GetKeyHints(Upgrades, UpgradeItems, false)),
-            FString(TEXT("[UP/DOWN] SELECT   [ENTER] CONFIRM   [BACKSPACE] CLOSE")));
+            FString(TEXT("[ARROWS] MOVE   [HOLD ENTER] BUY   [BACKSPACE] CLOSE")));
         Upgrades.SetCursor(1, UpgradeItems.Num());
         TestEqual(TEXT("S4: Upgrades cannot buy"), HDShipMenuView::JoinKeyHints(HDShipMenuView::GetKeyHints(Upgrades, UpgradeItems, false)),
-            FString(TEXT("[UP/DOWN] SELECT   [BACKSPACE] CLOSE")));
+            FString(TEXT("[ARROWS] MOVE   [BACKSPACE] CLOSE")));
 
         FHDShipMenuContext BridgeUpgradeContext = UpgradeContext;
         const TArray<FHDShipMenuItem> BridgeUpgradeRoot = HDShipMenu::BuildItems(EHDShipScreen::Bridge, BridgeUpgradeContext);
