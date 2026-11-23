@@ -13,6 +13,7 @@ class AHDGameState;
 class AHDShipInterior;
 class FHDShipUICanvas;
 class UFont;
+class UTexture2D;
 class UAbilitySystemComponent;
 class UHDGASPlayerUserWidget;
 class UHDReticleWidget;
@@ -60,6 +61,12 @@ private:
     void                                DrawLaunchCountdown(float RemainingSeconds);
     // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)
     UFont*                              GetShipUIFont();
+    // 아이콘 텍스처 캐시(ShipUITextures). 처음 쓸 때 LoadObject, 못 읽으면 nullptr 와 [HDShipUI] icon missing 한 번
+    UTexture2D*                         GetShipUITexture(const FString& Path);
+    // 캔버스 도구에 위 캐시를 붙인다
+    void                                BindShipUITextures(FHDShipUICanvas& UICanvas);
+    // 지금 든 무기의 카탈로그 Id 로 Img_Weapon 글자 타일을 바꾼다
+    void                                RefreshWeaponIcon();
     // 그린 글자의 겹침·잘림을 센다. (화면, 뷰)마다 한 번 [HDShipUI] check 를 남기고, 그 뒤 (화면, 뷰, 커서)가 처음인 프레임에 문제가 있으면 Warning
     void                                CheckShipTexts(const FString& ScreenName, const FHDShipUICanvas& UICanvas, int32 Cursor);
     void                                DrawMissionText();
@@ -107,6 +114,14 @@ private:
     UPROPERTY()
     TObjectPtr<UFont>                       ShipUIFont;
     bool                                    bShipUIFontLoadTried = false;
+
+    // 함선 화면 아이콘 텍스처(경로 → 텍스처). 못 읽은 경로는 nullptr 로 남겨 다시 읽지 않는다
+    UPROPERTY()
+    TMap<FString, TObjectPtr<UTexture2D>>   ShipUITextures;
+
+    // 미션 HUD 무기 글자 타일(<Id>_<가로 px> → 텍스처)
+    UPROPERTY()
+    TMap<FName, TObjectPtr<UTexture2D>>     WeaponIconTextures;
 
     // 함선 화면 전환과 지난 프레임의 메뉴 열림·화면
     FHDShipUITransition                     ShipTransition;

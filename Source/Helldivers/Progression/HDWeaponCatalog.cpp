@@ -19,7 +19,7 @@ namespace HDWeaponCatalog
         const FName FragGrenadeId(TEXT("FragGrenade"));
         const FName ImpactGrenadeId(TEXT("ImpactGrenade"));
 
-        FHDWeaponOption MakeOption(FName Id, EHDLoadoutWeapon Slot, const TCHAR* DisplayName, const TCHAR* Detail, int32 UnlockCost)
+        FHDWeaponOption MakeOption(FName Id, EHDLoadoutWeapon Slot, const TCHAR* DisplayName, const TCHAR* Detail, int32 UnlockCost, const FHDWeaponStats& Stats)
         {
             FHDWeaponOption Option;
             Option.Id           = Id;
@@ -27,7 +27,48 @@ namespace HDWeaponCatalog
             Option.DisplayName  = DisplayName;
             Option.Detail       = Detail;
             Option.UnlockCost   = UnlockCost;
+            Option.Stats        = Stats;
             return Option;
+        }
+
+        // 총 수치. FireDelay 는 초
+        FHDWeaponStats MakeGunStats(float Damage, int32 Pellets, float FireDelay, int32 Magazine, int32 SpareMagazines, int32 ArmorPen)
+        {
+            FHDWeaponStats Stats;
+            Stats.Damage            = Damage;
+            Stats.Pellets           = Pellets;
+            Stats.RoundsPerMinute   = FireDelay > 0.f ? 60.f / FireDelay : 0.f;
+            Stats.Magazine          = Magazine;
+            Stats.SpareMagazines    = SpareMagazines;
+            Stats.ArmorPen          = ArmorPen;
+            return Stats;
+        }
+
+        // 수류탄 수치. Radius 는 cm, FuseSeconds 0 = 닿으면 터짐
+        FHDWeaponStats MakeGrenadeStats(float Damage, int32 ArmorPen, float Radius, float FuseSeconds)
+        {
+            FHDWeaponStats Stats;
+            Stats.Damage            = Damage;
+            Stats.ArmorPen          = ArmorPen;
+            Stats.Radius            = Radius;
+            Stats.FuseSeconds       = FuseSeconds;
+            return Stats;
+        }
+
+        // 막대 비율의 최대값
+        constexpr float     MaxBarDamage    = 400.f;
+        constexpr float     MaxBarRpm       = 900.f;
+        constexpr float     MaxBarMagazine  = 60.f;
+        constexpr float     MaxBarArmorPen  = 4.f;
+        constexpr float     MaxBarRadius    = 500.f;
+
+        FHDStatBar MakeBar(const TCHAR* Label, const FString& Value, float Fraction)
+        {
+            FHDStatBar Bar;
+            Bar.Label       = Label;
+            Bar.Value       = Value;
+            Bar.Fraction    = Fraction < 0.f ? -1.f : FMath::Clamp(Fraction, 0.f, 1.f);
+            return Bar;
         }
 
         FName GetProfileValue(const FHDProfileData& Data, EHDLoadoutWeapon Slot)
@@ -44,15 +85,15 @@ namespace HDWeaponCatalog
 
     const TArray<FHDWeaponOption>& GetOptions()
     {
-        // 수치는 각 클래스 생성자 값이다(돌격소총은 BP_Rifle)
+        // 수치는 각 클래스 생성자 값이다(돌격소총은 BP_Rifle CDO, 탄 BPP_Bullet_Light). 여분 탄창은 AmmoData.MaxCapacity
         static const TArray<FHDWeaponOption> Options =
         {
-            MakeOption(AssaultRifleId,  EHDLoadoutWeapon::Primary,      TEXT("ASSAULT RIFLE"),  TEXT("AUTOMATIC   45 ROUNDS   ARMOR PEN 2"),    0),
-            MakeOption(ShotgunId,       EHDLoadoutWeapon::Primary,      TEXT("SHOTGUN"),        TEXT("8 PELLETS   6 SHELLS   ARMOR PEN 1"),     100),
-            MakeOption(PistolId,        EHDLoadoutWeapon::Secondary,    TEXT("PISTOL"),         TEXT("SEMI-AUTO   15 ROUNDS   ARMOR PEN 1"),    0),
-            MakeOption(MachinePistolId, EHDLoadoutWeapon::Secondary,    TEXT("MACHINE PISTOL"), TEXT("AUTOMATIC   24 ROUNDS   ARMOR PEN 1"),    60),
-            MakeOption(FragGrenadeId,   EHDLoadoutWeapon::Grenade,      TEXT("FRAG GRENADE"),   TEXT("3 SECOND FUSE"),                          0),
-            MakeOption(ImpactGrenadeId, EHDLoadoutWeapon::Grenade,      TEXT("IMPACT GRENADE"), TEXT("EXPLODES ON IMPACT"),                     80),
+            MakeOption(AssaultRifleId,  EHDLoadoutWeapon::Primary,      TEXT("ASSAULT RIFLE"),  TEXT("AUTOMATIC   45 ROUNDS   ARMOR PEN 2"),    0, MakeGunStats(50.f, 1, 0.1f, 45, 7, 2)),
+            MakeOption(ShotgunId,       EHDLoadoutWeapon::Primary,      TEXT("SHOTGUN"),        TEXT("8 PELLETS   6 SHELLS   ARMOR PEN 1"),     100, MakeGunStats(50.f, 8, 0.9f, 6, 5, 1)),
+            MakeOption(PistolId,        EHDLoadoutWeapon::Secondary,    TEXT("PISTOL"),         TEXT("SEMI-AUTO   15 ROUNDS   ARMOR PEN 1"),    0, MakeGunStats(50.f, 1, 0.25f, 15, 4, 1)),
+            MakeOption(MachinePistolId, EHDLoadoutWeapon::Secondary,    TEXT("MACHINE PISTOL"), TEXT("AUTOMATIC   24 ROUNDS   ARMOR PEN 1"),    60, MakeGunStats(50.f, 1, 0.08f, 24, 4, 1)),
+            MakeOption(FragGrenadeId,   EHDLoadoutWeapon::Grenade,      TEXT("FRAG GRENADE"),   TEXT("3 SECOND FUSE"),                          0, MakeGrenadeStats(80.f, 3, 350.f, 3.f)),
+            MakeOption(ImpactGrenadeId, EHDLoadoutWeapon::Grenade,      TEXT("IMPACT GRENADE"), TEXT("EXPLODES ON IMPACT"),                     80, MakeGrenadeStats(80.f, 3, 300.f, 0.f)),
         };
         return Options;
     }
@@ -208,5 +249,29 @@ namespace HDWeaponCatalog
             *GetChosen(Data, EHDLoadoutWeapon::Secondary).ToString(),
             *GetChosen(Data, EHDLoadoutWeapon::Grenade).ToString(),
             *FString::Join(UnlockedParts, TEXT(",")));
+    }
+
+    TArray<FHDStatBar> MakeStatBars(const FHDWeaponOption& Option)
+    {
+        const FHDWeaponStats& Stats = Option.Stats;
+        TArray<FHDStatBar> Bars;
+
+        if (Option.Slot == EHDLoadoutWeapon::Grenade)
+        {
+            Bars.Add(MakeBar(TEXT("DAMAGE"), FString::Printf(TEXT("%d"), FMath::RoundToInt(Stats.Damage)), Stats.Damage / MaxBarDamage));
+            Bars.Add(MakeBar(TEXT("RADIUS"), FString::Printf(TEXT("%.1f M"), Stats.Radius / 100.f), Stats.Radius / MaxBarRadius));
+            Bars.Add(MakeBar(TEXT("ARMOR PEN"), FString::FromInt(Stats.ArmorPen), Stats.ArmorPen / MaxBarArmorPen));
+            Bars.Add(MakeBar(TEXT("FUSE"), Stats.FuseSeconds > 0.f ? FString::Printf(TEXT("%.1f S"), Stats.FuseSeconds) : FString(TEXT("IMPACT")), -1.f));
+            return Bars;
+        }
+
+        const FString DamageText = Stats.Pellets > 1
+            ? FString::Printf(TEXT("%d X%d"), FMath::RoundToInt(Stats.Damage), Stats.Pellets)
+            : FString::Printf(TEXT("%d"), FMath::RoundToInt(Stats.Damage));
+        Bars.Add(MakeBar(TEXT("DAMAGE"), DamageText, Stats.Damage * FMath::Max(1, Stats.Pellets) / MaxBarDamage));
+        Bars.Add(MakeBar(TEXT("FIRE RATE"), FString::Printf(TEXT("%d RPM"), FMath::RoundToInt(Stats.RoundsPerMinute)), Stats.RoundsPerMinute / MaxBarRpm));
+        Bars.Add(MakeBar(TEXT("CAPACITY"), FString::FromInt(Stats.Magazine), Stats.Magazine / MaxBarMagazine));
+        Bars.Add(MakeBar(TEXT("ARMOR PEN"), FString::FromInt(Stats.ArmorPen), Stats.ArmorPen / MaxBarArmorPen));
+        return Bars;
     }
 }

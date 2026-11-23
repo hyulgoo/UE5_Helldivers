@@ -21,6 +21,12 @@ public:
     void                        InitializeHealth(const float InCurrentHealth, const float InMaxHealth);
     void                        OnHealthAttributeChangeds(const FOnAttributeChangeData& ChangeData);
     void                        OnWeaponAttributeChangeds(const FOnAttributeChangeData& ChangeData);
+    // 장비 칸 이미지 브러시만 바꾼다(크기는 위젯 슬롯을 따른다)
+    void                        SetWeaponIcon(UTexture2D* Texture);
+    void                        SetGrenadeIcon(UTexture2D* Texture);
+    void                        SetStimIcon(UTexture2D* Texture);
+    // Img_Weapon 슬롯(배치 전이면 브러시) 크기의 가로 / 세로. 알 수 없으면 1
+    float                       GetWeaponIconAspect() const;
 private:
 
     void                        RefreshHealthBar();

@@ -9,6 +9,16 @@
 #include "Stratagem/HDStratagemLoadout.h"
 #include "UI/HDStratagemInfoUserWidget.h"
 #include "Abilities/GameplayAbilityTypes.h"
+#include "Engine/Texture2D.h"
+#include "Stratagem/HDStratagemCatalog.h"
+#include "UI/HDShipIcons.h"
+#include "UI/HDLetterTile.h"
+
+namespace HDStratagemHUDPrivate
+{
+    // 글자 타일 텍스처 크기(px)
+    constexpr int32     LetterTileSize  = 64;
+}
 
 void UHDStratagemHUDUserWidget::InitializeStratagemHUD(UHDStratagemComponent* InStratagemComponent)
 {
@@ -59,12 +69,53 @@ void UHDStratagemHUDUserWidget::RebuildStratagemList()
         UHDStratagemInfoUserWidget* StratagemIndoWidget = CreateWidget<UHDStratagemInfoUserWidget>(this, StratagemInfoWidgetClass);
         NULL_CHECK(StratagemIndoWidget);
 
-        UTexture2D* const* IconTexture = StratagemIconList.Find(LoadoutSlot->StratagemName);
-        StratagemIndoWidget->InitializeStratagemInfoWidget(IconTexture ? *IconTexture : nullptr, LoadoutSlot->CommandSequence, CommandIconList, LoadoutSlot->StratagemName);
+        UTexture2D* const* MappedTexture = StratagemIconList.Find(LoadoutSlot->StratagemName);
+        UTexture2D* IconTexture = MappedTexture ? *MappedTexture : nullptr;
+        FString IconSource = TEXT("map");
+        if (IconTexture == nullptr)
+        {
+            IconTexture = ResolveFallbackIcon(LoadoutSlot->StratagemName, IconSource);
+        }
+        UE_LOG(LogTemp, Display, TEXT("[HDHUD] stratagem icon %s source=%s"), *LoadoutSlot->StratagemName.ToString(), *IconSource);
+
+        StratagemIndoWidget->InitializeStratagemInfoWidget(IconTexture, LoadoutSlot->CommandSequence, CommandIconList, LoadoutSlot->StratagemName);
         StratagemInfoWidgetList.Add(StratagemIndoWidget);
 
         VB_StratagemList->AddChildToVerticalBox(StratagemIndoWidget);
     }
+}
+
+UTexture2D* UHDStratagemHUDUserWidget::ResolveFallbackIcon(FName StratagemName, FString& OutSource)
+{
+    const FHDIconRef Ref = HDShipIcons::Resolve(StratagemName, &FHDStratagemCatalog::GetProjectCatalog());
+    OutSource = Ref.TexturePath.IsEmpty() ? FString::Printf(TEXT("tile:%s"), *Ref.Abbrev) : FString(TEXT("texture"));
+
+    if (const TObjectPtr<UTexture2D>* Cached = GeneratedIcons.Find(StratagemName))
+    {
+        if (*Cached)
+        {
+            return *Cached;
+        }
+    }
+
+    UTexture2D* Texture = nullptr;
+    if (Ref.TexturePath.IsEmpty() == false)
+    {
+        Texture = LoadObject<UTexture2D>(nullptr, *Ref.TexturePath);
+    }
+
+    if (Texture == nullptr)
+    {
+        // 텍스처가 없거나 못 읽으면 약칭 타일
+        OutSource = FString::Printf(TEXT("tile:%s"), *Ref.Abbrev);
+        Texture = HDLetterTile::CreateTexture(this, Ref.Abbrev, HDStratagemHUDPrivate::LetterTileSize, HDStratagemHUDPrivate::LetterTileSize, Ref.Tint);
+    }
+
+    if (Texture)
+    {
+        GeneratedIcons.Add(StratagemName, Texture);
+    }
+    return Texture;
 }
 
 void UHDStratagemHUDUserWidget::SetHUDActiveByCurrentInputMatchList(const TArray<FName>& MatchStratagemList, const int32 CurrentInputNum)

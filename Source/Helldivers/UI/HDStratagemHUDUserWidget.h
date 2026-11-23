@@ -40,6 +40,10 @@ protected:
 	// 맨 앞에서 칸 i 의 남은 대기·횟수를 위젯 i 의 이름 옆 글자로 맞춘다
 	virtual void									NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override final;
 
+private:
+	// StratagemIconList 에 없는 칸의 아이콘: 아이콘 표(HDShipIcons)의 텍스처, 없으면 약칭 글자 타일(GeneratedIcons 에 캐시)
+	UTexture2D*										ResolveFallbackIcon(FName StratagemName, FString& OutSource);
+
 protected:	
     UPROPERTY()
     TObjectPtr<UHDStratagemComponent>				StratagemComponent;
@@ -61,6 +65,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere)
 	TArray<TObjectPtr<UHDStratagemInfoUserWidget>>	StratagemInfoWidgetList;
+
+	// StratagemIconList 에 없는 스트라타젬의 아이콘(읽은 텍스처 또는 만든 글자 타일)
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UTexture2D>>				GeneratedIcons;
 	
 	int8											MaxCommandCount;
 

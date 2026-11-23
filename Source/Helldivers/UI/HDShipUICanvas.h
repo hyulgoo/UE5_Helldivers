@@ -10,6 +10,7 @@
 class AHUD;
 class UCanvas;
 class UFont;
+class UTexture2D;
 
 // 글자 가로 맞춤. 세로는 늘 Pos.Y 가 글자 줄의 가운데다
 enum class EHDShipTextAlign : uint8
@@ -54,8 +55,13 @@ public:
     float               Paragraph(const FString& InText, EHDShipFont Font, const FBox2D& Rect, const FLinearColor& Color, int32 MaxLines);
     // 테두리 상자 + KeyCap 글꼴. Pos.X 는 왼쪽, Pos.Y 는 가운데. 상자를 돌려준다
     FBox2D              KeyCap(const FString& Key, const FVector2D& Pos);
-    // 채운 사각형 + 테두리 + 가운데 약칭(맞춤). 브리프 3 이 아이콘 표로 넓힌다
+    // 채운 사각형 + 테두리 + 가운데 약칭(맞춤)
     void                LetterTile(const FString& Abbrev, const FBox2D& Rect, const FLinearColor& Tint, bool bDim);
+    // 아이콘 표(HDShipIcons::Resolve)의 텍스처를 비율을 지켜 가운데 그린다. 텍스처가 없거나 못 읽으면 LetterTile.
+    // Badge 가 있으면 오른쪽 아래 Small 글꼴. bDim 이면 투명도 × 0.35
+    void                Icon(FName Id, const FBox2D& Rect, bool bDim);
+    // 텍스처 경로 → 텍스처(못 읽으면 nullptr). HUD 가 캐시를 붙인다. 없으면 Icon 은 늘 글자 타일
+    void                SetTextureLoader(TFunction<UTexture2D*(const FString&)> InLoader) { TextureLoader = MoveTemp(InLoader); }
     void                HitBox(const FBox2D& Rect, FName Name);
 
     const TArray<HDShipUILayout::FHDDrawnText>& GetDrawnTexts() const { return DrawnTexts; }
@@ -84,4 +90,5 @@ private:
     bool                bContentLayer   = false;
     FBox2D              Region          = FBox2D(ForceInit);
     TArray<HDShipUILayout::FHDDrawnText> DrawnTexts;
+    TFunction<UTexture2D*(const FString&)> TextureLoader;
 };

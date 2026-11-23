@@ -38,6 +38,13 @@
 #include "UI/HDShipUILayout.h"
 #include "UI/HDShipMenuView.h"
 #include "UI/HDShipUICanvas.h"
+#include "UI/HDShipIcons.h"
+#include "UI/HDLetterTile.h"
+#include "Engine/Texture2D.h"
+#include "Component/HDCombatComponent.h"
+#include "Weapon/HDSupportWeapon.h"
+#include "Progression/HDWeaponCatalog.h"
+#include "Stratagem/HDStratagemCatalog.h"
 #include "UI/HDShipScreenPainter.h"
 
 namespace HDHUDMission
@@ -240,6 +247,10 @@ void AHDHUD::CreateDefaultWidget()
             AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UHDWeaponAttributeSet::GetMaxStimAttribute()).AddUObject(PlayerHUDWidget, &UHDGASPlayerUserWidget::OnWeaponAttributeChangeds);
 
             PlayerHUDWidget->AddToViewport();
+
+            // 장비 칸 흰 네모: 수류탄·스팀은 기존 텍스처(무기는 든 무기가 바뀔 때 RefreshWeaponIcon)
+            PlayerHUDWidget->SetGrenadeIcon(GetShipUITexture(HDShipIcons::Resolve(FName(TEXT("FragGrenade"))).TexturePath));
+            PlayerHUDWidget->SetStimIcon(GetShipUITexture(HDShipIcons::Resolve(FName(TEXT("Stim"))).TexturePath));
         }
 
         // 다시 강하하면 초기 GE 를 다시 적용한 값으로 막대를 맞춘다
@@ -296,6 +307,8 @@ void AHDHUD::OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload)
         ReticleWidget->AddToViewport();
     }
 
+    RefreshWeaponIcon();
+
     TScriptInterface<IHDWeaponInterface> WeaponInterfae = PlayerOwner->GetPawn();
     NULL_CHECK(WeaponInterfae);
 
@@ -304,6 +317,50 @@ void AHDHUD::OnEquipWeaponUIEventRecieved(const FGameplayEventData* Payload)
     //{
     //    SpreadChangedHandle = CurrentWeapon->OnSpreadChanged.AddUObject(ReticleWidget, &UHDReticleWidget::UpdateCrosshair);
     //}
+}
+
+void AHDHUD::RefreshWeaponIcon()
+{
+    NULL_CHECK_WITHOUT_LOG(PlayerHUDWidget);
+    NULL_CHECK_WITHOUT_LOG(PlayerOwner);
+
+    const APawn* Pawn = PlayerOwner->GetPawn();
+    NULL_CHECK_WITHOUT_LOG(Pawn);
+    const UHDCombatComponent* Combat = Pawn->FindComponentByClass<UHDCombatComponent>();
+    NULL_CHECK_WITHOUT_LOG(Combat);
+    const AHDWeapon* Weapon = Combat->GetWeapon();
+    NULL_CHECK_WITHOUT_LOG(Weapon);
+
+    // 카탈로그 클래스의 자식 → 그 Id, 지원 무기 → AntiMaterielRifle, 그 밖 → AssaultRifle(GetWeaponClass 가 nullptr 인 기본 총)
+    FName WeaponId = FName(TEXT("AssaultRifle"));
+    bool bFound = false;
+    for (const FHDWeaponOption& Option : HDWeaponCatalog::GetOptions())
+    {
+        const UClass* OptionClass = HDWeaponCatalog::GetWeaponClass(Option.Id);
+        if (OptionClass && Weapon->GetClass()->IsChildOf(OptionClass))
+        {
+            WeaponId = Option.Id;
+            bFound = true;
+            break;
+        }
+    }
+    if (bFound == false && Weapon->IsA<AHDSupportWeapon>())
+    {
+        WeaponId = FName(TEXT("AntiMaterielRifle"));
+    }
+
+    const FHDIconRef Ref = HDShipIcons::Resolve(WeaponId, &FHDStratagemCatalog::GetProjectCatalog());
+    // 높이 32, 가로는 Img_Weapon 슬롯 비율. 처음(배치 전)과 뒤의 비율이 다를 수 있어 (Id, 가로)로 캐시한다
+    constexpr int32 TileHeight = 32;
+    const int32 TileWidth = FMath::Max(TileHeight, FMath::RoundToInt(TileHeight * PlayerHUDWidget->GetWeaponIconAspect()));
+    TObjectPtr<UTexture2D>& Texture = WeaponIconTextures.FindOrAdd(FName(*FString::Printf(TEXT("%s_%d"), *WeaponId.ToString(), TileWidth)));
+    if (Texture == nullptr)
+    {
+        Texture = HDLetterTile::CreateTexture(this, Ref.Abbrev, TileWidth, TileHeight, Ref.Tint);
+    }
+
+    PlayerHUDWidget->SetWeaponIcon(Texture);
+    UE_LOG(LogTemp, Display, TEXT("[HDHUD] weapon icon %s tile=%s aspect=%.2f"), *WeaponId.ToString(), *Ref.Abbrev, PlayerHUDWidget->GetWeaponIconAspect());
 }
 
 void AHDHUD::RebuildStratagemList()
@@ -461,6 +518,36 @@ UFont* AHDHUD::GetShipUIFont()
     return ShipUIFont;
 }
 
+UTexture2D* AHDHUD::GetShipUITexture(const FString& Path)
+{
+    if (Path.IsEmpty())
+    {
+        return nullptr;
+    }
+
+    if (const TObjectPtr<UTexture2D>* Cached = ShipUITextures.Find(Path))
+    {
+        return *Cached;
+    }
+
+    UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, *Path);
+    if (Texture == nullptr)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[HDShipUI] icon missing %s"), *Path);
+    }
+    ShipUITextures.Add(Path, Texture);
+    return Texture;
+}
+
+void AHDHUD::BindShipUITextures(FHDShipUICanvas& UICanvas)
+{
+    TWeakObjectPtr<AHDHUD> WeakThis(this);
+    UICanvas.SetTextureLoader([WeakThis](const FString& Path) -> UTexture2D*
+    {
+        return WeakThis.IsValid() ? WeakThis->GetShipUITexture(Path) : nullptr;
+    });
+}
+
 void AHDHUD::DrawShipTitle()
 {
     using namespace HDHUDShip;
@@ -501,6 +588,7 @@ void AHDHUD::DrawShipMenu(bool bInteractive)
     const FVector2D Offset(0.f, HDShipUIStyle::OpenSlide * Frame.Scale * ShipTransition.GetSlide());
 
     FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, ShipTransition.GetAlpha(), ShipTransition.GetContentAlpha(), Offset, bInteractive);
+    BindShipUITextures(UICanvas);
 
     const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
     const TArray<FHDKeyHint> Hints = HDShipMenuView::GetKeyHints(ShipMenu, Items, HDPlayerController->IsShipLaunching());
@@ -562,6 +650,7 @@ void AHDHUD::DrawShipOverlay()
 
     const FHDShipUIFrame Frame = HDShipUILayout::ComputeFrame(FVector2D(Canvas->ClipX, Canvas->ClipY));
     FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, 1.f, 1.f, FVector2D::ZeroVector, true);
+    BindShipUITextures(UICanvas);
 
     const int32 TerminalIndex = HDPlayerController->FindShipTerminalInRange();
     const TArray<FHDShipTerminalInfo>& Terminals = HDShipHub::GetTerminals();
@@ -668,6 +757,7 @@ void AHDHUD::DrawLaunchCountdown(float RemainingSeconds)
     // 메뉴 위 맨 위 층. 메뉴 투명도와 상관없이 다 보인다. 숫자는 FHDLaunchCountdown::GetDisplaySeconds 와 같은 올림
     const FHDShipUIFrame Frame = HDShipUILayout::ComputeFrame(FVector2D(Canvas->ClipX, Canvas->ClipY));
     FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, 1.f, 1.f, FVector2D::ZeroVector, true);
+    BindShipUITextures(UICanvas);
     FHDShipScreenPainter::PaintCountdown(UICanvas, FMath::CeilToInt(RemainingSeconds));
     CheckShipTexts(HDHUDShip::CountdownScreenName, UICanvas, 0);
 }

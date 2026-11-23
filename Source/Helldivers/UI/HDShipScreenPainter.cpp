@@ -88,15 +88,15 @@ float FHDShipScreenPainter::PaintResources(FHDShipUICanvas& Canvas, const FHDRes
 
     struct FResourceEntry
     {
-        const TCHAR*    Abbrev;
-        FLinearColor    Tint;
+        // 아이콘 표 Id(HDShipIcons)
+        const TCHAR*    IconId;
         int32           Count;
     };
     const TArray<FResourceEntry> Entries = {
-        { TEXT("RQ"),   Requisition,    Resources.Requisition },
-        { TEXT("C"),    SampleCommon,   Resources.Samples.Common },
-        { TEXT("R"),    SampleRare,     Resources.Samples.Rare },
-        { TEXT("S"),    SampleSuper,    Resources.Samples.Super },
+        { TEXT("Requisition"),  Resources.Requisition },
+        { TEXT("SampleCommon"), Resources.Samples.Common },
+        { TEXT("SampleRare"),   Resources.Samples.Rare },
+        { TEXT("SampleSuper"),  Resources.Samples.Super },
     };
 
     const bool bHasLastMission = Resources.LastMission.IsEmpty() == false;
@@ -123,7 +123,7 @@ float FHDShipScreenPainter::PaintResources(FHDShipUICanvas& Canvas, const FHDRes
     for (int32 Index = 0; Index < Entries.Num(); ++Index)
     {
         const FResourceEntry& Entry = Entries[Index];
-        Canvas.LetterTile(Entry.Abbrev, FBox2D(FVector2D(X, CenterY - TileSize * 0.5f), FVector2D(X + TileSize, CenterY + TileSize * 0.5f)), Entry.Tint, false);
+        Canvas.Icon(FName(Entry.IconId), FBox2D(FVector2D(X, CenterY - TileSize * 0.5f), FVector2D(X + TileSize, CenterY + TileSize * 0.5f)), false);
         X += TileSize + Canvas.Px(ResourceTileGap);
 
         Canvas.Text(FString::FromInt(Entry.Count), EHDShipFont::Body, FVector2D(X, CenterY), EHDShipTextAlign::Left, Text, 0.f);

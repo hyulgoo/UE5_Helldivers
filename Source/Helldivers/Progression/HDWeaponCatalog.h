@@ -9,6 +9,32 @@
 // 로드아웃에서 고르는 무기 칸(지원 무기는 스트라타젬이라 없다)
 enum class EHDLoadoutWeapon : uint8 { Primary, Secondary, Grenade };
 
+// 상세 패널 수치. 총은 클래스 생성자(돌격소총은 BP_Rifle), 수류탄은 투사체 클래스 값
+struct FHDWeaponStats
+{
+    // 탄 하나
+    float               Damage          = 0.f;
+    int32               Pellets         = 1;
+    // 60 / FireDelay. 수류탄 0
+    float               RoundsPerMinute = 0.f;
+    int32               Magazine        = 0;
+    int32               SpareMagazines  = 0;
+    int32               ArmorPen        = 0;
+    // 수류탄 폭발 반경(cm)
+    float               Radius          = 0.f;
+    // 수류탄 신관. 0 = 닿으면 터짐
+    float               FuseSeconds     = 0.f;
+};
+
+// 상세 패널 막대 한 줄
+struct FHDStatBar
+{
+    FString             Label;
+    FString             Value;
+    // 0~1, -1 이면 막대 없이 글자만
+    float               Fraction        = 0.f;
+};
+
 // 무기 표 한 행
 struct FHDWeaponOption
 {
@@ -19,6 +45,7 @@ struct FHDWeaponOption
     FString             Detail;
     // 무기고 해금 징발. 0 이면 처음부터
     int32               UnlockCost      = 0;
+    FHDWeaponStats      Stats;
 };
 
 // 무기 표와 순수 규칙. 월드와 무관해 자동 테스트(Helldivers.Progression.Weapons)로 고정한다.
@@ -44,4 +71,6 @@ namespace HDWeaponCatalog
     HELLDIVERS_API const TCHAR*                    GetSlotName(EHDLoadoutWeapon Slot);
     // "primary=<Id> secondary=<Id> grenade=<Id> unlocked=<쉼표로>"(GetChosen 값)
     HELLDIVERS_API FString                         Describe(const FHDProfileData& Data);
+    // 총: DAMAGE·FIRE RATE·CAPACITY·ARMOR PEN. 수류탄: DAMAGE·RADIUS·ARMOR PEN·FUSE(막대 없음)
+    HELLDIVERS_API TArray<FHDStatBar>              MakeStatBars(const FHDWeaponOption& Option);
 }

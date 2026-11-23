@@ -35,6 +35,14 @@ namespace HDShipUIStyle
     const FLinearColor  SampleCommon    (0.40f, 0.78f, 0.70f, 1.f);
     const FLinearColor  SampleRare      (0.40f, 0.60f, 0.95f, 1.f);
     const FLinearColor  SampleSuper     (0.90f, 0.40f, 0.55f, 1.f);
+    // 아이콘 색(스트라타젬 분류·무기·업그레이드)
+    const FLinearColor  IconEagle           (0.80f, 0.40f, 0.35f, 1.f);
+    const FLinearColor  IconOrbital         (0.85f, 0.60f, 0.30f, 1.f);
+    const FLinearColor  IconSupply          (0.40f, 0.65f, 0.85f, 1.f);
+    const FLinearColor  IconDefensive       (0.50f, 0.75f, 0.50f, 1.f);
+    const FLinearColor  IconSupportWeapon   (0.60f, 0.62f, 0.68f, 1.f);
+    const FLinearColor  IconWeapon          (0.55f, 0.58f, 0.63f, 1.f);
+    const FLinearColor  IconUpgrade         (0.45f, 0.55f, 0.80f, 1.f);
 
     // 설계 크기(1920×1080 단위)
     constexpr float     DesignWidth     = 1920.f;

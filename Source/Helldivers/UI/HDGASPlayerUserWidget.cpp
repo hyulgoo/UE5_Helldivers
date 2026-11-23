@@ -122,6 +122,36 @@ void UHDGASPlayerUserWidget::UpdateTextblock(UTextBlock* TextBlock, const FText&
     TextBlock->SetText(Text);
 }
 
+void UHDGASPlayerUserWidget::SetWeaponIcon(UTexture2D* Texture)
+{
+    UpdateImage(Img_Weapon, Texture);
+}
+
+void UHDGASPlayerUserWidget::SetGrenadeIcon(UTexture2D* Texture)
+{
+    UpdateImage(Img_Grenade, Texture);
+}
+
+void UHDGASPlayerUserWidget::SetStimIcon(UTexture2D* Texture)
+{
+    UpdateImage(Img_Steam, Texture);
+}
+
+float UHDGASPlayerUserWidget::GetWeaponIconAspect() const
+{
+    NULL_CHECK_WITH_RETURNTYPE_WITHOUT_LOG(Img_Weapon, 1.f);
+
+    // 배치가 끝났으면 슬롯의 실제 크기, 아니면 브러시 크기
+    const FVector2D SlotSize = Img_Weapon->GetCachedGeometry().GetLocalSize();
+    if (SlotSize.X > 0.0 && SlotSize.Y > 0.0)
+    {
+        return static_cast<float>(SlotSize.X / SlotSize.Y);
+    }
+
+    const FVector2D BrushSize = Img_Weapon->GetBrush().GetImageSize();
+    return (BrushSize.X > 0.0 && BrushSize.Y > 0.0) ? static_cast<float>(BrushSize.X / BrushSize.Y) : 1.f;
+}
+
 void UHDGASPlayerUserWidget::UpdateImage(UImage* ImageWidget, UTexture2D* Texture)
 {
     NULL_CHECK(ImageWidget);

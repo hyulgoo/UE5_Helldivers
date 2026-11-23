@@ -8,6 +8,9 @@
 #include "EngineFontServices.h"
 #include "Fonts/FontMeasure.h"
 #include "GameFramework/HUD.h"
+#include "Engine/Texture2D.h"
+#include "UI/HDShipIcons.h"
+#include "Stratagem/HDStratagemCatalog.h"
 
 namespace HDShipUICanvasPrivate
 {
@@ -26,6 +29,8 @@ namespace HDShipUICanvasPrivate
     constexpr float     TileDimOpacity  = 0.45f;
     // 문단 줄 사이(줄 높이 배율)
     constexpr float     LineSpacing     = 1.15f;
+    // 흐린 아이콘 투명도 배율
+    constexpr float     IconDimOpacity  = 0.35f;
 }
 
 FHDShipUICanvas::FHDShipUICanvas(AHUD* InHUD, UCanvas* InCanvas, UFont* InFont, const FHDShipUIFrame& InFrame, float InAlpha, float InContentAlpha, const FVector2D& InOffset, bool bInHitBoxes)
@@ -217,6 +222,42 @@ void FHDShipUICanvas::LetterTile(const FString& Abbrev, const FBox2D& Rect, cons
     // 정사각형이 아니어도 가운데. 안쪽 여백만큼 좁혀 맞춘다
     const float MaxWidth = FMath::Max(1.f, static_cast<float>(Rect.GetSize().X) - Px(TilePadding) * 2.f);
     Text(Abbrev, EHDShipFont::KeyCap, Rect.GetCenter(), EHDShipTextAlign::Center, bDim ? HDShipUIStyle::TextDisabled : HDShipUIStyle::Text, MaxWidth);
+}
+
+void FHDShipUICanvas::Icon(FName Id, const FBox2D& Rect, bool bDim)
+{
+    using namespace HDShipUICanvasPrivate;
+
+    const FHDIconRef Ref = HDShipIcons::Resolve(Id, &FHDStratagemCatalog::GetProjectCatalog());
+    UTexture2D* Texture = (Ref.TexturePath.IsEmpty() == false && TextureLoader) ? TextureLoader(Ref.TexturePath) : nullptr;
+    if (Texture == nullptr || Canvas == nullptr)
+    {
+        LetterTile(Ref.Abbrev, Rect, Ref.Tint, bDim);
+        return;
+    }
+
+    // 비율을 지켜 Rect 안 가운데
+    const FVector2D RectSize = Rect.GetSize();
+    const float TextureWidth = static_cast<float>(FMath::Max(1, Texture->GetSizeX()));
+    const float TextureHeight = static_cast<float>(FMath::Max(1, Texture->GetSizeY()));
+    const float Fit = FMath::Min(static_cast<float>(RectSize.X) / TextureWidth, static_cast<float>(RectSize.Y) / TextureHeight);
+    const FVector2D DrawSize(TextureWidth * Fit, TextureHeight * Fit);
+    const FVector2D DrawMin = Rect.GetCenter() - DrawSize * 0.5f;
+
+    FLinearColor DrawColor = FLinearColor::White;
+    DrawColor.A = GetLayerAlpha() * (bDim ? IconDimOpacity : 1.f);
+    if (DrawColor.A > 0.f && DrawSize.X > 0.0 && DrawSize.Y > 0.0)
+    {
+        FCanvasTileItem Tile(DrawMin + Offset, Texture->GetResource(), DrawSize, DrawColor);
+        Tile.BlendMode = SE_BLEND_Translucent;
+        Canvas->DrawItem(Tile);
+    }
+
+    if (Ref.Badge.IsEmpty() == false)
+    {
+        const FVector2D BadgePos(Rect.Max.X - Px(TilePadding), Rect.Max.Y - Px(TilePadding) - Px(9.f));
+        Text(Ref.Badge, EHDShipFont::Small, BadgePos, EHDShipTextAlign::Right, bDim ? HDShipUIStyle::TextDisabled : HDShipUIStyle::Text, 0.f);
+    }
 }
 
 void FHDShipUICanvas::HitBox(const FBox2D& Rect, FName Name)
