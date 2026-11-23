@@ -437,6 +437,10 @@ void AHDHUD::NotifyHitBoxClick(FName BoxName)
     {
         HDPlayerController->ClickShipPickerItem(A);
     }
+    else if (Kind == HDShipUILayout::EHDShipHitKind::Tab)
+    {
+        HDPlayerController->ClickShipTab(A);
+    }
     else if (Kind == HDShipUILayout::EHDShipHitKind::Key && A <= static_cast<int32>(EHDShipMenuKey::Back))
     {
         HDPlayerController->ClickShipKeyHint(static_cast<EHDShipMenuKey>(A));
@@ -673,6 +677,10 @@ void AHDHUD::DrawShipMenu(bool bInteractive)
     {
         DrawUpgrades(UICanvas, ShipMenu, Items);
     }
+    else if (Screen == EHDShipScreen::Armory && Items.ContainsByPredicate([](const FHDShipMenuItem& Item) { return Item.Group.IsEmpty() == false; }))
+    {
+        DrawArmory(UICanvas, ShipMenu, Items);
+    }
     else
     {
         FHDShipScreenPainter::PaintList(UICanvas, ShipMenu, Items);
@@ -814,6 +822,32 @@ void AHDHUD::DrawUpgrades(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu
     }
 
     FHDShipScreenPainter::PaintUpgrades(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, CardDetails, HDPlayerController->GetShipHold(), HDHUDShip::MakeResourceView(this));
+}
+
+void AHDHUD::DrawArmory(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items)
+{
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    NULL_CHECK(HDPlayerController);
+
+    // 상세는 줄 순서(타일 상태 띠도 쓴다)
+    const FHDShipMenuContext Context = HDPlayerController->BuildShipMenuContext();
+    TArray<FHDArmoryDetail> Details;
+    for (int32 Index = 0; Index < Items.Num(); ++Index)
+    {
+        Details.Add(HDShipMenuView::BuildArmoryDetail(ShipMenu, Items, Context, Index));
+    }
+
+    TArray<UTexture*> CommandTextures;
+    const int32 Cursor = ShipMenu.GetCursor();
+    if (Details.IsValidIndex(Cursor))
+    {
+        for (const EHDCommandInput Input : Details[Cursor].Command)
+        {
+            CommandTextures.Add(GetShipUITexture(HDShipIcons::GetCommandArrowTexturePath(Input)));
+        }
+    }
+
+    FHDShipScreenPainter::PaintArmory(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, Details, HDPlayerController->GetShipHold(), HDHUDShip::MakeResourceView(this), CommandTextures);
 }
 
 void AHDHUD::DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex)

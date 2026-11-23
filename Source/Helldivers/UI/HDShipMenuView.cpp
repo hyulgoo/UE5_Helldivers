@@ -48,6 +48,10 @@ TArray<FHDKeyHint> HDShipMenuView::GetKeyHints(const FHDShipMenu& Menu, const TA
     const bool bUpgradeCards = Screen == EHDShipScreen::Upgrades
         && Items.ContainsByPredicate([](const FHDShipMenuItem& Candidate) { return Candidate.SubCount > 0; });
 
+    // Armory 에 탭이 있는 줄이 있으면 탭·타일 화면(FHDShipMenu::HandleKey 와 같은 조건)
+    const bool bArmoryTabs = Screen == EHDShipScreen::Armory
+        && Items.ContainsByPredicate([](const FHDShipMenuItem& Candidate) { return Candidate.Group.IsEmpty() == false; });
+
     // Loadout: 칸 이동(방향키 넷)과 고르기 창
     if (Screen == EHDShipScreen::Loadout)
     {
@@ -84,6 +88,17 @@ TArray<FHDKeyHint> HDShipMenuView::GetKeyHints(const FHDShipMenu& Menu, const TA
             }
         }
     }
+    else if (bArmoryTabs)
+    {
+        // Armory 타일: 탭 넘기기, 이동, 살 수 있는 타일에서 길게 눌러 해금(안내만, 클릭 상자 아님)
+        Hints.Add(MakeHint(TEXT("Q/E"), TEXT("TAB"), EHDShipMenuKey::NextTab, false));
+        Hints.Add(MakeHint(TEXT("ARROWS"), TEXT("MOVE"), EHDShipMenuKey::Up, false));
+        const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
+        if (Item.bEnabled && Item.ConfirmAction != EHDShipActionType::None)
+        {
+            Hints.Add(MakeHint(TEXT("HOLD ENTER"), TEXT("UNLOCK"), EHDShipMenuKey::Confirm, false));
+        }
+    }
     else if (bUpgradeCards)
     {
         // Upgrades 카드: 다음에 살 수 있는 카드에서만 길게 눌러 구매(안내만, 클릭 상자 아님)
@@ -100,7 +115,7 @@ TArray<FHDKeyHint> HDShipMenuView::GetKeyHints(const FHDShipMenu& Menu, const TA
     }
 
     // FHDShipMenu::HandleKey 처럼 커서를 줄 수로 자른다
-    if (Screen != EHDShipScreen::Loadout && bUpgradeCards == false && Items.IsEmpty() == false)
+    if (Screen != EHDShipScreen::Loadout && bUpgradeCards == false && bArmoryTabs == false && Items.IsEmpty() == false)
     {
         const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
         if (Item.bAdjustable && Item.bEnabled)
@@ -371,6 +386,64 @@ FHDLoadoutDetail HDShipMenuView::BuildLoadoutDetail(const FHDShipMenu& Menu, con
     }
 
     Detail.Title = Item.Label;
+    return Detail;
+}
+
+FHDArmoryDetail HDShipMenuView::BuildArmoryDetail(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context, int32 ItemIndex)
+{
+    using namespace HDShipMenuViewPrivate;
+
+    FHDArmoryDetail Detail;
+    if (Items.IsValidIndex(ItemIndex) == false)
+    {
+        return Detail;
+    }
+
+    const FHDShipMenuItem& Item = Items[ItemIndex];
+
+    // 로드아웃 상세와 같은 함수로 줄·화살표·막대를 채운다
+    FHDLoadoutDetail Shared;
+    bool bUnlocked = false;
+    int32 Price = 0;
+    const FHDStratagemDefinition* Definition = Context.Stratagems ? Context.Stratagems->Find(Item.Id) : nullptr;
+    const FHDWeaponOption* Weapon = Definition ? nullptr : HDWeaponCatalog::Find(Item.Id);
+    if (Definition)
+    {
+        FillStratagem(Shared, Item.Id, *Definition, Context);
+        bUnlocked   = HDArmory::IsUnlocked(Context.Profile, *Context.Stratagems, Item.Id);
+        Price       = Definition->UnlockCost;
+    }
+    else if (Weapon)
+    {
+        FillWeapon(Shared, *Weapon);
+        Detail.Description  = Weapon->Detail;
+        bUnlocked           = HDWeaponCatalog::IsUnlocked(Context.Profile, Item.Id);
+        Price               = Weapon->UnlockCost;
+    }
+    else
+    {
+        Detail.Title = Item.Label;
+        return Detail;
+    }
+
+    Detail.IconId   = Shared.IconId;
+    Detail.Title    = Shared.Title;
+    Detail.Category = Shared.Category;
+    Detail.Lines    = Shared.Lines;
+    Detail.Command  = Shared.Command;
+    Detail.Bars     = Shared.Bars;
+
+    if (bUnlocked)
+    {
+        Detail.StateLabel = TEXT("UNLOCKED");
+        return Detail;
+    }
+
+    FHDCostPart& Part   = Detail.Cost.AddDefaulted_GetRef();
+    Part.IconId         = FName(TEXT("Requisition"));
+    Part.Amount         = Price;
+    Part.bEnough        = Context.Profile.Requisition >= Price;
+    Detail.StateLabel   = Part.bEnough ? TEXT("AVAILABLE") : TEXT("NOT ENOUGH");
     return Detail;
 }
 

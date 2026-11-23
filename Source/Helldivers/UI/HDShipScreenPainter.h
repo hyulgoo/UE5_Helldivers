@@ -15,6 +15,7 @@ struct FHDShipUIFrame;
 struct FHDWarTableView;
 struct FHDLoadoutDetail;
 struct FHDUpgradeDetail;
+struct FHDArmoryDetail;
 class FHDHoldConfirm;
 class UTexture;
 
@@ -39,6 +40,9 @@ public:
     // 함선 관리: 주 영역을 분야 열로(간격 16, 4열 넘으면 다음 줄), 열 머리(분야 이름·선), 업그레이드마다 이름 + 단계 카드 줄(ShipCard_<줄>_<단계>).
     // CardDetails 는 HDShipMenuNav::MakeUpgradeCells(Items) 와 같은 순서. 오른쪽 상세 = 커서 카드. Hold 가 그 카드면 진행 막대와 HOLD
     static void         PaintUpgrades(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const TArray<FHDUpgradeDetail>& CardDetails, const FHDHoldConfirm& Hold, const FHDResourceView& Resources);
+    // 무기고: 주 영역 위 탭 줄(ShipTab_<i>, 양끝 Q·E 키 상자), 그 아래 지금 탭의 타일 4열(아이콘·이름·상태 띠, ShipCard_<줄>_0), 빈 탭이면 NOTHING TO UNLOCK.
+    // Details 는 Items 와 같은 순서(HDShipMenuView::BuildArmoryDetail). 오른쪽 상세 = 커서 줄. Hold 가 그 줄이면 진행 막대와 HOLD. CommandTextures 는 커서 줄 Command 순서
+    static void         PaintArmory(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const TArray<FHDArmoryDetail>& Details, const FHDHoldConfirm& Hold, const FHDResourceView& Resources, const TArray<UTexture*>& CommandTextures);
     // 출격 대기: 한 겹 더 어둡게, 가운데 HELLPOD LAUNCH·큰 숫자·[BACKSPACE] CANCEL
     static void         PaintCountdown(FHDShipUICanvas& Canvas, int32 DisplaySeconds);
     // 함선 안(메뉴 닫힘): 오른쪽 위 자원(배경 없음), 왼쪽 아래 [P] SHIP MENU

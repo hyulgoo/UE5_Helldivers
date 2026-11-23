@@ -33,7 +33,10 @@ enum class EHDShipMenuKey : uint8
     Left,
     Right,
     Confirm,
-    Back
+    Back,
+    // 무기고 탭(브리프 ship-terminal-ui 7): Q = 이전, E = 다음. 기존 값 뒤에만 더한다
+    PrevTab,
+    NextTab
 };
 
 // 키가 만든 일. OpenScreen 은 FHDShipMenu 가 스스로 처리하고 알리기만 한다
@@ -53,7 +56,9 @@ enum class EHDShipActionType : uint8
     OpenPicker,
     ClosePicker,
     // 고르기 창에서 장착(Id = 줄 Id, OptionId = 고른 선택지)
-    Equip
+    Equip,
+    // 무기고 탭 바꾸기(Id = 탭 이름)
+    ChangeTab
 };
 
 // 고르기 창의 항목
@@ -120,7 +125,7 @@ struct FHDShipMenuContext
 // 함선 메뉴 규칙. 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipMenu)로 고정한다
 namespace HDShipMenu
 {
-    // 눌림만 받는다: 방향키 = Up/Down/Left/Right, Enter = Confirm, BackSpace·Escape = Back
+    // 눌림만 받는다: 방향키 = Up/Down/Left/Right, Enter = Confirm, BackSpace·Escape = Back, Q = PrevTab, E = NextTab
     HELLDIVERS_API bool                     TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKey& OutKey);
     // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정), Loadout, Upgrades, Armory, Quit.
     // Upgrades 는 카탈로그 행마다 "<DisplayName>  <산 단계>/<단계 수>"(확정 Select, 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐).
@@ -139,6 +144,8 @@ namespace HDShipMenu
     HELLDIVERS_API const TCHAR*             GetActionName(EHDShipActionType Type);
     // 지금 Confirm 이 행동을 만들고(None 아님) 그 줄이 bHoldToConfirm 이면 참(메뉴 사본으로 HandleKey 를 불러 본다)
     HELLDIVERS_API bool                     NeedsHold(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items);
+    // 무기고 탭 이름(줄의 Group 값): STRATAGEMS·PRIMARY·SECONDARY·GRENADES
+    HELLDIVERS_API const TArray<FString>&   GetArmoryTabs();
 }
 
 // 화면·커서·키 처리. 월드와 무관한 순수 로직이라 자동 테스트(Helldivers.FrontEnd.ShipMenu)로 고정한다
@@ -171,6 +178,10 @@ public:
     int32               GetSubCursor() const { return SubCursor; }
     // 마우스가 가리킨 단계 카드. 지금 줄의 [0, SubCount − 1] 로 자른다
     void                SetSubCursor(int32 NewSub, const TArray<FHDShipMenuItem>& Items);
+    // 무기고 탭(브리프 7). SetScreen·OpenTerminal 이 0 으로
+    int32               GetActiveTab() const { return ActiveTab; }
+    // 마우스로 누른 탭. [0, 탭 수) 밖이면 무시. 커서를 그 탭 첫 줄로(빈 탭이면 그대로)
+    void                SetActiveTab(int32 Tab, const TArray<FHDShipMenuItem>& Items);
 
 private:
     // Upgrades 의 방향키(HDShipMenuNav::MakeUpgradeCells)와 단계 커서를 본 Confirm. 공통 규칙(Back, 산 단계의 Confirm)으로 넘길 키면 거짓
@@ -179,12 +190,16 @@ private:
     // Loadout 의 방향키·창 열기·창 안 키. 공통 규칙(READY Confirm, 창이 닫힌 Back)으로 넘길 키면 거짓
     bool                HandleLoadoutKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction);
 
+    // Armory 탭·타일 이동. 공통 규칙(Confirm, Back)으로 넘길 키면 거짓
+    bool                HandleArmoryKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction);
+
 private:
     EHDShipScreen       Screen;
     int32               Cursor          = 0;
     bool                bPickerOpen     = false;
     int32               PickerCursor    = 0;
     int32               SubCursor       = 0;
+    int32               ActiveTab       = 0;
     // 하위 화면에서 Back 하면 돌아갈 뿌리 화면의 커서(뿌리에서 하위 화면을 열 때 기억한다)
     int32               RootCursor      = 0;
     // 하위 화면에서 Back 하면 돌아갈 화면. 기본 Bridge, 단말기는 OpenTerminal 이 정한다

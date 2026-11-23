@@ -87,6 +87,8 @@ public:
     void                                    ReleaseShipCard();
     void                                    LeaveShipCard(int32 ItemIndex, int32 SubIndex);
     void                                    HoverShipCard(int32 ItemIndex, int32 SubIndex);
+    // HUD 무기고 탭 머리(ShipTab_<i>): 메뉴가 열려 있고 Armory 일 때만 그 탭으로(커서 = 탭 첫 줄). 길게 누르는 중이면 취소(screen)
+    void                                    ClickShipTab(int32 Tab);
     // 길게 눌러 확정하기 상태(HUD 진행 막대)
     const FHDHoldConfirm&                   GetShipHold() const { return ShipHold; }
     // 출격 대기 중인가(AHDGameMode::IsLaunching). 게임 모드가 없으면 거짓

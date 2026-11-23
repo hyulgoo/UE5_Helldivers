@@ -194,6 +194,10 @@ namespace HDShipMenuPrivate
             Item.Detail             = Option.Detail;
             Item.bEnabled           = bUnlocked == false && HDProgression::CanAfford(Context.Profile, Cost);
             Item.ConfirmAction      = EHDShipActionType::Select;
+            // 무기고 탭·타일(브리프 ship-terminal-ui 7): 탭 = 칸 이름(수류탄은 복수), 해금은 길게 눌러 확정
+            Item.Group              = Option.Slot == EHDLoadoutWeapon::Grenade ? FString(TEXT("GRENADES")) : FString(HDWeaponCatalog::GetSlotName(Option.Slot)).ToUpper();
+            Item.IconId             = Option.Id;
+            Item.bHoldToConfirm     = true;
         }
     }
 
@@ -270,6 +274,9 @@ namespace HDShipMenuPrivate
                 *HDArmory::FormatCommand(Definition->CommandSequence));
             Item.bEnabled           = bUnlocked == false && HDProgression::CanAfford(Context.Profile, Cost);
             Item.ConfirmAction      = EHDShipActionType::Select;
+            Item.Group              = TEXT("STRATAGEMS");
+            Item.IconId             = StratagemName;
+            Item.bHoldToConfirm     = true;
         }
 
         AddWeaponArmoryItems(Items, Context);
@@ -368,6 +375,19 @@ bool HDShipMenu::TryGetMenuKey(const FKey& Key, EInputEvent Event, EHDShipMenuKe
     if (Key == EKeys::BackSpace || Key == EKeys::Escape)
     {
         OutKey = EHDShipMenuKey::Back;
+        return true;
+    }
+
+    // 무기고 탭(메뉴가 열려 있을 때만 불린다. 닫혀 있을 때 E 는 상호작용)
+    if (Key == EKeys::Q)
+    {
+        OutKey = EHDShipMenuKey::PrevTab;
+        return true;
+    }
+
+    if (Key == EKeys::E)
+    {
+        OutKey = EHDShipMenuKey::NextTab;
         return true;
     }
 
@@ -519,6 +539,8 @@ const TCHAR* HDShipMenu::GetKeyName(EHDShipMenuKey Key)
     case EHDShipMenuKey::Right:     return TEXT("Right");
     case EHDShipMenuKey::Confirm:   return TEXT("Confirm");
     case EHDShipMenuKey::Back:      return TEXT("Back");
+    case EHDShipMenuKey::PrevTab:   return TEXT("PrevTab");
+    case EHDShipMenuKey::NextTab:   return TEXT("NextTab");
     default:                        return TEXT("?");
     }
 }
@@ -538,6 +560,7 @@ const TCHAR* HDShipMenu::GetActionName(EHDShipActionType Type)
     case EHDShipActionType::OpenPicker:     return TEXT("picker-open");
     case EHDShipActionType::ClosePicker:    return TEXT("picker-close");
     case EHDShipActionType::Equip:          return TEXT("equip");
+    case EHDShipActionType::ChangeTab:      return TEXT("tab");
     default:                                return TEXT("?");
     }
 }
@@ -552,6 +575,7 @@ void FHDShipMenu::SetScreen(EHDShipScreen NewScreen)
     Screen      = NewScreen;
     Cursor      = 0;
     SubCursor   = 0;
+    ActiveTab   = 0;
     bPickerOpen = false;
 }
 
@@ -697,6 +721,20 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
         return Action;
     }
 
+    // Armory: 줄에 탭(Group)이 있으면 탭과 타일 이동(브리프 ship-terminal-ui 7). Confirm·Back 은 공통 규칙
+    const bool bArmoryTabs = Screen == EHDShipScreen::Armory
+        && Items.ContainsByPredicate([](const FHDShipMenuItem& Candidate) { return Candidate.Group.IsEmpty() == false; });
+    if (bArmoryTabs && HandleArmoryKey(Key, Items, Action))
+    {
+        return Action;
+    }
+
+    // 탭 키는 무기고 탭 화면에서만 뜻이 있다
+    if (Key == EHDShipMenuKey::PrevTab || Key == EHDShipMenuKey::NextTab)
+    {
+        return Action;
+    }
+
     if (Key == EHDShipMenuKey::Back)
     {
         // 하위 화면에서는 뿌리 화면으로, 들어갈 때의 커서로 돌아간다(Id = 뿌리 이름, Bridge 면 "Bridge")
@@ -773,6 +811,100 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
     }
 
     return Action;
+}
+
+const TArray<FString>& HDShipMenu::GetArmoryTabs()
+{
+    static const TArray<FString> Tabs = { TEXT("STRATAGEMS"), TEXT("PRIMARY"), TEXT("SECONDARY"), TEXT("GRENADES") };
+    return Tabs;
+}
+
+namespace HDShipMenuPrivate
+{
+    // 그 탭(Group)의 줄 번호를 줄 순서로
+    TArray<int32> GetTabRows(const TArray<FHDShipMenuItem>& Items, int32 Tab)
+    {
+        TArray<int32> Rows;
+        const TArray<FString>& Tabs = HDShipMenu::GetArmoryTabs();
+        if (Tabs.IsValidIndex(Tab) == false)
+        {
+            return Rows;
+        }
+
+        for (int32 Index = 0; Index < Items.Num(); ++Index)
+        {
+            if (Items[Index].Group == Tabs[Tab])
+            {
+                Rows.Add(Index);
+            }
+        }
+        return Rows;
+    }
+
+    // 무기고 타일 열 수
+    constexpr int32 ArmoryColumns = 4;
+}
+
+void FHDShipMenu::SetActiveTab(int32 Tab, const TArray<FHDShipMenuItem>& Items)
+{
+    if (HDShipMenu::GetArmoryTabs().IsValidIndex(Tab) == false)
+    {
+        return;
+    }
+
+    ActiveTab = Tab;
+    const TArray<int32> Rows = HDShipMenuPrivate::GetTabRows(Items, Tab);
+    if (Rows.IsEmpty() == false)
+    {
+        Cursor = Rows[0];
+    }
+}
+
+bool FHDShipMenu::HandleArmoryKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction)
+{
+    using namespace HDShipMenuPrivate;
+
+    if (Key == EHDShipMenuKey::PrevTab || Key == EHDShipMenuKey::NextTab)
+    {
+        const int32 NewTab = ActiveTab + (Key == EHDShipMenuKey::NextTab ? 1 : -1);
+        // 끝에서 감지 않는다
+        if (HDShipMenu::GetArmoryTabs().IsValidIndex(NewTab) == false)
+        {
+            return true;
+        }
+
+        SetActiveTab(NewTab, Items);
+        OutAction.Type  = EHDShipActionType::ChangeTab;
+        OutAction.Id    = FName(*HDShipMenu::GetArmoryTabs()[NewTab]);
+        return true;
+    }
+
+    const bool bDirection = Key == EHDShipMenuKey::Up || Key == EHDShipMenuKey::Down || Key == EHDShipMenuKey::Left || Key == EHDShipMenuKey::Right;
+    if (bDirection == false)
+    {
+        return false;
+    }
+
+    const TArray<int32> Rows = GetTabRows(Items, ActiveTab);
+    if (Rows.IsEmpty())
+    {
+        return true;
+    }
+
+    // 커서가 탭 밖이면 먼저 탭 첫 줄로
+    int32 Current = Rows.IndexOfByKey(Cursor);
+    if (Current == INDEX_NONE)
+    {
+        Current = 0;
+    }
+
+    // 탭 타일을 왼쪽 위부터 행 순서로 4열(고르기 창 배치에 분류 하나를 준 것과 같다)
+    TArray<FHDShipMenuOption> Tiles;
+    Tiles.SetNum(Rows.Num());
+    const TArray<FHDNavCell> Cells = HDShipMenuNav::MakePickerCells(Tiles, ArmoryColumns);
+    const int32 Next = HDShipMenuNav::Move(Cells, HDShipMenuNav::FindCell(Cells, Current), Key);
+    Cursor = Rows[Cells.IsValidIndex(Next) ? Cells[Next].ItemIndex : Current];
+    return true;
 }
 
 bool HDShipMenu::NeedsHold(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items)

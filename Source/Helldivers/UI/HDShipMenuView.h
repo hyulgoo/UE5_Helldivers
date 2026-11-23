@@ -96,6 +96,20 @@ struct FHDUpgradeDetail
     TArray<FHDCostPart>     Cost;           // 0 인 항목은 뺀다. IconId 는 Requisition·SampleCommon·SampleRare·SampleSuper
 };
 
+// 무기고 상세 패널(브리프 7)
+struct FHDArmoryDetail
+{
+    FName                   IconId;
+    FString                 Title;
+    FString                 Category;
+    FString                 Description;
+    TArray<FHDDetailLine>   Lines;
+    TArray<EHDCommandInput> Command;
+    TArray<FHDStatBar>      Bars;
+    TArray<FHDCostPart>     Cost;           // 해금했으면 빈 배열
+    FString                 StateLabel;     // "UNLOCKED"·"AVAILABLE"·"NOT ENOUGH"
+};
+
 // 함선 화면의 "그릴 내용". 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipUI)로 고정한다
 namespace HDShipMenuView
 {
@@ -126,6 +140,8 @@ namespace HDShipMenuView
     // 스트라타젬: 업그레이드를 반영한 CALL-IN·COOLDOWN·USES(0 = UNLIMITED)·REARM(횟수가 있고 재무장 > 0 일 때), 호출 화살표.
     // 무기: 능력치 막대. READY: 칸마다 한 줄. 상태 = EQUIPPED·IN SLOT n·LOCKED  <가격> REQ IN ARMORY
     HELLDIVERS_API FHDLoadoutDetail     BuildLoadoutDetail(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context);
+    // 무기고 줄 ItemIndex 의 상세. 스트라타젬은 BuildLoadoutDetail 과 같은 줄·화살표, 무기는 Detail 글자와 막대. 줄이 없으면 빈 값
+    HELLDIVERS_API FHDArmoryDetail      BuildArmoryDetail(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context, int32 ItemIndex);
     // 정수면 "10 S", 아니면 소수 한 자리 "2.5 S"
     HELLDIVERS_API FString              FormatSeconds(float Seconds);
     HELLDIVERS_API FHDWarTableView      BuildWarTable(const FHDShipMenuContext& Context, const FString& LevelName, const FHDRewardRules& Rules);

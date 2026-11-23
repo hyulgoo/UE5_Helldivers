@@ -585,6 +585,18 @@ void AHDPlayerController::PressShipCard(int32 ItemIndex, int32 SubIndex)
     HandleShipMenuKey(EHDShipMenuKey::Confirm);
 }
 
+void AHDPlayerController::ClickShipTab(int32 Tab)
+{
+    if (bShipMenuActive == false || ShipMenu.GetScreen() != EHDShipScreen::Armory || HDShipMenu::GetArmoryTabs().IsValidIndex(Tab) == false)
+    {
+        return;
+    }
+
+    CancelShipHold(TEXT("screen"));
+    ShipMenu.SetActiveTab(Tab, BuildShipMenuItems());
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] tab %s cursor=%d"), *HDShipMenu::GetArmoryTabs()[Tab], ShipMenu.GetCursor());
+}
+
 void AHDPlayerController::ReleaseShipCard()
 {
     CancelShipHold(TEXT("release"));
@@ -741,6 +753,12 @@ void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
     if (Action.Type == EHDShipActionType::OpenScreen)
     {
         UE_LOG(LogTemp, Display, TEXT("[HDShip] screen %s -> %s"), HDShipMenu::GetScreenName(OldScreen), HDShipMenu::GetScreenName(NewScreen));
+    }
+
+    // 무기고 탭(ClickShipTab 과 같은 줄)
+    if (Action.Type == EHDShipActionType::ChangeTab)
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] tab %s cursor=%d"), *Action.Id.ToString(), Cursor);
     }
 
     // 화면이 바뀌면(타이틀 → Bridge 포함) 가리키기 기준점을 다시 잡는다

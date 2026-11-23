@@ -69,6 +69,8 @@ private:
     void                                DrawLoadout(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
     // 함선 관리 화면: 카드마다 상세를 만들고 컨트롤러의 길게 누르기 상태와 함께 그린다
     void                                DrawUpgrades(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
+    // 무기고 탭·타일·상세(브리프 ship-terminal-ui 7)
+    void                                DrawArmory(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
     // 맨 위 층: 어둡게 + 가운데 HELLPOD LAUNCH, 큰 숫자, [BACKSPACE] CANCEL
     void                                DrawLaunchCountdown(float RemainingSeconds);
     // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)

@@ -1349,3 +1349,331 @@ void FHDShipScreenPainter::PaintUpgrades(FHDShipUICanvas& Canvas, const FHDShipU
     Canvas.SetRegion(FBox2D(ForceInit));
     Canvas.SetContentLayer(false);
 }
+
+namespace HDShipArmoryPrivate
+{
+    using namespace HDShipUIStyle;
+
+    // 무기고 배치(설계 단위)
+    constexpr float     TabHeight           = 48.f;
+    constexpr float     TabKeyWidth         = 48.f;
+    constexpr float     TabUnderline        = 3.f;
+    constexpr float     TileTopGap          = 16.f;
+    constexpr int32     TileColumns         = 4;
+    constexpr float     TileWidth           = 200.f;
+    constexpr float     TileHeight          = 220.f;
+    constexpr float     TileGap             = 16.f;
+    constexpr float     TileInset           = 12.f;
+    constexpr float     TileIconSize        = 96.f;
+    constexpr float     TileNameTop         = 112.f;
+    constexpr float     TileNameBottom      = 176.f;
+    constexpr float     TileBandTop         = 178.f;
+    constexpr float     TileBandHeight      = 28.f;
+    constexpr float     TileBarHeight       = 6.f;
+    constexpr float     DetailPadding       = 24.f;
+    constexpr float     DetailIconSize      = 120.f;
+    constexpr float     DetailLineHeight    = 32.f;
+    constexpr float     DetailLabelWidth    = 170.f;
+    constexpr float     DetailCostIcon      = 22.f;
+    constexpr float     DetailBarHeight     = 10.f;
+    constexpr float     ArrowSize           = 32.f;
+    constexpr float     ArrowGap            = 6.f;
+    constexpr float     BarRowHeight        = 52.f;
+    constexpr float     StatBarHeight       = 8.f;
+    const TCHAR* const  EmptyTabText        = TEXT("NOTHING TO UNLOCK");
+    const TCHAR* const  HoldBandText        = TEXT("HOLD");
+    const TCHAR* const  HoldDetailText      = TEXT("HOLD TO UNLOCK");
+    const TCHAR* const  CostHeaderText      = TEXT("UNLOCK COST");
+    const TCHAR* const  UnlockedText        = TEXT("UNLOCKED");
+    const TCHAR* const  AvailableText       = TEXT("AVAILABLE");
+
+    FBox2D MakeRect(float X, float Y, float W, float H)
+    {
+        return FBox2D(FVector2D(X, Y), FVector2D(X + W, Y + H));
+    }
+
+    // UNLOCKED Good, AVAILABLE Accent, NOT ENOUGH Warn
+    FLinearColor GetStateColor(const FString& StateLabel)
+    {
+        if (StateLabel == UnlockedText)     { return Good; }
+        if (StateLabel == AvailableText)    { return Accent; }
+        return Warn;
+    }
+
+    bool IsHolding(const FHDHoldConfirm& Hold, const FHDShipMenuItem& Item)
+    {
+        return Hold.IsActive() && Hold.GetItemId() == Item.Id && Hold.GetSubIndex() == 0;
+    }
+
+    const TCHAR* GetArrowText(EHDCommandInput Input)
+    {
+        switch (Input)
+        {
+        case EHDCommandInput::Up:       return TEXT("U");
+        case EHDCommandInput::Down:     return TEXT("D");
+        case EHDCommandInput::Left:     return TEXT("L");
+        case EHDCommandInput::Right:    return TEXT("R");
+        default:                        return TEXT("?");
+        }
+    }
+
+    // 탭 줄: 양끝 Q·E 키 상자(안내만), 그 사이 같은 너비의 탭 상자(ShipTab_<i>)
+    void PaintTabs(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, int32 ActiveTab)
+    {
+        const TArray<FString>& Tabs = HDShipMenu::GetArmoryTabs();
+        const float Left = static_cast<float>(Frame.Main.Min.X);
+        const float Top = static_cast<float>(Frame.Main.Min.Y);
+        const float Width = static_cast<float>(Frame.Main.GetSize().X);
+        const float Height = Canvas.Px(TabHeight);
+        const float KeyWidth = Canvas.Px(TabKeyWidth);
+        const float CenterY = Top + Height * 0.5f;
+        const float KeyInset = Canvas.Px(8.f);
+
+        Canvas.SetRegion(MakeRect(Left, Top, KeyWidth, Height));
+        Canvas.KeyCap(TEXT("Q"), FVector2D(Left + KeyInset, CenterY));
+        Canvas.SetRegion(MakeRect(Left + Width - KeyWidth, Top, KeyWidth, Height));
+        Canvas.KeyCap(TEXT("E"), FVector2D(Left + Width - KeyWidth + KeyInset, CenterY));
+        Canvas.SetRegion(FBox2D(ForceInit));
+
+        const float TabsLeft = Left + KeyWidth;
+        const float TabWidth = (Width - KeyWidth * 2.f) / FMath::Max(1, Tabs.Num());
+        for (int32 Tab = 0; Tab < Tabs.Num(); ++Tab)
+        {
+            const FBox2D TabRect = MakeRect(TabsLeft + Tab * TabWidth, Top, TabWidth, Height);
+            const bool bActive = Tab == ActiveTab;
+            Canvas.Fill(TabRect, bActive ? AccentFill : Card);
+            Canvas.Border(TabRect, BorderThin, Line);
+            if (bActive)
+            {
+                Canvas.Fill(FBox2D(FVector2D(TabRect.Min.X, TabRect.Max.Y - Canvas.Px(TabUnderline)), TabRect.Max), Accent);
+            }
+            Canvas.SetRegion(TabRect);
+            Canvas.Text(Tabs[Tab], EHDShipFont::Body, TabRect.GetCenter(), EHDShipTextAlign::Center, bActive ? Accent : TextDim, static_cast<float>(TabRect.GetSize().X) - Canvas.Px(8.f));
+            Canvas.SetRegion(FBox2D(ForceInit));
+            Canvas.HitBox(TabRect, HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Tab, Tab));
+        }
+    }
+
+    // 타일: 아이콘(96), 이름(최대 2줄), 상태 띠. 누르는 중이면 띠 HOLD 와 아래 진행 막대
+    void PaintTile(FHDShipUICanvas& Canvas, const FBox2D& TileRect, const FHDShipMenuItem& Item, const FHDArmoryDetail& Detail, bool bSelected, bool bHolding, float Progress)
+    {
+        const float X = static_cast<float>(TileRect.Min.X);
+        const float Y = static_cast<float>(TileRect.Min.Y);
+        const float W = static_cast<float>(TileRect.GetSize().X);
+        const float Inset = Canvas.Px(TileInset);
+        const bool bUnlocked = Detail.StateLabel == UnlockedText;
+        const bool bShort = bUnlocked == false && Item.bEnabled == false;
+
+        Canvas.Fill(TileRect, Card);
+        if (bSelected)
+        {
+            Canvas.Fill(TileRect, AccentFill);
+            Canvas.Border(TileRect, BorderSelected, Accent);
+        }
+        else
+        {
+            Canvas.Border(TileRect, BorderThin, Line);
+        }
+
+        const float Icon = Canvas.Px(TileIconSize);
+        const FBox2D IconRect = MakeRect(X + (W - Icon) * 0.5f, Y + Inset, Icon, Icon);
+        Canvas.SetRegion(IconRect);
+        Canvas.Icon(Item.IconId, IconRect, bShort);
+
+        Canvas.SetRegion(TileRect);
+        Canvas.Paragraph(Detail.Title.IsEmpty() ? Item.Label : Detail.Title, EHDShipFont::Small,
+            FBox2D(FVector2D(X + Inset, Y + Canvas.Px(TileNameTop)), FVector2D(X + W - Inset, Y + Canvas.Px(TileNameBottom))), Text, 2);
+
+        // 상태 띠: UNLOCKED Good, 살 수 있으면 가격 Accent, 모자라면 가격 Warn
+        FString BandText = UnlockedText;
+        FLinearColor BandColor = Good;
+        if (bUnlocked == false)
+        {
+            BandText = FString::Printf(TEXT("%d REQ"), Detail.Cost.IsEmpty() ? 0 : Detail.Cost[0].Amount);
+            BandColor = bShort ? Warn : Accent;
+        }
+        if (bHolding)
+        {
+            BandText = HoldBandText;
+            BandColor = Accent;
+        }
+        const FBox2D BandRect = MakeRect(X + Inset, Y + Canvas.Px(TileBandTop), W - Inset * 2.f, Canvas.Px(TileBandHeight));
+        Canvas.Border(BandRect, BorderThin, BandColor);
+        Canvas.SetRegion(BandRect);
+        Canvas.Text(BandText, EHDShipFont::Small, BandRect.GetCenter(), EHDShipTextAlign::Center, BandColor, static_cast<float>(BandRect.GetSize().X) - Canvas.Px(4.f));
+        if (bHolding)
+        {
+            const float BarTop = static_cast<float>(TileRect.Max.Y) - Canvas.Px(TileBarHeight);
+            Canvas.Fill(FBox2D(FVector2D(X, BarTop), FVector2D(X + W * FMath::Clamp(Progress, 0.f, 1.f), static_cast<float>(TileRect.Max.Y))), Accent);
+        }
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+
+    // 상세: 큰 아이콘·제목·분류·설명, 줄 또는 막대, 화살표, UNLOCK COST + 비용 줄, 상태. 누르는 중이면 맨 아래 진행 막대
+    void PaintDetail(FHDShipUICanvas& Canvas, const FBox2D& Area, const FHDArmoryDetail& View, const FHDResourceView& Resources, const TArray<UTexture*>& CommandTextures, bool bHolding, float Progress)
+    {
+        Canvas.Fill(Area, Panel);
+        Canvas.Border(Area, BorderThin, Line);
+        if (View.Title.IsEmpty())
+        {
+            return;
+        }
+        Canvas.SetRegion(Area);
+
+        const float Pad = Canvas.Px(DetailPadding);
+        const float Left = static_cast<float>(Area.Min.X) + Pad;
+        const float Right = static_cast<float>(Area.Max.X) - Pad;
+        const float InnerWidth = Right - Left;
+        const float LinePx = Canvas.Px(DetailLineHeight);
+        float Y = static_cast<float>(Area.Min.Y) + Pad;
+
+        const FBox2D IconRect = MakeRect(Left, Y, Canvas.Px(DetailIconSize), Canvas.Px(DetailIconSize));
+        Canvas.SetRegion(IconRect);
+        Canvas.Icon(View.IconId, IconRect, false);
+        Canvas.SetRegion(Area);
+        Y = static_cast<float>(IconRect.Max.Y) + Canvas.Px(Gap * 0.5f);
+
+        Canvas.Text(View.Title, EHDShipFont::Header, FVector2D(Left, Y + LinePx * 0.6f), EHDShipTextAlign::Left, Accent, InnerWidth);
+        Y += LinePx * 1.25f;
+        Canvas.Text(View.Category, EHDShipFont::Small, FVector2D(Left, Y + LinePx * 0.4f), EHDShipTextAlign::Left, TextDim, InnerWidth);
+        Y += LinePx * 0.9f;
+        if (View.Description.IsEmpty() == false)
+        {
+            Y += Canvas.Paragraph(View.Description, EHDShipFont::Small, FBox2D(FVector2D(Left, Y), FVector2D(Right, Y + LinePx * 3.5f)), Text, 4);
+        }
+        Y += Canvas.Px(Gap * 0.5f);
+
+        const float ValueLeft = Left + Canvas.Px(DetailLabelWidth);
+        for (const FHDDetailLine& DetailLine : View.Lines)
+        {
+            const float CenterY = Y + LinePx * 0.5f;
+            Canvas.Text(DetailLine.Label, EHDShipFont::Body, FVector2D(Left, CenterY), EHDShipTextAlign::Left, TextDim, ValueLeft - Left - Canvas.Px(8.f));
+            Canvas.Text(DetailLine.Value, EHDShipFont::Body, FVector2D(ValueLeft, CenterY), EHDShipTextAlign::Left, Text, Right - ValueLeft);
+            Y += LinePx;
+        }
+
+        if (View.Command.IsEmpty() == false)
+        {
+            Y += Canvas.Px(Gap * 0.5f);
+            const float Arrow = Canvas.Px(ArrowSize);
+            float X = Left;
+            for (int32 Index = 0; Index < View.Command.Num(); ++Index)
+            {
+                const FBox2D ArrowRect = MakeRect(X, Y, Arrow, Arrow);
+                UTexture* ArrowTexture = CommandTextures.IsValidIndex(Index) ? CommandTextures[Index] : nullptr;
+                if (ArrowTexture)
+                {
+                    Canvas.Texture(ArrowTexture, ArrowRect);
+                }
+                else
+                {
+                    Canvas.Border(ArrowRect, BorderThin, Line);
+                    Canvas.SetRegion(ArrowRect);
+                    Canvas.Text(GetArrowText(View.Command[Index]), EHDShipFont::KeyCap, ArrowRect.GetCenter(), EHDShipTextAlign::Center, Text, 0.f);
+                    Canvas.SetRegion(Area);
+                }
+                X += Arrow + Canvas.Px(ArrowGap);
+            }
+            Y += Arrow + Canvas.Px(Gap);
+        }
+
+        for (const FHDStatBar& Bar : View.Bars)
+        {
+            const float TextY = Y + LinePx * 0.5f;
+            Canvas.Text(Bar.Label, EHDShipFont::Small, FVector2D(Left, TextY), EHDShipTextAlign::Left, TextDim, InnerWidth * 0.55f);
+            Canvas.Text(Bar.Value, EHDShipFont::Body, FVector2D(Right, TextY), EHDShipTextAlign::Right, Text, InnerWidth * 0.4f);
+            if (Bar.Fraction >= 0.f)
+            {
+                const float BarTop = Y + LinePx;
+                Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Right, BarTop + Canvas.Px(StatBarHeight))), Line);
+                Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Left + InnerWidth * FMath::Clamp(Bar.Fraction, 0.f, 1.f), BarTop + Canvas.Px(StatBarHeight))), Accent);
+            }
+            Y += Canvas.Px(BarRowHeight);
+        }
+
+        // 해금 비용: 아이콘 + 필요량(모자라면 Warn) + "/ 가진 양"
+        if (View.Cost.IsEmpty() == false)
+        {
+            Canvas.Text(CostHeaderText, EHDShipFont::Small, FVector2D(Left, Y + LinePx * 0.5f), EHDShipTextAlign::Left, TextDim, InnerWidth);
+            Y += LinePx;
+            const float CostIcon = Canvas.Px(DetailCostIcon);
+            for (const FHDCostPart& Part : View.Cost)
+            {
+                const float CenterY = Y + LinePx * 0.5f;
+                Canvas.Icon(Part.IconId, MakeRect(Left, CenterY - CostIcon * 0.5f, CostIcon, CostIcon), false);
+                const float AmountLeft = Left + CostIcon + Canvas.Px(10.f);
+                const FBox2D AmountBox = Canvas.Text(FString::FromInt(Part.Amount), EHDShipFont::Body, FVector2D(AmountLeft, CenterY), EHDShipTextAlign::Left, Part.bEnough ? Text : Warn, Canvas.Px(90.f));
+                const float OwnedLeft = (AmountBox.bIsValid ? static_cast<float>(AmountBox.Max.X) : AmountLeft) + Canvas.Px(8.f);
+                Canvas.Text(FString::Printf(TEXT("/ %d"), Resources.Requisition), EHDShipFont::Small, FVector2D(OwnedLeft, CenterY), EHDShipTextAlign::Left, TextDim, Right - OwnedLeft);
+                Y += LinePx;
+            }
+        }
+
+        Canvas.Text(View.StateLabel, EHDShipFont::Body, FVector2D(Left, Y + LinePx * 0.5f), EHDShipTextAlign::Left, GetStateColor(View.StateLabel), InnerWidth);
+
+        if (bHolding)
+        {
+            const float BarBottom = static_cast<float>(Area.Max.Y) - Pad;
+            const float BarTop = BarBottom - Canvas.Px(DetailBarHeight);
+            Canvas.Text(HoldDetailText, EHDShipFont::Body, FVector2D(Left, BarTop - Canvas.Px(Gap) - LinePx * 0.5f), EHDShipTextAlign::Left, Accent, InnerWidth);
+            Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Right, BarBottom)), Line);
+            Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Left + InnerWidth * FMath::Clamp(Progress, 0.f, 1.f), BarBottom)), Accent);
+        }
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+}
+
+void FHDShipScreenPainter::PaintArmory(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const TArray<FHDArmoryDetail>& Details, const FHDHoldConfirm& Hold, const FHDResourceView& Resources, const TArray<UTexture*>& CommandTextures)
+{
+    using namespace HDShipArmoryPrivate;
+
+    Canvas.SetContentLayer(true);
+
+    const int32 ActiveTab = Menu.GetActiveTab();
+    const int32 Cursor = Items.IsEmpty() ? INDEX_NONE : FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1);
+    PaintTabs(Canvas, Frame, ActiveTab);
+
+    // 지금 탭의 줄(줄 순서) → 왼쪽 위부터 4열(FHDShipMenu::HandleKey 의 탭 안 이동과 같은 배치)
+    const TArray<FString>& Tabs = HDShipMenu::GetArmoryTabs();
+    const FString TabName = Tabs.IsValidIndex(ActiveTab) ? Tabs[ActiveTab] : FString();
+    TArray<int32> Rows;
+    for (int32 Index = 0; Index < Items.Num(); ++Index)
+    {
+        if (Items[Index].Group == TabName)
+        {
+            Rows.Add(Index);
+        }
+    }
+
+    const float GridLeft = static_cast<float>(Frame.Main.Min.X);
+    const float GridTop = static_cast<float>(Frame.Main.Min.Y) + Canvas.Px(TabHeight + TileTopGap);
+    if (Rows.IsEmpty())
+    {
+        const FBox2D EmptyRect(FVector2D(Frame.Main.Min.X, GridTop), Frame.Main.Max);
+        Canvas.SetRegion(EmptyRect);
+        Canvas.Text(EmptyTabText, EHDShipFont::Body, EmptyRect.GetCenter(), EHDShipTextAlign::Center, TextDim, static_cast<float>(EmptyRect.GetSize().X));
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+
+    const FHDArmoryDetail EmptyDetail;
+    for (int32 Tile = 0; Tile < Rows.Num(); ++Tile)
+    {
+        const int32 ItemIndex = Rows[Tile];
+        const FHDShipMenuItem& Item = Items[ItemIndex];
+        const FBox2D TileRect = MakeRect(
+            GridLeft + (Tile % TileColumns) * Canvas.Px(TileWidth + TileGap),
+            GridTop + (Tile / TileColumns) * Canvas.Px(TileHeight + TileGap),
+            Canvas.Px(TileWidth), Canvas.Px(TileHeight));
+        const FHDArmoryDetail& Detail = Details.IsValidIndex(ItemIndex) ? Details[ItemIndex] : EmptyDetail;
+        PaintTile(Canvas, TileRect, Item, Detail, ItemIndex == Cursor, IsHolding(Hold, Item), Hold.GetProgress());
+        Canvas.HitBox(TileRect, HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Card, ItemIndex, 0));
+    }
+
+    // 상세 패널 = 커서 줄
+    const FHDArmoryDetail& CursorDetail = Details.IsValidIndex(Cursor) ? Details[Cursor] : EmptyDetail;
+    const bool bCursorHolding = Items.IsValidIndex(Cursor) && IsHolding(Hold, Items[Cursor]);
+    PaintDetail(Canvas, Frame.Detail, CursorDetail, Resources, CommandTextures, bCursorHolding, Hold.GetProgress());
+
+    Canvas.SetRegion(FBox2D(ForceInit));
+    Canvas.SetContentLayer(false);
+}
