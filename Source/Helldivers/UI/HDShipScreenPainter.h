@@ -13,6 +13,7 @@ struct FHDPromptTag;
 struct FHDPromptTagInput;
 struct FHDShipUIFrame;
 struct FHDWarTableView;
+struct FHDLoadoutDetail;
 class UTexture;
 
 // 함선 화면별 그리기. 로직 상태(FHDShipMenu·줄·화면 데이터)는 읽기만 한다. 좌표는 설계 단위(1920×1080)를 캔버스 틀로 바꿔 쓴다
@@ -30,6 +31,9 @@ public:
     // 작전 테이블: 왼쪽 작전 카드 열, 가운데 정사각형 작전 지역(MapTexture 가 있으면 캡처, 없으면 2000 단위 격자 도식. 위에 목표 띠 두 고리·강하 표식),
     // 오른쪽 상세(목표, 난이도 막대 = Difficulty 줄 히트박스와 고른 동안 < > 상자 ShipKey_Left/Right, 보상, 맵 샘플, START MISSION = StartMission 줄)
     static void         PaintWarTable(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDWarTableView& View, UTexture* MapTexture, const FVector2D& CenterXY, float HalfExtent);
+    // 로드아웃: 주 영역 아래 헬다이버 칸(스트라타젬 카드 넷·무기 카드 셋·READY, ShipItem_<i>), 창이 열려 있으면 그 위 고르기 창(분류 머리·4열 타일, ShipPick_<i>),
+    // 오른쪽 상세(큰 아이콘·제목·분류·두 열 줄·호출 화살표·능력치 막대·상태 줄). CommandTextures 는 Detail.Command 와 같은 순서(nullptr 면 글자)
+    static void         PaintLoadout(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDLoadoutDetail& Detail, const TArray<UTexture*>& CommandTextures);
     // 출격 대기: 한 겹 더 어둡게, 가운데 HELLPOD LAUNCH·큰 숫자·[BACKSPACE] CANCEL
     static void         PaintCountdown(FHDShipUICanvas& Canvas, int32 DisplaySeconds);
     // 함선 안(메뉴 닫힘): 오른쪽 위 자원(배경 없음), 왼쪽 아래 [P] SHIP MENU

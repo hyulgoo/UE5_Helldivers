@@ -3,11 +3,16 @@
 #include "UI/HDShipMenuView.h"
 #include "Progression/HDMissionReward.h"
 #include "Progression/HDDifficulty.h"
+#include "Progression/HDUpgradeRules.h"
+#include "Stratagem/HDStratagemCatalog.h"
+#include "Stratagem/HDStratagemLoadout.h"
+#include "UI/HDShipIcons.h"
 
 namespace HDShipMenuViewPrivate
 {
-    // HDShipMenu::BuildItems 의 난이도 줄 Id
+    // HDShipMenu::BuildItems 의 난이도 줄·READY 줄 Id
     const FName DifficultyItemId(TEXT("Difficulty"));
+    const FName ReadyItemId(TEXT("Ready"));
 
     FHDKeyHint MakeHint(const TCHAR* Key, const TCHAR* Action, EHDShipMenuKey MenuKey, bool bClickable)
     {
@@ -38,10 +43,49 @@ TArray<FHDKeyHint> HDShipMenuView::GetKeyHints(const FHDShipMenu& Menu, const TA
         return Hints;
     }
 
-    Hints.Add(MakeHint(TEXT("UP/DOWN"), TEXT("SELECT"), EHDShipMenuKey::Up, false));
+    // Loadout: 칸 이동(방향키 넷)과 고르기 창
+    if (Screen == EHDShipScreen::Loadout)
+    {
+        Hints.Add(MakeHint(TEXT("ARROWS"), TEXT("MOVE"), EHDShipMenuKey::Up, false));
+        const FHDShipMenuItem* Item = Items.IsEmpty() ? nullptr : &Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
+        if (Menu.IsPickerOpen() && Item && Item->Options.IsEmpty() == false)
+        {
+            const FHDShipMenuOption& Option = Item->Options[FMath::Clamp(Menu.GetPickerCursor(), 0, Item->Options.Num() - 1)];
+            if (Option.bCurrent)
+            {
+                Hints.Add(MakeHint(TEXT("ENTER"), TEXT("KEEP"), EHDShipMenuKey::Confirm, true));
+            }
+            else if (Option.bUnlocked && Option.EquippedSlot == INDEX_NONE)
+            {
+                Hints.Add(MakeHint(TEXT("ENTER"), TEXT("EQUIP"), EHDShipMenuKey::Confirm, true));
+            }
+            Hints.Add(MakeHint(TEXT("BACKSPACE"), TEXT("CLOSE"), EHDShipMenuKey::Back, true));
+            return Hints;
+        }
+
+        if (Item && Item->bEnabled)
+        {
+            if (Item->Options.IsEmpty() == false)
+            {
+                Hints.Add(MakeHint(TEXT("ENTER"), TEXT("CHANGE"), EHDShipMenuKey::Confirm, true));
+            }
+            else if (Item->ConfirmAction == EHDShipActionType::Launch)
+            {
+                Hints.Add(MakeHint(TEXT("ENTER"), TEXT("READY"), EHDShipMenuKey::Confirm, true));
+            }
+            else if (Item->ConfirmAction != EHDShipActionType::None)
+            {
+                Hints.Add(MakeHint(TEXT("ENTER"), TEXT("CONFIRM"), EHDShipMenuKey::Confirm, true));
+            }
+        }
+    }
+    else
+    {
+        Hints.Add(MakeHint(TEXT("UP/DOWN"), TEXT("SELECT"), EHDShipMenuKey::Up, false));
+    }
 
     // FHDShipMenu::HandleKey 처럼 커서를 줄 수로 자른다
-    if (Items.IsEmpty() == false)
+    if (Screen != EHDShipScreen::Loadout && Items.IsEmpty() == false)
     {
         const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
         if (Item.bAdjustable && Item.bEnabled)
@@ -184,4 +228,141 @@ FHDWarTableView HDShipMenuView::BuildWarTable(const FHDShipMenuContext& Context,
     Outcome.RewardMultiplier    = Row.RewardMultiplier;
     View.SuccessRequisition = HDProgression::ComputeReward(Outcome, Rules).Requisition;
     return View;
+}
+
+namespace HDShipMenuViewPrivate
+{
+    // 선택지 상태 줄: 지금 낀 것 → EQUIPPED, 잠김 → LOCKED  <가격> REQ IN ARMORY, 다른 칸 → IN SLOT n
+    FString MakeStatus(const FHDShipMenuOption& Option, int32 UnlockCost)
+    {
+        if (Option.bCurrent)
+        {
+            return TEXT("EQUIPPED");
+        }
+        if (Option.bUnlocked == false)
+        {
+            return FString::Printf(TEXT("LOCKED  %d REQ IN ARMORY"), UnlockCost);
+        }
+        if (Option.EquippedSlot != INDEX_NONE)
+        {
+            return FString::Printf(TEXT("IN SLOT %d"), Option.EquippedSlot + 1);
+        }
+        return FString();
+    }
+
+    FHDDetailLine MakeLine(const TCHAR* Label, const FString& Value)
+    {
+        FHDDetailLine Line;
+        Line.Label  = Label;
+        Line.Value  = Value;
+        return Line;
+    }
+
+    // 스트라타젬 값: UHDStratagemComponent::BuildCatalog 와 같은 필드에 업그레이드를 넣는다
+    void FillStratagem(FHDLoadoutDetail& Detail, FName Name, const FHDStratagemDefinition& Definition, const FHDShipMenuContext& Context)
+    {
+        FHDStratagemEntry Entry;
+        Entry.Name              = Name;
+        Entry.CommandSequence   = Definition.CommandSequence;
+        Entry.ActivationDelay   = Definition.ActivationDelay;
+        Entry.Cooldown          = Definition.Cooldown;
+        Entry.MaxUses           = Definition.MaxUses;
+        Entry.RearmTime         = Definition.RearmTime;
+        const FHDUpgradeModifiers Modifiers = Context.Upgrades ? HDUpgrade::ComputeModifiers(Context.Profile, *Context.Upgrades) : FHDUpgradeModifiers();
+        HDUpgrade::ApplyToEntry(Entry, Definition, Modifiers);
+
+        Detail.IconId   = Name;
+        Detail.Title    = HDArmory::MakeDisplayName(Name);
+        Detail.Category = HDShipIcons::GetStratagemCategory(Definition);
+        Detail.Command  = Entry.CommandSequence;
+        Detail.Lines.Add(MakeLine(TEXT("CALL-IN"), HDShipMenuView::FormatSeconds(Entry.ActivationDelay)));
+        Detail.Lines.Add(MakeLine(TEXT("COOLDOWN"), HDShipMenuView::FormatSeconds(Entry.Cooldown)));
+        Detail.Lines.Add(MakeLine(TEXT("USES"), Entry.MaxUses > 0 ? FString::FromInt(Entry.MaxUses) : FString(TEXT("UNLIMITED"))));
+        if (Entry.MaxUses > 0 && Entry.RearmTime > 0.f)
+        {
+            Detail.Lines.Add(MakeLine(TEXT("REARM"), HDShipMenuView::FormatSeconds(Entry.RearmTime)));
+        }
+    }
+
+    void FillWeapon(FHDLoadoutDetail& Detail, const FHDWeaponOption& Weapon)
+    {
+        Detail.IconId   = Weapon.Id;
+        Detail.Title    = Weapon.DisplayName;
+        Detail.Category = FString(HDWeaponCatalog::GetSlotName(Weapon.Slot)).ToUpper();
+        Detail.Bars     = HDWeaponCatalog::MakeStatBars(Weapon);
+    }
+}
+
+FHDLoadoutDetail HDShipMenuView::BuildLoadoutDetail(const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDShipMenuContext& Context)
+{
+    using namespace HDShipMenuViewPrivate;
+
+    FHDLoadoutDetail Detail;
+    if (Items.IsEmpty())
+    {
+        return Detail;
+    }
+
+    const FHDShipMenuItem& Item = Items[FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1)];
+
+    // READY: 칸마다 한 줄(스트라타젬 넷, 무기 셋)
+    if (Item.Id == ReadyItemId)
+    {
+        Detail.Title = TEXT("READY");
+        for (const FHDShipMenuItem& Other : Items)
+        {
+            if (Other.IconId.IsNone())
+            {
+                continue;
+            }
+
+            FString Label = Other.Id.ToString().ToUpper();
+            FString Value = HDArmory::MakeDisplayName(Other.IconId);
+            if (const FHDWeaponOption* Weapon = HDWeaponCatalog::Find(Other.IconId))
+            {
+                Value = Weapon->DisplayName;
+            }
+            else if (Label.StartsWith(TEXT("SLOT")))
+            {
+                Label = TEXT("SLOT ") + Label.Mid(4);
+            }
+            Detail.Lines.Add(MakeLine(*Label, Value));
+        }
+        return Detail;
+    }
+
+    // 창이 열려 있으면 창의 커서 항목, 아니면 카드(지금 낀 것)
+    FHDShipMenuOption Shown;
+    Shown.Id        = Item.IconId;
+    Shown.bCurrent  = true;
+    if (Menu.IsPickerOpen() && Item.Options.IsEmpty() == false)
+    {
+        Shown = Item.Options[FMath::Clamp(Menu.GetPickerCursor(), 0, Item.Options.Num() - 1)];
+    }
+
+    const FHDStratagemDefinition* Definition = Context.Stratagems ? Context.Stratagems->Find(Shown.Id) : nullptr;
+    if (Definition)
+    {
+        FillStratagem(Detail, Shown.Id, *Definition, Context);
+        Detail.Status = MakeStatus(Shown, Definition->UnlockCost);
+        return Detail;
+    }
+
+    if (const FHDWeaponOption* Weapon = HDWeaponCatalog::Find(Shown.Id))
+    {
+        FillWeapon(Detail, *Weapon);
+        Detail.Status = MakeStatus(Shown, Weapon->UnlockCost);
+        return Detail;
+    }
+
+    Detail.Title = Item.Label;
+    return Detail;
+}
+
+FString HDShipMenuView::FormatSeconds(float Seconds)
+{
+    const int32 Rounded = FMath::RoundToInt(Seconds);
+    return FMath::IsNearlyEqual(Seconds, static_cast<float>(Rounded), 0.01f)
+        ? FString::Printf(TEXT("%d S"), Rounded)
+        : FString::Printf(TEXT("%.1f S"), Seconds);
 }

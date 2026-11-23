@@ -438,6 +438,11 @@ void AHDPlayerController::CloseShipTerminal()
 
 TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
 {
+    return HDShipMenu::BuildItems(ShipMenu.GetScreen(), BuildShipMenuContext());
+}
+
+FHDShipMenuContext AHDPlayerController::BuildShipMenuContext() const
+{
     FHDShipMenuContext Context;
     const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
     if (ProfileSubsystem)
@@ -448,8 +453,7 @@ TArray<FHDShipMenuItem> AHDPlayerController::BuildShipMenuItems() const
     Context.Upgrades = &FHDUpgradeCatalog::GetProjectCatalog();
     Context.Stratagems = &FHDStratagemCatalog::GetProjectCatalog();
     Context.DefaultLoadout = GetDefault<UHDStratagemSettings>()->Loadout;
-
-    return HDShipMenu::BuildItems(ShipMenu.GetScreen(), Context);
+    return Context;
 }
 
 void AHDPlayerController::HoverShipMenuItem(int32 Index)
@@ -460,18 +464,61 @@ void AHDPlayerController::HoverShipMenuItem(int32 Index)
     }
 
     // 화면을 열 때 마우스가 줄 위에 멈춰 있어도 새 히트박스가 가리키기를 부른다. 움직이기 전에는 커서를 그대로 둔다
-    if (bShipMouseMoved == false)
+    if (ConsumeShipMouseMoved() == false)
     {
-        float MouseX = 0.f;
-        float MouseY = 0.f;
-        if (GetMousePosition(MouseX, MouseY) == false || HDShipUILayout::HasMouseMoved(ShipMouseAnchor, FVector2D(MouseX, MouseY)) == false)
-        {
-            return;
-        }
-        bShipMouseMoved = true;
+        return;
     }
 
     ShipMenu.SetCursor(Index, BuildShipMenuItems().Num());
+}
+
+bool AHDPlayerController::ConsumeShipMouseMoved()
+{
+    if (bShipMouseMoved)
+    {
+        return true;
+    }
+
+    float MouseX = 0.f;
+    float MouseY = 0.f;
+    if (GetMousePosition(MouseX, MouseY) == false || HDShipUILayout::HasMouseMoved(ShipMouseAnchor, FVector2D(MouseX, MouseY)) == false)
+    {
+        return false;
+    }
+    bShipMouseMoved = true;
+    return true;
+}
+
+void AHDPlayerController::HoverShipPickerItem(int32 Index)
+{
+    if (bShipMenuActive == false || ShipMenu.IsPickerOpen() == false || ConsumeShipMouseMoved() == false)
+    {
+        return;
+    }
+
+    const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+    const int32 Cursor = ShipMenu.GetCursor();
+    if (Items.IsValidIndex(Cursor))
+    {
+        ShipMenu.SetPickerCursor(Index, Items[Cursor].Options.Num());
+    }
+}
+
+void AHDPlayerController::ClickShipPickerItem(int32 Index)
+{
+    if (bShipMenuActive == false || ShipMenu.IsPickerOpen() == false)
+    {
+        return;
+    }
+
+    const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+    const int32 Cursor = ShipMenu.GetCursor();
+    if (Items.IsValidIndex(Cursor))
+    {
+        ShipMenu.SetPickerCursor(Index, Items[Cursor].Options.Num());
+    }
+
+    HandleShipMenuKey(EHDShipMenuKey::Confirm);
 }
 
 void AHDPlayerController::ClickShipKeyHint(EHDShipMenuKey Key)
@@ -544,12 +591,14 @@ void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
     const int32 Cursor = ShipMenu.GetCursor();
     const FString ItemLabel = Items.IsValidIndex(Cursor) ? Items[Cursor].Label : FString(TEXT("-"));
 
-    UE_LOG(LogTemp, Display, TEXT("[HDShip] key %s screen=%s cursor=%d item=%s action=%s"),
+    UE_LOG(LogTemp, Display, TEXT("[HDShip] key %s screen=%s cursor=%d item=%s action=%s sub=%d picker=%d"),
         HDShipMenu::GetKeyName(Key),
         HDShipMenu::GetScreenName(NewScreen),
         Cursor,
         *ItemLabel,
-        HDShipMenu::GetActionName(Action.Type));
+        HDShipMenu::GetActionName(Action.Type),
+        ShipMenu.GetSubCursor(),
+        ShipMenu.IsPickerOpen() ? ShipMenu.GetPickerCursor() : -1);
 
     if (Action.Type == EHDShipActionType::OpenScreen)
     {
@@ -601,6 +650,71 @@ void AHDPlayerController::ExecuteShipMenuAction(const FHDShipMenuAction& Action)
         NULL_CHECK(HDGameMode);
 
         HDGameMode->RequestLaunch(this);
+        break;
+    }
+    case EHDShipActionType::OpenPicker:
+    {
+        const TArray<FHDShipMenuItem> Items = BuildShipMenuItems();
+        const int32 Cursor = ShipMenu.GetCursor();
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] picker open %s options=%d cursor=%d"),
+            *Action.Id.ToString(), Items.IsValidIndex(Cursor) ? Items[Cursor].Options.Num() : 0, ShipMenu.GetPickerCursor());
+        break;
+    }
+    case EHDShipActionType::ClosePicker:
+        UE_LOG(LogTemp, Display, TEXT("[HDShip] picker close %s"), *Action.Id.ToString());
+        break;
+    case EHDShipActionType::Equip:
+    {
+        UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
+        NULL_CHECK(ProfileSubsystem);
+
+        // 로드아웃 칸: 정리한 로드아웃에 TrySetSlot(해금·중복 검사). 참이면 저장한다(다음 출격부터)
+        const int32 SlotIndex = HDPlayerControllerShip::GetLoadoutSlotIndex(Action.Id);
+        if (SlotIndex != INDEX_NONE)
+        {
+            const FHDStratagemCatalog& Catalog = FHDStratagemCatalog::GetProjectCatalog();
+            const TArray<FName>& DefaultLoadout = GetDefault<UHDStratagemSettings>()->Loadout;
+            const FName OptionId = Action.OptionId;
+            bool bEquipped = false;
+            ProfileSubsystem->ModifyProfile([&Catalog, &DefaultLoadout, &bEquipped, OptionId, SlotIndex](FHDProfileData& Data)
+            {
+                TArray<FName> Loadout = HDArmory::ValidateLoadout(Data.Loadout, Data, Catalog, DefaultLoadout);
+                bEquipped = HDArmory::TrySetSlot(Loadout, SlotIndex, OptionId, Data, Catalog);
+                if (bEquipped)
+                {
+                    Data.Loadout = Loadout;
+                }
+            });
+
+            if (bEquipped)
+            {
+                UE_LOG(LogTemp, Display, TEXT("[HDLoadout] slot %d -> %s"), SlotIndex + 1, *OptionId.ToString());
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[HDShip] equip refused %s %s"), *Action.Id.ToString(), *OptionId.ToString());
+            }
+            break;
+        }
+
+        // 무기 줄: 선택지가 그 칸 것이고 열려 있을 때만
+        EHDLoadoutWeapon WeaponSlot = EHDLoadoutWeapon::Primary;
+        const FHDWeaponOption* Weapon = HDWeaponCatalog::Find(Action.OptionId);
+        if (HDPlayerControllerShip::TryGetLoadoutWeapon(Action.Id, WeaponSlot)
+            && Weapon && Weapon->Slot == WeaponSlot
+            && HDWeaponCatalog::IsUnlocked(ProfileSubsystem->GetProfile(), Weapon->Id))
+        {
+            const FName WeaponId = Weapon->Id;
+            ProfileSubsystem->ModifyProfile([WeaponSlot, WeaponId](FHDProfileData& Data)
+            {
+                HDWeaponCatalog::SetChosen(Data, WeaponSlot, WeaponId);
+            });
+
+            UE_LOG(LogTemp, Display, TEXT("[HDLoadout] %s -> %s"), *FString(HDWeaponCatalog::GetSlotName(WeaponSlot)).ToLower(), *WeaponId.ToString());
+            break;
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("[HDShip] equip refused %s %s"), *Action.Id.ToString(), *Action.OptionId.ToString());
         break;
     }
     case EHDShipActionType::Adjust:

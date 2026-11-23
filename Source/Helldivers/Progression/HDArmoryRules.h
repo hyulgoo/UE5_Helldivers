@@ -28,6 +28,8 @@ namespace HDArmory
     HELLDIVERS_API TArray<FName>    ValidateLoadout(const TArray<FName>& Wanted, const FHDProfileData& Data, const FHDStratagemCatalog& Catalog, const TArray<FName>& Fallback, int32 MaxSlots = FHDStratagemLoadout::MaxSlots);
     // SlotIndex 칸의 다음 이름. 후보 = 카탈로그 순서의 열린 이름 중 다른 칸에 없는 것(지금 이름 포함), 끝에서 감긴다
     HELLDIVERS_API FName            CycleSlot(const TArray<FName>& Loadout, int32 SlotIndex, int32 Delta, const FHDProfileData& Data, const FHDStratagemCatalog& Catalog);
+    // SlotIndex 칸에 Name 을 넣는다. 칸 번호가 [0, Num) 밖·카탈로그에 없음·잠김·다른 칸에 있음이면 거짓(배열 그대로). 같은 칸의 지금 이름이면 참(그대로)
+    HELLDIVERS_API bool             TrySetSlot(TArray<FName>& Loadout, int32 SlotIndex, FName Name, const FHDProfileData& Data, const FHDStratagemCatalog& Catalog);
     // 낙타 표기 → 대문자 단어: 소문자·숫자 뒤의 대문자, 글자 뒤의 숫자에서 나눈다
     HELLDIVERS_API FString          MakeDisplayName(FName StratagemName);
     // "UP RIGHT DOWN RIGHT"

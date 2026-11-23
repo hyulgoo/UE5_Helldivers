@@ -228,10 +228,10 @@ bool FHDShipUITest::RunTest(const FString& Parameters)
         const TArray<FHDShipMenuItem> LoadoutItems = HDShipMenu::BuildItems(EHDShipScreen::Loadout, WarContext);
         TestTrue(TEXT("S4: Loadout has slot rows"), LoadoutItems.Num() > 1);
         TestEqual(TEXT("S4: Loadout slot"), HDShipMenuView::JoinKeyHints(HDShipMenuView::GetKeyHints(War, LoadoutItems, false)),
-            FString(TEXT("[UP/DOWN] SELECT   [LEFT/RIGHT] CHANGE   [BACKSPACE] BACK")));
+            FString(TEXT("[ARROWS] MOVE   [ENTER] CHANGE   [BACKSPACE] BACK")));
         War.SetCursor(LoadoutItems.Num() - 1, LoadoutItems.Num());
         TestEqual(TEXT("S4: Loadout READY"), HDShipMenuView::JoinKeyHints(HDShipMenuView::GetKeyHints(War, LoadoutItems, false)),
-            FString(TEXT("[UP/DOWN] SELECT   [ENTER] CONFIRM   [BACKSPACE] BACK")));
+            FString(TEXT("[ARROWS] MOVE   [ENTER] READY   [BACKSPACE] BACK")));
         TestEqual(TEXT("S4: launching"), HDShipMenuView::JoinKeyHints(HDShipMenuView::GetKeyHints(War, LoadoutItems, true)),
             FString(TEXT("[BACKSPACE] CANCEL")));
         TestEqual(TEXT("S4: launching on System"), HDShipMenuView::JoinKeyHints(HDShipMenuView::GetKeyHints(System, SystemItems, true)),

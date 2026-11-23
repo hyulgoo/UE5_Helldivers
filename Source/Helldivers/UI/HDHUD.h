@@ -39,7 +39,8 @@ public:
     // 작전 포기 확인 창이 열려 있으면 가운데 ABANDON MISSION? 을 캔버스에 그린다. 함선 단계면 함선 메뉴(닫혀 있으면 함선 안 안내)와 출격 대기만 그린다
     virtual void                        DrawHUD() override;
 
-    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기, ShipKey_<키> → 그 키(클릭만). 결과 패널 ResultReturn → 함선 복귀 요청
+    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기(고르기 창이 열려 있으면 가리키기는 무시),
+    // ShipPick_<i> → 고르기 창 타일 확정 / 가리키기, ShipKey_<키> → 그 키(클릭만). 결과 패널 ResultReturn → 함선 복귀 요청
     virtual void                        NotifyHitBoxClick(FName BoxName) override;
     virtual void                        NotifyHitBoxBeginCursorOver(FName BoxName) override;
 
@@ -61,6 +62,8 @@ private:
     AHDShipInterior*                    FindShipInterior();
     // 작전 테이블 화면: 프로필·난이도 표로 화면 데이터를 만들고 방의 지도 캡처(없으면 도식)로 그린다
     void                                DrawWarTable(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
+    // 로드아웃 화면: 컨트롤러 문맥으로 상세를 만들고 호출 화살표 텍스처(못 읽으면 글자)와 함께 그린다
+    void                                DrawLoadout(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
     // 맨 위 층: 어둡게 + 가운데 HELLPOD LAUNCH, 큰 숫자, [BACKSPACE] CANCEL
     void                                DrawLaunchCountdown(float RemainingSeconds);
     // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)

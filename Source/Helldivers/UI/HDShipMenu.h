@@ -47,7 +47,24 @@ enum class EHDShipActionType : uint8
     // 단말기 닫기(뿌리 화면에서 Back, RESUME). Id = 뿌리 화면 이름
     CloseTerminal,
     // READY: 출격 대기(카운트다운) 시작
-    Launch
+    Launch,
+    // Loadout 고르기 창 열기·닫기(Id = 줄 Id)
+    OpenPicker,
+    ClosePicker,
+    // 고르기 창에서 장착(Id = 줄 Id, OptionId = 고른 선택지)
+    Equip
+};
+
+// 고르기 창의 항목
+struct FHDShipMenuOption
+{
+    FName               Id;
+    FString             Label;
+    FString             Category;
+    bool                bUnlocked       = true;
+    // 다른 칸에 끼어 있으면 그 칸 번호(0부터)
+    int32               EquippedSlot    = INDEX_NONE;
+    bool                bCurrent        = false;
 };
 
 // 메뉴 한 줄
@@ -64,6 +81,10 @@ struct FHDShipMenuItem
     EHDShipActionType   ConfirmAction   = EHDShipActionType::Select;
     // ConfirmAction 이 OpenScreen 일 때 갈 화면
     EHDShipScreen       TargetScreen    = EHDShipScreen::Bridge;
+    // 카드 아이콘(HDShipIcons::Resolve 의 Id). Loadout 칸 = 스트라타젬 이름, 무기 줄 = 무기 Id
+    FName               IconId;
+    // Loadout 고르기 창의 선택지(칸 줄 = 카탈로그 전체, 무기 줄 = 그 칸 무기). 비면 창이 없다
+    TArray<FHDShipMenuOption> Options;
 };
 
 // HandleKey 의 결과. Value 는 Adjust 의 −1 / +1
@@ -72,6 +93,8 @@ struct FHDShipMenuAction
     EHDShipActionType   Type    = EHDShipActionType::None;
     FName               Id;
     int32               Value   = 0;
+    // Equip 의 선택지 Id
+    FName               OptionId;
 };
 
 // 줄을 만드는 데 쓰는 값. 뒤 브리프가 필드를 더한다
@@ -96,12 +119,13 @@ namespace HDShipMenu
     // Title 은 빈 배열(글자는 HUD 가 그린다). Bridge 는 Deploy, Difficulty(Context.Difficulties 가 있을 때, ← → 로 조정), Loadout, Upgrades, Armory, Quit.
     // Upgrades 는 카탈로그 행마다 "<DisplayName>  <산 단계>/<단계 수>"(확정 Select, 지불할 수 있을 때만 켜짐, 다 샀으면 꺼짐).
     // Loadout 은 정리한 로드아웃(HDArmory::ValidateLoadout)의 칸마다 Slot1~Slot4 "SLOT <n>  < <표시 이름> >"(← → 로 조정, 확정 None), 마지막에 READY(확정 Launch, 카탈로그가 없어도 있다).
+    // 칸·무기 줄은 IconId 와 고르기 창 Options(칸 = 카탈로그 전체를 분류 순서로, 무기 = 그 칸 무기)를 채운다.
     // Armory 는 UnlockCost > 0 인 스트라타젬 행마다 "<표시 이름>  <가격> REQ" 또는 "<표시 이름>  UNLOCKED"(확정 Select, 잠겨 있고 징발이 충분할 때만 켜짐).
     // WarTable 은 Difficulty(Bridge 와 같은 줄, 표가 있을 때), StartMission(확정 OpenScreen → Loadout). System 은 Resume(확정 CloseTerminal), Quit
     HELLDIVERS_API TArray<FHDShipMenuItem>  BuildItems(EHDShipScreen Screen, const FHDShipMenuContext& Context);
     // 함선 자원 줄: "REQ <징발>   COMMON <일반>   RARE <희귀>   SUPER <최상급>"(사이 공백 세 칸)
     HELLDIVERS_API FString                  FormatResources(const FHDProfileData& Profile);
-    // 로그용: "Title"·"Bridge"·"Upgrades"·"Loadout"·"Armory"·"WarTable"·"System" / "Up"… / "none"·"open"·"deploy"·"quit"·"adjust"·"select"·"close"·"launch"
+    // 로그용: "Title"·"Bridge"·"Upgrades"·"Loadout"·"Armory"·"WarTable"·"System" / "Up"… / "none"·"open"·"deploy"·"quit"·"adjust"·"select"·"close"·"launch"·"picker-open"·"picker-close"·"equip"
     HELLDIVERS_API const TCHAR*             GetScreenName(EHDShipScreen Screen);
     // 화면 머리글: "SHIP BRIDGE"·"SHIP UPGRADES"·"LOADOUT"·"ARMORY"·"WAR TABLE"·"SHIP MENU"(Title 은 빈 글자)
     HELLDIVERS_API const TCHAR*             GetScreenTitle(EHDShipScreen Screen);
@@ -127,11 +151,27 @@ public:
     void                SetCursor(int32 NewCursor, int32 ItemCount);
     // Items = 지금 화면의 BuildItems 결과. 먼저 커서를 [0, Num−1] 로 자른다(빈 목록이면 0).
     // Back: 뿌리가 아니면 뿌리 화면·뿌리 커서로(OpenScreen, Id = 뿌리 이름), 뿌리에서는 Bridge 면 None, 단말기면 CloseTerminal(Id = 뿌리 이름)
+    // Loadout 은 칸 이동(HDShipMenuNav)과 고르기 창 규칙이다. 다른 화면은 위 규칙 그대로
     FHDShipMenuAction   HandleKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items);
+
+    // Loadout 고르기 창. SetScreen·OpenTerminal·SetCursor(받아들였을 때)가 닫는다
+    bool                IsPickerOpen() const { return bPickerOpen; }
+    int32               GetPickerCursor() const { return PickerCursor; }
+    // 창이 열려 있고 [0, OptionCount) 안일 때만 바꾼다
+    void                SetPickerCursor(int32 NewCursor, int32 OptionCount);
+    // 함선 관리의 단계 카드(브리프 6). 지금은 늘 0
+    int32               GetSubCursor() const { return SubCursor; }
+
+private:
+    // Loadout 의 방향키·창 열기·창 안 키. 공통 규칙(READY Confirm, 창이 닫힌 Back)으로 넘길 키면 거짓
+    bool                HandleLoadoutKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction);
 
 private:
     EHDShipScreen       Screen;
     int32               Cursor          = 0;
+    bool                bPickerOpen     = false;
+    int32               PickerCursor    = 0;
+    int32               SubCursor       = 0;
     // 하위 화면에서 Back 하면 돌아갈 뿌리 화면의 커서(뿌리에서 하위 화면을 열 때 기억한다)
     int32               RootCursor      = 0;
     // 하위 화면에서 Back 하면 돌아갈 화면. 기본 Bridge, 단말기는 OpenTerminal 이 정한다

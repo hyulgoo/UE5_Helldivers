@@ -427,6 +427,10 @@ void AHDHUD::NotifyHitBoxClick(FName BoxName)
     {
         HDPlayerController->ClickShipMenuItem(A);
     }
+    else if (Kind == HDShipUILayout::EHDShipHitKind::Pick)
+    {
+        HDPlayerController->ClickShipPickerItem(A);
+    }
     else if (Kind == HDShipUILayout::EHDShipHitKind::Key && A <= static_cast<int32>(EHDShipMenuKey::Back))
     {
         HDPlayerController->ClickShipKeyHint(static_cast<EHDShipMenuKey>(A));
@@ -437,14 +441,23 @@ void AHDHUD::NotifyHitBoxBeginCursorOver(FName BoxName)
 {
     Super::NotifyHitBoxBeginCursorOver(BoxName);
 
-    // 줄만 가리키기로 커서를 옮긴다(키 안내 상자·타이틀은 아니다)
+    // 줄·고르기 창 타일만 가리키기로 커서를 옮긴다(키 안내 상자·타이틀은 아니다). 창이 열려 있으면 줄 가리키기는 무시한다
     AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
     HDShipUILayout::EHDShipHitKind Kind = HDShipUILayout::EHDShipHitKind::None;
     int32 A = 0;
     int32 B = 0;
-    if (HDPlayerController && HDShipUILayout::ParseHitBoxName(BoxName, Kind, A, B) && Kind == HDShipUILayout::EHDShipHitKind::Item)
+    if (HDPlayerController == nullptr || HDShipUILayout::ParseHitBoxName(BoxName, Kind, A, B) == false)
+    {
+        return;
+    }
+
+    if (Kind == HDShipUILayout::EHDShipHitKind::Item && HDPlayerController->GetShipMenu().IsPickerOpen() == false)
     {
         HDPlayerController->HoverShipMenuItem(A);
+    }
+    else if (Kind == HDShipUILayout::EHDShipHitKind::Pick)
+    {
+        HDPlayerController->HoverShipPickerItem(A);
     }
 }
 
@@ -613,6 +626,10 @@ void AHDHUD::DrawShipMenu(bool bInteractive)
     {
         DrawWarTable(UICanvas, ShipMenu, Items);
     }
+    else if (Screen == EHDShipScreen::Loadout)
+    {
+        DrawLoadout(UICanvas, ShipMenu, Items);
+    }
     else
     {
         FHDShipScreenPainter::PaintList(UICanvas, ShipMenu, Items);
@@ -722,6 +739,22 @@ void AHDHUD::DrawWarTable(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu
     UTexture* MapTexture = ShipInterior ? ShipInterior->GetMapTexture() : nullptr;
 
     FHDShipScreenPainter::PaintWarTable(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, View, MapTexture, CenterXY, HalfExtent);
+}
+
+void AHDHUD::DrawLoadout(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items)
+{
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    NULL_CHECK(HDPlayerController);
+
+    const FHDLoadoutDetail Detail = HDShipMenuView::BuildLoadoutDetail(ShipMenu, Items, HDPlayerController->BuildShipMenuContext());
+
+    TArray<UTexture*> CommandTextures;
+    for (const EHDCommandInput Input : Detail.Command)
+    {
+        CommandTextures.Add(GetShipUITexture(HDShipIcons::GetCommandArrowTexturePath(Input)));
+    }
+
+    FHDShipScreenPainter::PaintLoadout(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, Detail, CommandTextures);
 }
 
 void AHDHUD::DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex)

@@ -69,10 +69,15 @@ public:
     const FHDShipMenu&                      GetShipMenu() const { return ShipMenu; }
     // 지금 화면의 줄. 문맥은 프로필 서브시스템에서 만든다(없으면 기본값)
     TArray<FHDShipMenuItem>                 BuildShipMenuItems() const;
+    // 줄을 만드는 문맥(프로필·난이도 표·카탈로그·기본 로드아웃). HUD 의 로드아웃 상세도 쓴다
+    FHDShipMenuContext                      BuildShipMenuContext() const;
     // HUD 마우스: 가리킨 줄로 커서를 옮기고, 누르면 그 줄을 확정한다(Index 가 -1 이면 타이틀 화면 전체).
     // 가리키기는 화면을 열거나 바꾼 뒤 마우스가 3px 넘게 움직였을 때부터만 커서를 옮긴다(멈춘 마우스가 커서를 옮기지 않게)
     void                                    HoverShipMenuItem(int32 Index);
     void                                    ClickShipMenuItem(int32 Index);
+    // HUD 고르기 창 타일: 가리키면 창 커서를 옮기고(가리키기 3px 규칙은 줄과 같다), 누르면 창 커서를 옮긴 뒤 Confirm
+    void                                    HoverShipPickerItem(int32 Index);
+    void                                    ClickShipPickerItem(int32 Index);
     // HUD 아래 바 키 안내 상자를 눌렀다. 메뉴가 열려 있을 때만 그 키를 누른 것과 같다(HandleShipMenuKey)
     void                                    ClickShipKeyHint(EHDShipMenuKey Key);
     // 출격 대기 중인가(AHDGameMode::IsLaunching). 게임 모드가 없으면 거짓
@@ -108,7 +113,8 @@ private:
     // 아니면 줄을 만들고 FHDShipMenu::HandleKey → [HDShip] key 로그 → 타이틀을 넘겼고 bShipInterior 면 AHDGameMode::EnterShipInterior, 아니면 ExecuteShipMenuAction
     void                                    HandleShipMenuKey(EHDShipMenuKey Key);
     // Deploy → AHDGameMode::RequestDeploy, Quit → UKismetSystemLibrary::QuitGame, Adjust(난이도·로드아웃 칸), Select(업그레이드·해금),
-    // CloseTerminal → CloseShipTerminal, Launch → AHDGameMode::RequestLaunch(메뉴는 열어 둔다)
+    // CloseTerminal → CloseShipTerminal, Launch → AHDGameMode::RequestLaunch(메뉴는 열어 둔다),
+    // Equip(로드아웃 칸 = HDArmory::TrySetSlot, 무기 줄 = 그 칸의 열린 무기만 SetChosen), OpenPicker·ClosePicker(로그만)
     void                                    ExecuteShipMenuAction(const FHDShipMenuAction& Action);
 
     // 미션 메뉴 키 하나. 결과가 있으면 Confirm = RequestReturnToShip, 확인 창이 열려 있으면 Confirm = 닫고 AHDGameMode::RequestAbandon / 나머지 = 닫기,
@@ -118,6 +124,8 @@ private:
     void                                    SetAbandonPromptOpen(bool bOpen);
     // 지금 마우스 위치를 가리키기 기준점으로 잡고 "움직임" 을 내린다(화면을 열거나 바꿀 때)
     void                                    ResetShipMouseAnchor();
+    // 가리키기가 커서를 옮겨도 되는가(화면을 연 뒤 마우스가 3px 넘게 움직였는가). 처음 넘으면 bShipMouseMoved 를 세운다
+    bool                                    ConsumeShipMouseMoved();
 
 private:
 	UPROPERTY()

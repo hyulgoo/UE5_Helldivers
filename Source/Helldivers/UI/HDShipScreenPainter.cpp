@@ -6,6 +6,9 @@
 #include "UI/HDShipUILayout.h"
 #include "UI/HDShipMenu.h"
 #include "UI/HDShipMenuView.h"
+#include "UI/HDShipMenuNav.h"
+#include "Progression/HDArmoryRules.h"
+#include "Progression/HDWeaponCatalog.h"
 #include "Ship/HDShipHubRules.h"
 #include "Ship/HDWarTableMap.h"
 #include "Game/HDMissionSettings.h"
@@ -666,6 +669,388 @@ void FHDShipScreenPainter::PaintWarTable(FHDShipUICanvas& Canvas, const FHDShipU
         Canvas.Text(TEXT("START MISSION"), EHDShipFont::Header, Button.GetCenter(), EHDShipTextAlign::Center, bSelected ? Accent : Text, InnerWidth - Padding);
         Canvas.HitBox(Button, HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Item, StartIndex));
     }
+
+    Canvas.SetRegion(FBox2D(ForceInit));
+    Canvas.SetContentLayer(false);
+}
+
+namespace HDShipLoadoutPrivate
+{
+    using namespace HDShipUIStyle;
+
+    // 로드아웃 배치(설계 단위)
+    constexpr float     HelldiverHeight     = 320.f;
+    constexpr float     HeaderHeight        = 40.f;
+    constexpr float     CardTopOffset       = 48.f;
+    constexpr float     StratagemCardSize   = 120.f;
+    constexpr float     CardGap             = 16.f;
+    constexpr float     WeaponCardWidth     = 200.f;
+    constexpr float     WeaponCardHeight    = 100.f;
+    constexpr float     ReadyWidth          = 160.f;
+    constexpr float     ReadyLeft           = 664.f;
+    constexpr float     CardInset           = 8.f;
+    constexpr float     CardIconSize        = 56.f;
+    constexpr float     CardNameTop         = 68.f;
+    constexpr float     WeaponIconSize      = 64.f;
+    constexpr float     WeaponTextLeft      = 84.f;
+    constexpr float     PickerPadding       = 24.f;
+    constexpr float     PickerCategoryHeight = 26.f;
+    constexpr float     PickerTileSize      = 96.f;
+    constexpr float     PickerTileGap       = 12.f;
+    constexpr float     PickerLabelHeight   = 24.f;
+    constexpr float     DetailPadding       = 24.f;
+    constexpr float     DetailIconSize      = 160.f;
+    constexpr float     DetailLineHeight    = 32.f;
+    constexpr float     DetailLabelWidth    = 170.f;
+    constexpr float     ArrowSize           = 32.f;
+    constexpr float     ArrowGap            = 6.f;
+    constexpr float     BarRowHeight        = 52.f;
+    constexpr float     BarHeight           = 8.f;
+    constexpr int32     PickerColumns       = 4;
+
+    void PaintSelectable(FHDShipUICanvas& Canvas, const FBox2D& Rect, bool bSelected)
+    {
+        Canvas.Fill(Rect, Card);
+        if (bSelected)
+        {
+            Canvas.Fill(Rect, AccentFill);
+            Canvas.Border(Rect, BorderSelected, Accent);
+        }
+        else
+        {
+            Canvas.Border(Rect, BorderThin, Line);
+        }
+    }
+
+    FBox2D MakeRect(float X, float Y, float W, float H)
+    {
+        return FBox2D(FVector2D(X, Y), FVector2D(X + W, Y + H));
+    }
+
+    // 상태 줄 색: EQUIPPED = Good, LOCKED … = Warn, 그 밖(IN SLOT n) = TextDim
+    FLinearColor GetStatusColor(const FString& Status)
+    {
+        if (Status == TEXT("EQUIPPED"))
+        {
+            return Good;
+        }
+        return Status.StartsWith(TEXT("LOCKED")) ? Warn : TextDim;
+    }
+
+    const TCHAR* GetArrowText(EHDCommandInput Input)
+    {
+        switch (Input)
+        {
+        case EHDCommandInput::Up:       return TEXT("^");
+        case EHDCommandInput::Down:     return TEXT("v");
+        case EHDCommandInput::Left:     return TEXT("<");
+        case EHDCommandInput::Right:    return TEXT(">");
+        default:                        return TEXT("?");
+        }
+    }
+
+    void PaintPicker(FHDShipUICanvas& Canvas, const FBox2D& Area, const FHDShipMenu& Menu, const FHDShipMenuItem& Item)
+    {
+        const TArray<FHDShipMenuOption>& Options = Item.Options;
+        Canvas.Fill(Area, Panel);
+        Canvas.Border(Area, BorderThin, Line);
+        Canvas.SetRegion(Area);
+
+        const float Pad = Canvas.Px(PickerPadding);
+        const float Left = static_cast<float>(Area.Min.X) + Pad;
+        const float InnerWidth = static_cast<float>(Area.GetSize().X) - Pad * 2.f;
+        const FString FirstCategory = Options.IsEmpty() ? FString() : Options[0].Category;
+        const bool bWeapon = FirstCategory == TEXT("PRIMARY") || FirstCategory == TEXT("SECONDARY") || FirstCategory == TEXT("GRENADE");
+        const FString Header = bWeapon ? TEXT("SELECT ") + FirstCategory : FString(TEXT("SELECT STRATAGEM"));
+        Canvas.Text(Header, EHDShipFont::Header, FVector2D(Left, Area.Min.Y + Pad + Canvas.Px(HeaderHeight) * 0.5f), EHDShipTextAlign::Left, Accent, InnerWidth);
+
+        const TArray<FHDNavCell> Cells = HDShipMenuNav::MakePickerCells(Options, PickerColumns);
+        if (Cells.IsEmpty())
+        {
+            return;
+        }
+
+        // 행마다 높이(분류가 바뀐 행은 분류 머리를 더한다)
+        const int32 RowCount = Cells.Last().Row + 1;
+        TArray<int32> RowFirstOption;
+        RowFirstOption.Init(INDEX_NONE, RowCount);
+        for (const FHDNavCell& Cell : Cells)
+        {
+            if (RowFirstOption[Cell.Row] == INDEX_NONE)
+            {
+                RowFirstOption[Cell.Row] = Cell.ItemIndex;
+            }
+        }
+        TArray<bool> RowHasHeader;
+        TArray<float> RowHeights;
+        for (int32 Row = 0; Row < RowCount; ++Row)
+        {
+            const int32 First = RowFirstOption[Row];
+            const bool bHeader = Row == 0 || Options[First].Category != Options[RowFirstOption[Row - 1]].Category;
+            RowHasHeader.Add(bHeader);
+            RowHeights.Add(Canvas.Px((bHeader ? PickerCategoryHeight : 0.f) + PickerTileSize + PickerLabelHeight + PickerTileGap));
+        }
+
+        // 남는 높이를 넘으면 창 커서 행이 보이게 위 행부터 뺀다
+        const float RowsTop = static_cast<float>(Area.Min.Y) + Pad + Canvas.Px(HeaderHeight + Gap * 0.5f);
+        const float Available = static_cast<float>(Area.Max.Y) - Pad - RowsTop;
+        const int32 CursorCell = HDShipMenuNav::FindCell(Cells, FMath::Clamp(Menu.GetPickerCursor(), 0, Options.Num() - 1));
+        const int32 CursorRow = Cells.IsValidIndex(CursorCell) ? Cells[CursorCell].Row : 0;
+        int32 StartRow = 0;
+        auto SumRows = [&RowHeights](int32 From, int32 To)
+        {
+            float Sum = 0.f;
+            for (int32 Row = From; Row <= To; ++Row)
+            {
+                Sum += RowHeights[Row];
+            }
+            return Sum;
+        };
+        while (StartRow < CursorRow && SumRows(StartRow, CursorRow) > Available + 0.5f)
+        {
+            ++StartRow;
+        }
+
+        TArray<float> RowTops;
+        RowTops.Init(-1.f, RowCount);
+        float Y = RowsTop;
+        for (int32 Row = StartRow; Row < RowCount; ++Row)
+        {
+            if (Y + RowHeights[Row] > RowsTop + Available + 0.5f)
+            {
+                break;
+            }
+
+            if (RowHasHeader[Row])
+            {
+                Canvas.Text(Options[RowFirstOption[Row]].Category, EHDShipFont::Small, FVector2D(Left, Y + Canvas.Px(PickerCategoryHeight) * 0.5f), EHDShipTextAlign::Left, TextDim, InnerWidth);
+                Y += Canvas.Px(PickerCategoryHeight);
+            }
+            RowTops[Row] = Y;
+            Y += Canvas.Px(PickerTileSize + PickerLabelHeight + PickerTileGap);
+        }
+
+        const float Tile = Canvas.Px(PickerTileSize);
+        for (const FHDNavCell& Cell : Cells)
+        {
+            if (RowTops[Cell.Row] < 0.f)
+            {
+                continue;
+            }
+
+            const FHDShipMenuOption& Option = Options[Cell.ItemIndex];
+            const float X = Left + Cell.Col * Canvas.Px(PickerTileSize + PickerTileGap);
+            const FBox2D TileRect = MakeRect(X, RowTops[Cell.Row], Tile, Tile);
+            const bool bInOtherSlot = Option.EquippedSlot != INDEX_NONE;
+            const bool bSelected = Cell.ItemIndex == Menu.GetPickerCursor();
+
+            Canvas.SetRegion(TileRect);
+            Canvas.Icon(Option.Id, TileRect, Option.bUnlocked == false || bInOtherSlot);
+            if (bSelected)
+            {
+                Canvas.Border(TileRect, BorderSelected, Accent);
+            }
+            else if (Option.bCurrent)
+            {
+                Canvas.Border(TileRect, BorderSelected, Good);
+            }
+
+            // 타일 아래 상태 글자
+            FString Label;
+            FLinearColor LabelColor = TextDim;
+            if (Option.bCurrent)
+            {
+                Label = TEXT("EQUIPPED");
+                LabelColor = Good;
+            }
+            else if (Option.bUnlocked == false)
+            {
+                Label = TEXT("LOCKED");
+                LabelColor = TextDisabled;
+            }
+            else if (bInOtherSlot)
+            {
+                Label = FString::Printf(TEXT("IN SLOT %d"), Option.EquippedSlot + 1);
+            }
+            const FBox2D LabelRect = MakeRect(X, static_cast<float>(TileRect.Max.Y), Tile, Canvas.Px(PickerLabelHeight));
+            if (Label.IsEmpty() == false)
+            {
+                Canvas.SetRegion(LabelRect);
+                Canvas.Text(Label, EHDShipFont::Small, LabelRect.GetCenter(), EHDShipTextAlign::Center, LabelColor, Tile);
+            }
+
+            Canvas.HitBox(FBox2D(TileRect.Min, LabelRect.Max), HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Pick, Cell.ItemIndex));
+        }
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+
+    void PaintDetail(FHDShipUICanvas& Canvas, const FBox2D& Detail, const FHDLoadoutDetail& View, const TArray<UTexture*>& CommandTextures)
+    {
+        Canvas.Fill(Detail, Panel);
+        Canvas.Border(Detail, BorderThin, Line);
+        Canvas.SetRegion(Detail);
+
+        const float Pad = Canvas.Px(DetailPadding);
+        const float Left = static_cast<float>(Detail.Min.X) + Pad;
+        const float Right = static_cast<float>(Detail.Max.X) - Pad;
+        const float InnerWidth = Right - Left;
+        const float LinePx = Canvas.Px(DetailLineHeight);
+        float Y = static_cast<float>(Detail.Min.Y) + Pad;
+
+        if (View.IconId.IsNone() == false)
+        {
+            const FBox2D IconRect = MakeRect(Left, Y, Canvas.Px(DetailIconSize), Canvas.Px(DetailIconSize));
+            Canvas.SetRegion(IconRect);
+            Canvas.Icon(View.IconId, IconRect, false);
+            Canvas.SetRegion(Detail);
+            Y = static_cast<float>(IconRect.Max.Y) + Canvas.Px(Gap * 0.5f);
+        }
+
+        Canvas.Text(View.Title, EHDShipFont::Header, FVector2D(Left, Y + Canvas.Px(HeaderHeight) * 0.5f), EHDShipTextAlign::Left, Accent, InnerWidth);
+        Y += Canvas.Px(HeaderHeight);
+        if (View.Category.IsEmpty() == false)
+        {
+            Canvas.Text(View.Category, EHDShipFont::Small, FVector2D(Left, Y + LinePx * 0.4f), EHDShipTextAlign::Left, TextDim, InnerWidth);
+            Y += LinePx * 0.8f;
+        }
+        Y += Canvas.Px(Gap * 0.5f);
+
+        // 두 열 줄
+        const float ValueLeft = Left + Canvas.Px(DetailLabelWidth);
+        for (const FHDDetailLine& DetailLine : View.Lines)
+        {
+            const float CenterY = Y + LinePx * 0.5f;
+            Canvas.Text(DetailLine.Label, EHDShipFont::Body, FVector2D(Left, CenterY), EHDShipTextAlign::Left, TextDim, ValueLeft - Left - Canvas.Px(8.f));
+            Canvas.Text(DetailLine.Value, EHDShipFont::Body, FVector2D(ValueLeft, CenterY), EHDShipTextAlign::Left, Text, Right - ValueLeft);
+            Y += LinePx;
+        }
+
+        // 호출 화살표
+        if (View.Command.IsEmpty() == false)
+        {
+            Y += Canvas.Px(Gap * 0.5f);
+            const float Arrow = Canvas.Px(ArrowSize);
+            float X = Left;
+            for (int32 Index = 0; Index < View.Command.Num(); ++Index)
+            {
+                const FBox2D ArrowRect = MakeRect(X, Y, Arrow, Arrow);
+                UTexture* ArrowTexture = CommandTextures.IsValidIndex(Index) ? CommandTextures[Index] : nullptr;
+                if (ArrowTexture)
+                {
+                    Canvas.Texture(ArrowTexture, ArrowRect);
+                }
+                else
+                {
+                    Canvas.Border(ArrowRect, BorderThin, Line);
+                    Canvas.SetRegion(ArrowRect);
+                    Canvas.Text(GetArrowText(View.Command[Index]), EHDShipFont::KeyCap, ArrowRect.GetCenter(), EHDShipTextAlign::Center, Text, 0.f);
+                    Canvas.SetRegion(Detail);
+                }
+                X += Arrow + Canvas.Px(ArrowGap);
+            }
+            Y += Arrow + Canvas.Px(Gap);
+        }
+
+        // 능력치 막대: 라벨·값 줄 아래 Line 바탕에 Accent 채움(비율 −1 은 글자만)
+        for (const FHDStatBar& Bar : View.Bars)
+        {
+            const float TextY = Y + LinePx * 0.5f;
+            Canvas.Text(Bar.Label, EHDShipFont::Small, FVector2D(Left, TextY), EHDShipTextAlign::Left, TextDim, InnerWidth * 0.55f);
+            Canvas.Text(Bar.Value, EHDShipFont::Body, FVector2D(Right, TextY), EHDShipTextAlign::Right, Text, InnerWidth * 0.4f);
+            if (Bar.Fraction >= 0.f)
+            {
+                const float BarTop = Y + LinePx;
+                Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Right, BarTop + Canvas.Px(BarHeight))), Line);
+                Canvas.Fill(FBox2D(FVector2D(Left, BarTop), FVector2D(Left + InnerWidth * FMath::Clamp(Bar.Fraction, 0.f, 1.f), BarTop + Canvas.Px(BarHeight))), Accent);
+            }
+            Y += Canvas.Px(BarRowHeight);
+        }
+
+        // 맨 아래 상태 줄
+        if (View.Status.IsEmpty() == false)
+        {
+            Canvas.Text(View.Status, EHDShipFont::Body, FVector2D(Left, Detail.Max.Y - Pad - LinePx * 0.5f), EHDShipTextAlign::Left, GetStatusColor(View.Status), InnerWidth);
+        }
+        Canvas.SetRegion(FBox2D(ForceInit));
+    }
+}
+
+void FHDShipScreenPainter::PaintLoadout(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDLoadoutDetail& Detail, const TArray<UTexture*>& CommandTextures)
+{
+    using namespace HDShipLoadoutPrivate;
+
+    const int32 Cursor = Items.IsEmpty() ? INDEX_NONE : FMath::Clamp(Menu.GetCursor(), 0, Items.Num() - 1);
+    Canvas.SetContentLayer(true);
+
+    // 헬다이버 칸
+    const float AreaTop = static_cast<float>(Frame.Main.Max.Y) - Canvas.Px(HelldiverHeight);
+    const float AreaLeft = static_cast<float>(Frame.Main.Min.X);
+    const FBox2D Area(FVector2D(AreaLeft, AreaTop), Frame.Main.Max);
+    Canvas.SetRegion(Area);
+    Canvas.Text(TEXT("HELLDIVER"), EHDShipFont::Header, FVector2D(AreaLeft, AreaTop + Canvas.Px(HeaderHeight) * 0.5f), EHDShipTextAlign::Left, TextDim, static_cast<float>(Area.GetSize().X));
+
+    const float CardTop = AreaTop + Canvas.Px(CardTopOffset);
+    const float WeaponTop = CardTop + Canvas.Px(StratagemCardSize + CardGap);
+    const TArray<FHDNavCell> Cells = HDShipMenuNav::MakeLoadoutCells(Items);
+    for (const FHDNavCell& Cell : Cells)
+    {
+        const FHDShipMenuItem& Item = Items[Cell.ItemIndex];
+        const bool bSelected = Cell.ItemIndex == Cursor;
+        FBox2D CardRect(ForceInit);
+
+        if (Cell.Row == 0 && Cell.Col < 4)
+        {
+            // 스트라타젬 카드: 왼쪽 위 칸 번호, 가운데 아이콘, 아래 이름(2줄)
+            const float Size = Canvas.Px(StratagemCardSize);
+            const float X = AreaLeft + Cell.Col * Canvas.Px(StratagemCardSize + CardGap);
+            CardRect = MakeRect(X, CardTop, Size, Size);
+            PaintSelectable(Canvas, CardRect, bSelected);
+            Canvas.SetRegion(CardRect);
+            Canvas.Text(FString::FromInt(Cell.Col + 1), EHDShipFont::Small, FVector2D(X + Canvas.Px(CardInset), CardTop + Canvas.Px(CardInset + 6.f)), EHDShipTextAlign::Left, bSelected ? Accent : TextDim, 0.f);
+            const float Icon = Canvas.Px(CardIconSize);
+            Canvas.Icon(Item.IconId, MakeRect(X + (Size - Icon) * 0.5f, CardTop + Canvas.Px(CardInset), Icon, Icon), false);
+            const FBox2D NameRect(FVector2D(X + Canvas.Px(6.f), CardTop + Canvas.Px(CardNameTop)), FVector2D(X + Size - Canvas.Px(6.f), CardTop + Size - Canvas.Px(2.f)));
+            Canvas.Paragraph(HDArmory::MakeDisplayName(Item.IconId), EHDShipFont::Small, NameRect, bSelected ? Accent : Text, 2);
+        }
+        else if (Cell.Row == 1)
+        {
+            // 무기 카드: 왼쪽 아이콘, 오른쪽 분류와 이름
+            const float X = AreaLeft + Cell.Col * Canvas.Px(WeaponCardWidth + CardGap);
+            CardRect = MakeRect(X, WeaponTop, Canvas.Px(WeaponCardWidth), Canvas.Px(WeaponCardHeight));
+            PaintSelectable(Canvas, CardRect, bSelected);
+            Canvas.SetRegion(CardRect);
+            const float Icon = Canvas.Px(WeaponIconSize);
+            Canvas.Icon(Item.IconId, MakeRect(X + Canvas.Px(10.f), WeaponTop + (Canvas.Px(WeaponCardHeight) - Icon) * 0.5f, Icon, Icon), false);
+            const float TextLeft = X + Canvas.Px(WeaponTextLeft);
+            const float TextWidth = static_cast<float>(CardRect.Max.X) - Canvas.Px(CardInset) - TextLeft;
+            const FHDWeaponOption* Weapon = HDWeaponCatalog::Find(Item.IconId);
+            Canvas.Text(Item.Id.ToString().ToUpper(), EHDShipFont::Small, FVector2D(TextLeft, WeaponTop + Canvas.Px(32.f)), EHDShipTextAlign::Left, TextDim, TextWidth);
+            Canvas.Text(Weapon ? Weapon->DisplayName : Item.Label, EHDShipFont::Body, FVector2D(TextLeft, WeaponTop + Canvas.Px(64.f)), EHDShipTextAlign::Left, bSelected ? Accent : Text, TextWidth);
+        }
+        else if (Cell.Row == 0)
+        {
+            // READY: 두 줄 높이
+            CardRect = MakeRect(AreaLeft + Canvas.Px(ReadyLeft), CardTop, Canvas.Px(ReadyWidth), Canvas.Px(StratagemCardSize + CardGap + WeaponCardHeight));
+            PaintSelectable(Canvas, CardRect, bSelected);
+            Canvas.SetRegion(CardRect);
+            Canvas.Text(TEXT("READY"), EHDShipFont::Header, CardRect.GetCenter(), EHDShipTextAlign::Center, bSelected ? Accent : Text, static_cast<float>(CardRect.GetSize().X) - Canvas.Px(CardInset) * 2.f);
+        }
+        else
+        {
+            continue;
+        }
+
+        Canvas.HitBox(CardRect, HDShipUILayout::MakeHitBoxName(HDShipUILayout::EHDShipHitKind::Item, Cell.ItemIndex));
+    }
+
+    // 고르기 창(헬다이버 칸 위 남는 높이)
+    if (Menu.IsPickerOpen() && Items.IsValidIndex(Cursor) && Items[Cursor].Options.IsEmpty() == false)
+    {
+        const FBox2D PickerArea(Frame.Main.Min, FVector2D(Frame.Main.Max.X, AreaTop - Canvas.Px(Gap)));
+        PaintPicker(Canvas, PickerArea, Menu, Items[Cursor]);
+    }
+
+    PaintDetail(Canvas, Frame.Detail, Detail, CommandTextures);
 
     Canvas.SetRegion(FBox2D(ForceInit));
     Canvas.SetContentLayer(false);

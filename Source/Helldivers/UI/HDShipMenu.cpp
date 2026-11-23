@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UI/HDShipMenu.h"
+#include "UI/HDShipMenuNav.h"
+#include "UI/HDShipIcons.h"
 #include "Progression/HDArmoryRules.h"
 #include "Progression/HDProgressionRules.h"
 #include "Progression/HDUpgradeCatalog.h"
@@ -24,6 +26,9 @@ namespace HDShipMenuItemId
 
 namespace HDShipMenuPrivate
 {
+    // 고르기 창 타일 열 수
+    constexpr int32 PickerColumns = 4;
+
     // 초 글자: 정수면 "10", 아니면 "0.5"
     FString FormatSeconds(const float Seconds)
     {
@@ -94,7 +99,75 @@ namespace HDShipMenuPrivate
             Item.Detail             = Option->Detail;
             Item.bAdjustable        = true;
             Item.ConfirmAction      = EHDShipActionType::None;
+            Item.IconId             = Option->Id;
+
+            // 고르기 창: 표 순서로 그 칸의 무기, 분류 = 칸 이름
+            for (const FHDWeaponOption& Candidate : HDWeaponCatalog::GetOptions())
+            {
+                if (Candidate.Slot != Slot)
+                {
+                    continue;
+                }
+
+                FHDShipMenuOption& MenuOption = Item.Options.AddDefaulted_GetRef();
+                MenuOption.Id           = Candidate.Id;
+                MenuOption.Label        = Candidate.DisplayName;
+                MenuOption.Category     = SlotName.ToUpper();
+                MenuOption.bUnlocked    = HDWeaponCatalog::IsUnlocked(Context.Profile, Candidate.Id);
+                MenuOption.bCurrent     = Candidate.Id == Option->Id;
+            }
         }
+    }
+
+    // 칸 고르기 창의 선택지: 카탈로그 전체를 분류 순서(HDShipIcons::GetCategoryOrder), 같으면 카탈로그 순서로.
+    // EquippedSlot = 다른 칸에 있으면 그 칸 번호, bCurrent = 이 칸의 지금 이름
+    TArray<FHDShipMenuOption> MakeSlotOptions(const FHDShipMenuContext& Context, const TArray<FName>& Loadout, int32 SlotIndex)
+    {
+        struct FSortEntry
+        {
+            int32   Order;
+            int32   CatalogIndex;
+            FName   Name;
+            FString Category;
+        };
+
+        TArray<FSortEntry> Entries;
+        const TArray<FName>& Names = Context.Stratagems->GetNames();
+        for (int32 CatalogIndex = 0; CatalogIndex < Names.Num(); ++CatalogIndex)
+        {
+            const FHDStratagemDefinition* Definition = Context.Stratagems->Find(Names[CatalogIndex]);
+            if (Definition == nullptr)
+            {
+                continue;
+            }
+
+            const FString Category = HDShipIcons::GetStratagemCategory(*Definition);
+            Entries.Add({ HDShipIcons::GetCategoryOrder(Category), CatalogIndex, Names[CatalogIndex], Category });
+        }
+        Entries.Sort([](const FSortEntry& A, const FSortEntry& B)
+        {
+            return A.Order != B.Order ? A.Order < B.Order : A.CatalogIndex < B.CatalogIndex;
+        });
+
+        TArray<FHDShipMenuOption> Options;
+        for (const FSortEntry& Entry : Entries)
+        {
+            FHDShipMenuOption& Option = Options.AddDefaulted_GetRef();
+            Option.Id           = Entry.Name;
+            Option.Label        = HDArmory::MakeDisplayName(Entry.Name);
+            Option.Category     = Entry.Category;
+            Option.bUnlocked    = HDArmory::IsUnlocked(Context.Profile, *Context.Stratagems, Entry.Name);
+            Option.bCurrent     = Loadout.IsValidIndex(SlotIndex) && Loadout[SlotIndex] == Entry.Name;
+            for (int32 OtherIndex = 0; OtherIndex < Loadout.Num(); ++OtherIndex)
+            {
+                if (OtherIndex != SlotIndex && Loadout[OtherIndex] == Entry.Name)
+                {
+                    Option.EquippedSlot = OtherIndex;
+                    break;
+                }
+            }
+        }
+        return Options;
     }
 
     // Armory 화면의 무기 줄(브리프 9): 표 순서로 가격 > 0 인 무기마다 "<DisplayName>  <가격> REQ" 또는 "<DisplayName>  UNLOCKED".
@@ -144,6 +217,8 @@ namespace HDShipMenuPrivate
             Item.Label              = FString::Printf(TEXT("SLOT %d  < %s >"), SlotIndex + 1, *HDArmory::MakeDisplayName(StratagemName));
             Item.bAdjustable        = true;
             Item.ConfirmAction      = EHDShipActionType::None;
+            Item.IconId             = StratagemName;
+            Item.Options            = MakeSlotOptions(Context, Loadout, SlotIndex);
 
             const FHDStratagemDefinition* Definition = Context.Stratagems->Find(StratagemName);
             if (Definition)
@@ -455,6 +530,9 @@ const TCHAR* HDShipMenu::GetActionName(EHDShipActionType Type)
     case EHDShipActionType::Select:         return TEXT("select");
     case EHDShipActionType::CloseTerminal:  return TEXT("close");
     case EHDShipActionType::Launch:         return TEXT("launch");
+    case EHDShipActionType::OpenPicker:     return TEXT("picker-open");
+    case EHDShipActionType::ClosePicker:    return TEXT("picker-close");
+    case EHDShipActionType::Equip:          return TEXT("equip");
     default:                                return TEXT("?");
     }
 }
@@ -466,8 +544,9 @@ FHDShipMenu::FHDShipMenu(EHDShipScreen StartScreen)
 
 void FHDShipMenu::SetScreen(EHDShipScreen NewScreen)
 {
-    Screen = NewScreen;
-    Cursor = 0;
+    Screen      = NewScreen;
+    Cursor      = 0;
+    bPickerOpen = false;
 }
 
 void FHDShipMenu::OpenTerminal(EHDShipScreen Root)
@@ -484,7 +563,97 @@ void FHDShipMenu::SetCursor(int32 NewCursor, int32 ItemCount)
         return;
     }
 
-    Cursor = NewCursor;
+    Cursor      = NewCursor;
+    bPickerOpen = false;
+}
+
+void FHDShipMenu::SetPickerCursor(int32 NewCursor, int32 OptionCount)
+{
+    if (bPickerOpen == false || NewCursor < 0 || NewCursor >= OptionCount)
+    {
+        return;
+    }
+
+    PickerCursor = NewCursor;
+}
+
+bool FHDShipMenu::HandleLoadoutKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items, FHDShipMenuAction& OutAction)
+{
+    using namespace HDShipMenuPrivate;
+
+    const FHDShipMenuItem& Item = Items[Cursor];
+    const bool bDirection = Key == EHDShipMenuKey::Up || Key == EHDShipMenuKey::Down || Key == EHDShipMenuKey::Left || Key == EHDShipMenuKey::Right;
+
+    if (bPickerOpen)
+    {
+        const TArray<FHDShipMenuOption>& Options = Item.Options;
+        if (Options.IsEmpty())
+        {
+            bPickerOpen = false;
+            return true;
+        }
+        PickerCursor = FMath::Clamp(PickerCursor, 0, Options.Num() - 1);
+
+        if (bDirection)
+        {
+            const TArray<FHDNavCell> Cells = HDShipMenuNav::MakePickerCells(Options, PickerColumns);
+            const int32 Next = HDShipMenuNav::Move(Cells, HDShipMenuNav::FindCell(Cells, PickerCursor), Key);
+            if (Cells.IsValidIndex(Next))
+            {
+                PickerCursor = Cells[Next].ItemIndex;
+            }
+            return true;
+        }
+
+        if (Key == EHDShipMenuKey::Back)
+        {
+            bPickerOpen     = false;
+            OutAction.Type  = EHDShipActionType::ClosePicker;
+            OutAction.Id    = Item.Id;
+            return true;
+        }
+
+        // Confirm: 지금 낀 것 = 닫기, 열려 있고 다른 칸에 없으면 장착, 그 밖은 아무것도 하지 않는다
+        const FHDShipMenuOption& Option = Options[PickerCursor];
+        if (Option.bCurrent)
+        {
+            bPickerOpen     = false;
+            OutAction.Type  = EHDShipActionType::ClosePicker;
+            OutAction.Id    = Item.Id;
+        }
+        else if (Option.bUnlocked && Option.EquippedSlot == INDEX_NONE)
+        {
+            bPickerOpen         = false;
+            OutAction.Type      = EHDShipActionType::Equip;
+            OutAction.Id        = Item.Id;
+            OutAction.OptionId  = Option.Id;
+        }
+        return true;
+    }
+
+    if (bDirection)
+    {
+        const TArray<FHDNavCell> Cells = HDShipMenuNav::MakeLoadoutCells(Items);
+        const int32 Next = HDShipMenuNav::Move(Cells, HDShipMenuNav::FindCell(Cells, Cursor), Key);
+        if (Cells.IsValidIndex(Next))
+        {
+            Cursor = Cells[Next].ItemIndex;
+        }
+        return true;
+    }
+
+    if (Key == EHDShipMenuKey::Confirm && Item.bEnabled && Item.Options.IsEmpty() == false)
+    {
+        const int32 CurrentOption = Item.Options.IndexOfByPredicate([](const FHDShipMenuOption& Option) { return Option.bCurrent; });
+        bPickerOpen     = true;
+        PickerCursor    = CurrentOption != INDEX_NONE ? CurrentOption : 0;
+        OutAction.Type  = EHDShipActionType::OpenPicker;
+        OutAction.Id    = Item.Id;
+        return true;
+    }
+
+    // 그 밖의 Confirm(READY → Launch)과 Back 은 HandleKey 의 공통 규칙
+    return false;
 }
 
 FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShipMenuItem>& Items)
@@ -504,6 +673,12 @@ FHDShipMenuAction FHDShipMenu::HandleKey(EHDShipMenuKey Key, const TArray<FHDShi
             Action.Type = EHDShipActionType::OpenScreen;
             Action.Id   = HDShipMenuItemId::Bridge;
         }
+        return Action;
+    }
+
+    // Loadout: 칸 이동과 고르기 창(브리프 ship-terminal-ui 5). 처리하지 않은 키만 아래 공통 규칙으로
+    if (Screen == EHDShipScreen::Loadout && ItemCount > 0 && HandleLoadoutKey(Key, Items, Action))
+    {
         return Action;
     }
 

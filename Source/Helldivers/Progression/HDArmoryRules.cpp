@@ -126,6 +126,26 @@ namespace HDArmory
         return Candidates[NextIndex];
     }
 
+    bool TrySetSlot(TArray<FName>& Loadout, int32 SlotIndex, FName Name, const FHDProfileData& Data, const FHDStratagemCatalog& Catalog)
+    {
+        if (Loadout.IsValidIndex(SlotIndex) == false || IsUnlocked(Data, Catalog, Name) == false)
+        {
+            return false;
+        }
+
+        // 다른 칸에 있으면 맞바꾸지 않고 거절한다(CycleSlot 의 중복 금지와 같다)
+        for (int32 OtherIndex = 0; OtherIndex < Loadout.Num(); ++OtherIndex)
+        {
+            if (OtherIndex != SlotIndex && Loadout[OtherIndex] == Name)
+            {
+                return false;
+            }
+        }
+
+        Loadout[SlotIndex] = Name;
+        return true;
+    }
+
     FString MakeDisplayName(FName StratagemName)
     {
         const FString Source = StratagemName.ToString();
