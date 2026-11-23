@@ -69,9 +69,14 @@ public:
     const FHDShipMenu&                      GetShipMenu() const { return ShipMenu; }
     // 지금 화면의 줄. 문맥은 프로필 서브시스템에서 만든다(없으면 기본값)
     TArray<FHDShipMenuItem>                 BuildShipMenuItems() const;
-    // HUD 마우스: 가리킨 줄로 커서를 옮기고, 누르면 그 줄을 확정한다(Index 가 -1 이면 타이틀 화면 전체)
+    // HUD 마우스: 가리킨 줄로 커서를 옮기고, 누르면 그 줄을 확정한다(Index 가 -1 이면 타이틀 화면 전체).
+    // 가리키기는 화면을 열거나 바꾼 뒤 마우스가 3px 넘게 움직였을 때부터만 커서를 옮긴다(멈춘 마우스가 커서를 옮기지 않게)
     void                                    HoverShipMenuItem(int32 Index);
     void                                    ClickShipMenuItem(int32 Index);
+    // HUD 아래 바 키 안내 상자를 눌렀다. 메뉴가 열려 있을 때만 그 키를 누른 것과 같다(HandleShipMenuKey)
+    void                                    ClickShipKeyHint(EHDShipMenuKey Key);
+    // 출격 대기 중인가(AHDGameMode::IsLaunching). 게임 모드가 없으면 거짓
+    bool                                    IsShipLaunching() const;
 
     // 결과 화면에서 함선으로(Enter·결과 패널 클릭). 결과가 없으면 무시, 결과 뒤 ResultInputDelay 가 안 지났으면 [HDShip] return ignored, 지났으면 AHDGameMode::ReturnToShip
     void                                    RequestReturnToShip();
@@ -111,6 +116,8 @@ private:
     void                                    HandleMissionMenuKey(EHDMissionMenuKey Key);
     // 확인 창을 열고 닫는다. 바뀔 때만 [HDMission] abandon prompt open / closed
     void                                    SetAbandonPromptOpen(bool bOpen);
+    // 지금 마우스 위치를 가리키기 기준점으로 잡고 "움직임" 을 내린다(화면을 열거나 바꿀 때)
+    void                                    ResetShipMouseAnchor();
 
 private:
 	UPROPERTY()
@@ -163,4 +170,9 @@ private:
     bool                                    bPendingLaunchCancel = false;
     // 지금 열린 단말기 Id(로그용). 닫으면 None
     FName                                   OpenTerminalId;
+
+    // 화면을 열거나 바꿨을 때의 마우스 위치. 여기서 3px 넘게 움직이기 전의 가리키기는 무시한다
+    FVector2D                               ShipMouseAnchor = FVector2D::ZeroVector;
+    // 한 번 움직였으면 다음 화면 바뀜까지 참
+    bool                                    bShipMouseMoved = false;
 };

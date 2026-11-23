@@ -17,7 +17,8 @@ public class Helldivers : ModuleRules
             "GameplayAbilities",
             "GameplayTasks",
             "GameplayTags",
-            "Landscape"
+            "Landscape",
+            "SlateCore"
         });
 
 		// Uncomment if you are using Slate UI

@@ -5,8 +5,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Weapon/HDArmorRules.h"
+#include "UI/HDShipMenu.h"
+#include "UI/HDShipUILayout.h"
 #include "HDHUD.generated.h"
 
+class AHDGameState;
+class FHDShipUICanvas;
+class UFont;
 class UAbilitySystemComponent;
 class UHDGASPlayerUserWidget;
 class UHDReticleWidget;
@@ -32,7 +37,7 @@ public:
     // 작전 포기 확인 창이 열려 있으면 가운데 ABANDON MISSION? 을 캔버스에 그린다. 함선 단계면 함선 메뉴(닫혀 있으면 함선 안 안내)와 출격 대기만 그린다
     virtual void                        DrawHUD() override;
 
-    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기. 결과 패널 ResultReturn → 함선 복귀 요청
+    // 함선 메뉴 히트박스: ShipTitle → 타이틀 확정, ShipItem_<i> → 그 줄 확정 / 가리키기, ShipKey_<키> → 그 키(클릭만). 결과 패널 ResultReturn → 함선 복귀 요청
     virtual void                        NotifyHitBoxClick(FName BoxName) override;
     virtual void                        NotifyHitBoxBeginCursorOver(FName BoxName) override;
 
@@ -40,14 +45,20 @@ public:
     void                                NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint);
 
 private:
-    // 반투명 배경 + 타이틀(HD SOLO OPERATIONS / PRESS ENTER) 또는 화면(머리글·자원 줄·마지막 결과 줄·줄 목록·설명·키 안내)과 히트박스
-    void                                DrawShipMenu();
-    // 오른쪽 위 자원 줄과 그 아래 LAST MISSION 줄(함선 메뉴·함선 안 안내 공용)
-    void                                DrawShipResources();
-    // 함선 안(메뉴 닫힘, 배경 없음): 자원 줄, 아래 가운데 범위 안 단말기 [E] <이름>, 왼쪽 아래 [E] USE   [P] SHIP MENU
+    // 함선 단계: 열기·닫기·화면 바꾸기 전환을 돌리고 타이틀, 메뉴(닫는 중이면 마지막 화면), 함선 안 안내, 출격 대기를 그린다
+    void                                DrawShipPhase(const AHDGameState& GameState);
+    // 타이틀(HD SOLO OPERATIONS / PRESS ENTER)과 화면 전체 히트박스 ShipTitle. 옛 그림 그대로
+    void                                DrawShipTitle();
+    // 공통 틀(배경·위 바·목록·아래 키 안내 바). bInteractive 가 거짓이면(닫는 중) 히트박스·로그·검사 없이 그린다
+    void                                DrawShipMenu(bool bInteractive);
+    // 함선 안(메뉴 닫힘, 배경 없음): 오른쪽 위 자원, 아래 가운데 범위 안 단말기 [E] <이름>, 왼쪽 아래 [P] SHIP MENU
     void                                DrawShipOverlay();
-    // 위쪽 가운데 HELLPOD LAUNCH IN <초> 와 [BACKSPACE] CANCEL
+    // 맨 위 층: 어둡게 + 가운데 HELLPOD LAUNCH, 큰 숫자, [BACKSPACE] CANCEL
     void                                DrawLaunchCountdown(float RemainingSeconds);
+    // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)
+    UFont*                              GetShipUIFont();
+    // 그린 글자의 겹침·잘림을 센다. (화면, 뷰)마다 한 번 [HDShipUI] check 를 남기고, 그 뒤 (화면, 뷰, 커서)가 처음인 프레임에 문제가 있으면 Warning
+    void                                CheckShipTexts(const FString& ScreenName, const FHDShipUICanvas& UICanvas, int32 Cursor);
     void                                DrawMissionText();
     // 게임스테이트의 결과를 가운데 반투명 상자에: 성공·실패, 포기, 난이도, 목표, 시간, 징발, 샘플, 입력 지연 뒤 [ENTER] RETURN TO SHIP(히트박스 ResultReturn)
     void                                DrawResultPanel();
@@ -88,4 +99,21 @@ private:
     EHDHitOutcome                           LastHitOutcome = EHDHitOutcome::Full;
     bool                                    bLastHitWeakPoint = false;
     double                                  LastHitTime = -1.0;
+
+    // 함선 화면 글꼴(엔진 Roboto). 한 번만 읽어 본다
+    UPROPERTY()
+    TObjectPtr<UFont>                       ShipUIFont;
+    bool                                    bShipUIFontLoadTried = false;
+
+    // 함선 화면 전환과 지난 프레임의 메뉴 열림·화면
+    FHDShipUITransition                     ShipTransition;
+    bool                                    bLastShipMenuOpen = false;
+    EHDShipScreen                           LastShipScreen = EHDShipScreen::Title;
+
+    // 마지막으로 남긴 frame 줄(화면|뷰)과 hints 줄(화면|키 안내)
+    FString                                 LastShipFrameKey;
+    FString                                 LastShipHintsKey;
+    // 검사 줄을 남긴 (화면|뷰)와 (화면|뷰|커서)
+    TSet<FString>                           CheckedShipViews;
+    TSet<FString>                           CheckedShipCursors;
 };

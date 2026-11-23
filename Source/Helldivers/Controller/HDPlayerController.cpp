@@ -27,6 +27,7 @@
 #include "Stratagem/HDStratagemSettings.h"
 #include "Ship/HDShipHubRules.h"
 #include "Ship/HDShipInterior.h"
+#include "UI/HDShipUILayout.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "TimerManager.h"
 
@@ -357,6 +358,8 @@ void AHDPlayerController::EnterShipMenu(bool bShowTitle)
     bEnableClickEvents      = true;
     bEnableMouseOverEvents  = true;
     SetInputMode(FInputModeGameAndUI().SetHideCursorDuringCapture(false).SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock));
+
+    ResetShipMouseAnchor();
 }
 
 void AHDPlayerController::ExitShipMenu()
@@ -417,6 +420,8 @@ bool AHDPlayerController::OpenShipTerminal(EHDShipScreen Root, FName TerminalId)
     SetIgnoreMoveInput(true);
     SetIgnoreLookInput(true);
 
+    ResetShipMouseAnchor();
+
     UE_LOG(LogTemp, Display, TEXT("[HDShip] terminal open %s screen=%s"), *TerminalId.ToString(), HDShipMenu::GetScreenName(Root));
     return true;
 }
@@ -454,7 +459,45 @@ void AHDPlayerController::HoverShipMenuItem(int32 Index)
         return;
     }
 
+    // 화면을 열 때 마우스가 줄 위에 멈춰 있어도 새 히트박스가 가리키기를 부른다. 움직이기 전에는 커서를 그대로 둔다
+    if (bShipMouseMoved == false)
+    {
+        float MouseX = 0.f;
+        float MouseY = 0.f;
+        if (GetMousePosition(MouseX, MouseY) == false || HDShipUILayout::HasMouseMoved(ShipMouseAnchor, FVector2D(MouseX, MouseY)) == false)
+        {
+            return;
+        }
+        bShipMouseMoved = true;
+    }
+
     ShipMenu.SetCursor(Index, BuildShipMenuItems().Num());
+}
+
+void AHDPlayerController::ClickShipKeyHint(EHDShipMenuKey Key)
+{
+    if (bShipMenuActive == false)
+    {
+        return;
+    }
+
+    HandleShipMenuKey(Key);
+}
+
+bool AHDPlayerController::IsShipLaunching() const
+{
+    const UWorld* World = GetWorld();
+    const AHDGameMode* HDGameMode = World ? World->GetAuthGameMode<AHDGameMode>() : nullptr;
+    return HDGameMode && HDGameMode->IsLaunching();
+}
+
+void AHDPlayerController::ResetShipMouseAnchor()
+{
+    // 마우스가 뷰포트 밖이면 기준점이 없다. 그 뒤 가리키기는 마우스가 들어와 움직인 것이므로 기준점 (0, 0) 에서 멀어 참이 된다
+    float MouseX = 0.f;
+    float MouseY = 0.f;
+    ShipMouseAnchor = GetMousePosition(MouseX, MouseY) ? FVector2D(MouseX, MouseY) : FVector2D::ZeroVector;
+    bShipMouseMoved = false;
 }
 
 void AHDPlayerController::ClickShipMenuItem(int32 Index)
@@ -511,6 +554,12 @@ void AHDPlayerController::HandleShipMenuKey(EHDShipMenuKey Key)
     if (Action.Type == EHDShipActionType::OpenScreen)
     {
         UE_LOG(LogTemp, Display, TEXT("[HDShip] screen %s -> %s"), HDShipMenu::GetScreenName(OldScreen), HDShipMenu::GetScreenName(NewScreen));
+    }
+
+    // 화면이 바뀌면(타이틀 → Bridge 포함) 가리키기 기준점을 다시 잡는다
+    if (NewScreen != OldScreen)
+    {
+        ResetShipMouseAnchor();
     }
 
     // 함선 모드에서 타이틀을 넘기면 Bridge 대신 함선 안으로 들어간다(메뉴는 게임모드가 닫는다)

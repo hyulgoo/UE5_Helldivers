@@ -31,6 +31,12 @@
 #include "UI/HDShipMenu.h"
 #include "Ship/HDShipHubRules.h"
 #include "Engine/Canvas.h"
+#include "Engine/Font.h"
+#include "UI/HDShipUIStyle.h"
+#include "UI/HDShipUILayout.h"
+#include "UI/HDShipMenuView.h"
+#include "UI/HDShipUICanvas.h"
+#include "UI/HDShipScreenPainter.h"
 
 namespace HDHUDMission
 {
@@ -84,83 +90,46 @@ namespace HDHUDMission
     }
 }
 
+static TAutoConsoleVariable<int32> CVarHDShipUIDebug(
+    TEXT("hd.ShipUI.Debug"),
+    0,
+    TEXT("1: draw ship UI frame regions and recorded text boxes as thin outlines"),
+    ECVF_Cheat);
+
 namespace HDHUDShip
 {
-    // 화면 전체를 덮는 반투명 검정
+    // 타이틀 화면 전체를 덮는 반투명 검정(타이틀은 옛 그림 그대로)
     const FLinearColor  BackgroundColor(0.f, 0.f, 0.f, 0.6f);
     const FLinearColor  ItemColor(1.f, 1.f, 1.f);
-    const FLinearColor  DisabledItemColor(0.5f, 0.5f, 0.5f);
 
     // 타이틀: 화면 높이 비율 위치에 가운데 정렬
     constexpr float     TitleTextScale = 2.5f;
     constexpr float     TitleTextHeightRatio = 0.35f;
     constexpr float     PromptTextHeightRatio = 0.6f;
 
-    // Bridge 위쪽: 왼쪽 제목, 오른쪽 자원 줄
-    constexpr float     HeaderMargin = 40.f;
-    constexpr float     HeaderTextScale = 1.5f;
-
-    // Bridge 줄 목록과 줄마다 히트박스(글자 위아래로 여유를 둔다)
-    constexpr float     ItemLeft = 120.f;
-    constexpr float     ItemTop = 180.f;
-    constexpr float     ItemSpacing = 44.f;
-    constexpr float     ItemHitBoxWidth = 600.f;
-    constexpr float     ItemHitBoxHeight = 40.f;
-    constexpr float     ItemHitBoxTopOffset = 10.f;
-
-    // Bridge 아래쪽: 화면 아래에서 이만큼 위
-    constexpr float     DetailBottom = 140.f;
-    constexpr float     HelpBottom = 80.f;
-
-    // 자원 줄과 그 아래 LAST MISSION 줄 사이
-    constexpr float     LastResultGap = 8.f;
-
     const TCHAR* const  TitleText = TEXT("HD SOLO OPERATIONS");
     const TCHAR* const  PromptText = TEXT("PRESS ENTER");
-    const TCHAR* const  HelpText = TEXT("[UP/DOWN] SELECT   [LEFT/RIGHT] CHANGE   [ENTER] CONFIRM   [BACKSPACE] BACK");
-
-    // 함선 안(메뉴 닫힘): 아래 가운데 단말기 안내, 왼쪽 아래 키 안내
-    constexpr float     InteractPromptScale = 1.5f;
-    constexpr float     InteractPromptBottom = 180.f;
-    const TCHAR* const  InteriorHelpText = TEXT("[E] USE   [P] SHIP MENU");
-
-    // 출격 대기: 위쪽 가운데 큰 글자와 그 아래 취소 안내
-    constexpr float     CountdownTextScale = 2.f;
-    constexpr float     CountdownHeightRatio = 0.1f;
-    constexpr float     CountdownCancelGap = 8.f;
-    const TCHAR* const  CountdownCancelText = TEXT("[BACKSPACE] CANCEL");
 
     const FName         TitleHitBoxName(TEXT("ShipTitle"));
-    const FString       ItemHitBoxPrefix(TEXT("ShipItem_"));
 
-    FName MakeItemHitBoxName(int32 Index)
+    // 함선 화면 전환(계획 U15): 열기 0.15초, 닫기 0.12초, 화면 바꾸기 0.10초
+    constexpr float     OpenSeconds = 0.15f;
+    constexpr float     CloseSeconds = 0.12f;
+    constexpr float     ChangeScreenSeconds = 0.10f;
+
+    const TCHAR* const  FontPath = TEXT("/Engine/EngineFonts/Roboto.Roboto");
+
+    // 검사 로그의 화면 이름(메뉴 화면이 아닌 층)
+    const TCHAR* const  InteriorScreenName = TEXT("Interior");
+    const TCHAR* const  CountdownScreenName = TEXT("Countdown");
+
+    // 프로필 자원과 마지막 미션 줄
+    FHDResourceView MakeResourceView(const UObject* WorldContext)
     {
-        return FName(*FString::Printf(TEXT("%s%d"), *ItemHitBoxPrefix, Index));
-    }
-
-    // ShipTitle → -1, ShipItem_<i> → i. 함선 메뉴 히트박스가 아니면 거짓
-    bool TryParseHitBoxName(FName BoxName, int32& OutIndex)
-    {
-        if (BoxName == TitleHitBoxName)
-        {
-            OutIndex = -1;
-            return true;
-        }
-
-        const FString Name = BoxName.ToString();
-        if (Name.StartsWith(ItemHitBoxPrefix, ESearchCase::CaseSensitive) == false)
-        {
-            return false;
-        }
-
-        const FString IndexText = Name.RightChop(ItemHitBoxPrefix.Len());
-        if (IndexText.IsNumeric() == false)
-        {
-            return false;
-        }
-
-        OutIndex = FCString::Atoi(*IndexText);
-        return true;
+        const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(WorldContext);
+        return HDShipMenuView::MakeResourceView(
+            ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData(),
+            HDShipMenuView::FormatLastMission(ProfileSubsystem ? ProfileSubsystem->GetLastResult() : nullptr));
     }
 }
 
@@ -349,20 +318,7 @@ void AHDHUD::DrawHUD()
     const AHDGameState* HDGameState = World ? World->GetGameState<AHDGameState>() : nullptr;
     if (HDGameState && HDGameState->IsInShip())
     {
-        const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
-        if (HDPlayerController && HDPlayerController->IsShipMenuActive())
-        {
-            DrawShipMenu();
-        }
-        else
-        {
-            DrawShipOverlay();
-        }
-
-        if (HDGameState->GetLaunchRemaining() >= 0.f)
-        {
-            DrawLaunchCountdown(HDGameState->GetLaunchRemaining());
-        }
+        DrawShipPhase(*HDGameState);
         return;
     }
 
@@ -383,10 +339,32 @@ void AHDHUD::NotifyHitBoxClick(FName BoxName)
         return;
     }
 
-    int32 Index = 0;
-    if (HDPlayerController && HDHUDShip::TryParseHitBoxName(BoxName, Index))
+    if (HDPlayerController == nullptr)
     {
-        HDPlayerController->ClickShipMenuItem(Index);
+        return;
+    }
+
+    if (BoxName == HDHUDShip::TitleHitBoxName)
+    {
+        HDPlayerController->ClickShipMenuItem(-1);
+        return;
+    }
+
+    HDShipUILayout::EHDShipHitKind Kind = HDShipUILayout::EHDShipHitKind::None;
+    int32 A = 0;
+    int32 B = 0;
+    if (HDShipUILayout::ParseHitBoxName(BoxName, Kind, A, B) == false)
+    {
+        return;
+    }
+
+    if (Kind == HDShipUILayout::EHDShipHitKind::Item)
+    {
+        HDPlayerController->ClickShipMenuItem(A);
+    }
+    else if (Kind == HDShipUILayout::EHDShipHitKind::Key && A <= static_cast<int32>(EHDShipMenuKey::Back))
+    {
+        HDPlayerController->ClickShipKeyHint(static_cast<EHDShipMenuKey>(A));
     }
 }
 
@@ -394,23 +372,94 @@ void AHDHUD::NotifyHitBoxBeginCursorOver(FName BoxName)
 {
     Super::NotifyHitBoxBeginCursorOver(BoxName);
 
+    // 줄만 가리키기로 커서를 옮긴다(키 안내 상자·타이틀은 아니다)
     AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
-    int32 Index = 0;
-    if (HDPlayerController && HDHUDShip::TryParseHitBoxName(BoxName, Index))
+    HDShipUILayout::EHDShipHitKind Kind = HDShipUILayout::EHDShipHitKind::None;
+    int32 A = 0;
+    int32 B = 0;
+    if (HDPlayerController && HDShipUILayout::ParseHitBoxName(BoxName, Kind, A, B) && Kind == HDShipUILayout::EHDShipHitKind::Item)
     {
-        HDPlayerController->HoverShipMenuItem(Index);
+        HDPlayerController->HoverShipMenuItem(A);
     }
 }
 
-void AHDHUD::DrawShipMenu()
+void AHDHUD::DrawShipPhase(const AHDGameState& GameState)
 {
-    using namespace HDHUDShip;
-
     const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
     if (Canvas == nullptr || HDPlayerController == nullptr)
     {
         return;
     }
+
+    const bool bMenuOpen = HDPlayerController->IsShipMenuActive();
+    const EHDShipScreen Screen = HDPlayerController->GetShipMenu().GetScreen();
+
+    // 앞 상태를 먼저 돌리고 이번 프레임의 열림·닫힘·화면 바뀜을 건다. 타이틀은 전환 없이 그린다
+    ShipTransition.Tick(RenderDelta);
+    if (bMenuOpen && Screen != EHDShipScreen::Title)
+    {
+        if (bLastShipMenuOpen == false || LastShipScreen == EHDShipScreen::Title)
+        {
+            ShipTransition.Open(HDHUDShip::OpenSeconds);
+        }
+        else if (Screen != LastShipScreen)
+        {
+            ShipTransition.ChangeScreen(HDHUDShip::ChangeScreenSeconds);
+        }
+    }
+    else if (bMenuOpen == false && bLastShipMenuOpen && LastShipScreen != EHDShipScreen::Title)
+    {
+        ShipTransition.Close(HDHUDShip::CloseSeconds);
+    }
+    else if (bMenuOpen && Screen == EHDShipScreen::Title)
+    {
+        ShipTransition = FHDShipUITransition();
+    }
+    bLastShipMenuOpen   = bMenuOpen;
+    LastShipScreen      = Screen;
+
+    if (bMenuOpen && Screen == EHDShipScreen::Title)
+    {
+        DrawShipTitle();
+    }
+    else
+    {
+        if (bMenuOpen == false)
+        {
+            DrawShipOverlay();
+        }
+
+        // 닫는 중이면 마지막 화면을 그 투명도로(히트박스 없음, 입력은 이미 게임으로 돌아갔다)
+        if (bMenuOpen || ShipTransition.IsVisible())
+        {
+            DrawShipMenu(bMenuOpen);
+        }
+    }
+
+    if (GameState.GetLaunchRemaining() >= 0.f)
+    {
+        DrawLaunchCountdown(GameState.GetLaunchRemaining());
+    }
+}
+
+UFont* AHDHUD::GetShipUIFont()
+{
+    if (ShipUIFont == nullptr && bShipUIFontLoadTried == false)
+    {
+        bShipUIFontLoadTried = true;
+        ShipUIFont = LoadObject<UFont>(nullptr, HDHUDShip::FontPath);
+        if (ShipUIFont == nullptr)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[HDShipUI] font fallback (%s not found)"), HDHUDShip::FontPath);
+        }
+    }
+
+    return ShipUIFont;
+}
+
+void AHDHUD::DrawShipTitle()
+{
+    using namespace HDHUDShip;
 
     const float ScreenWidth = Canvas->ClipX;
     const float ScreenHeight = Canvas->ClipY;
@@ -428,136 +477,155 @@ void AHDHUD::DrawShipMenu()
         DrawText(Text, Color, (ScreenWidth - TextWidth) * 0.5f, CenterY - TextHeight * 0.5f, Font, Scale);
     };
 
-    const FHDShipMenu& ShipMenu = HDPlayerController->GetShipMenu();
-    if (ShipMenu.GetScreen() == EHDShipScreen::Title)
-    {
-        DrawCenteredText(TitleText, HDHUDMission::TextColor, ScreenHeight * TitleTextHeightRatio, LargeFont, TitleTextScale);
-        DrawCenteredText(PromptText, ItemColor, ScreenHeight * PromptTextHeightRatio, MediumFont, 1.f);
+    DrawCenteredText(TitleText, HDHUDMission::TextColor, ScreenHeight * TitleTextHeightRatio, LargeFont, TitleTextScale);
+    DrawCenteredText(PromptText, ItemColor, ScreenHeight * PromptTextHeightRatio, MediumFont, 1.f);
 
-        AddHitBox(FVector2D(0.f, 0.f), FVector2D(ScreenWidth, ScreenHeight), TitleHitBoxName, true);
-        return;
-    }
-
-    // 위쪽: 왼쪽 화면 머리글, 오른쪽 자원 줄과 마지막 결과 줄
-    DrawText(HDShipMenu::GetScreenTitle(ShipMenu.GetScreen()), HDHUDMission::TextColor, HeaderMargin, HeaderMargin, LargeFont, HeaderTextScale);
-    DrawShipResources();
-
-    // 줄 목록: 고른 줄은 "> " + 노랑, 다른 줄 흰색, 꺼진 줄 회색
-    const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
-    const int32 Cursor = ShipMenu.GetCursor();
-    for (int32 Index = 0; Index < Items.Num(); ++Index)
-    {
-        const FHDShipMenuItem& Item = Items[Index];
-        const bool bSelected = Index == Cursor;
-        const FLinearColor Color = Item.bEnabled == false ? DisabledItemColor : (bSelected ? HDHUDMission::TextColor : ItemColor);
-        const float RowY = ItemTop + ItemSpacing * Index;
-
-        DrawText(bSelected ? TEXT("> ") + Item.Label : Item.Label, Color, ItemLeft, RowY, MediumFont);
-        AddHitBox(FVector2D(ItemLeft, RowY - ItemHitBoxTopOffset), FVector2D(ItemHitBoxWidth, ItemHitBoxHeight), MakeItemHitBoxName(Index), true);
-    }
-
-    // 아래쪽: 고른 줄의 설명, 키 안내
-    if (Items.IsValidIndex(Cursor))
-    {
-        DrawText(Items[Cursor].Detail, ItemColor, ItemLeft, ScreenHeight - DetailBottom, MediumFont);
-    }
-    DrawText(HelpText, DisabledItemColor, ItemLeft, ScreenHeight - HelpBottom, MediumFont);
+    AddHitBox(FVector2D(0.f, 0.f), FVector2D(ScreenWidth, ScreenHeight), TitleHitBoxName, true);
 }
 
-void AHDHUD::DrawShipResources()
+void AHDHUD::DrawShipMenu(bool bInteractive)
 {
-    using namespace HDHUDShip;
-
-    if (Canvas == nullptr)
-    {
-        return;
-    }
-
-    const float ScreenWidth = Canvas->ClipX;
-    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
-
-    // 자원 줄(오른쪽 정렬)
-    const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this);
-    const FString ResourcesText = HDShipMenu::FormatResources(ProfileSubsystem ? ProfileSubsystem->GetProfile() : FHDProfileData());
-    float ResourcesWidth = 0.f;
-    float ResourcesHeight = 0.f;
-    GetTextSize(ResourcesText, ResourcesWidth, ResourcesHeight, MediumFont);
-    DrawText(ResourcesText, ItemColor, ScreenWidth - HeaderMargin - ResourcesWidth, HeaderMargin, MediumFont);
-
-    // 자원 줄 아래: 게임 인스턴스가 기억하는 마지막 미션 결과(오른쪽 정렬)
-    const FHDMissionResultSummary* LastResult = ProfileSubsystem ? ProfileSubsystem->GetLastResult() : nullptr;
-    if (LastResult)
-    {
-        const FString LastResultText = FString::Printf(TEXT("LAST MISSION  %s  +%d REQ"),
-            LastResult->Outcome.bSuccess ? TEXT("COMPLETE") : TEXT("FAILED"),
-            LastResult->Reward.Requisition);
-
-        float LastResultWidth = 0.f;
-        float LastResultHeight = 0.f;
-        GetTextSize(LastResultText, LastResultWidth, LastResultHeight, MediumFont);
-        DrawText(LastResultText, ItemColor, ScreenWidth - HeaderMargin - LastResultWidth, HeaderMargin + ResourcesHeight + LastResultGap, MediumFont);
-    }
-}
-
-void AHDHUD::DrawShipOverlay()
-{
-    using namespace HDHUDShip;
-
     const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
     if (Canvas == nullptr || HDPlayerController == nullptr)
     {
         return;
     }
 
-    const float ScreenWidth = Canvas->ClipX;
-    const float ScreenHeight = Canvas->ClipY;
-    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
+    const FHDShipMenu& ShipMenu = HDPlayerController->GetShipMenu();
+    const EHDShipScreen Screen = ShipMenu.GetScreen();
+    const FHDShipUIFrame Frame = HDShipUILayout::ComputeFrame(FVector2D(Canvas->ClipX, Canvas->ClipY));
+    const FVector2D Offset(0.f, HDShipUIStyle::OpenSlide * Frame.Scale * ShipTransition.GetSlide());
 
-    // 오른쪽 위: 자원 줄·마지막 결과 줄(배경 없음)
-    DrawShipResources();
+    FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, ShipTransition.GetAlpha(), ShipTransition.GetContentAlpha(), Offset, bInteractive);
 
-    // 아래 가운데: 범위 안 단말기 안내
+    const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
+    const TArray<FHDKeyHint> Hints = HDShipMenuView::GetKeyHints(ShipMenu, Items, HDPlayerController->IsShipLaunching());
+
+    // 배경 → 위 바 → 본문(이 브리프는 타이틀이 아니면 모두 목록) → 아래 바
+    FHDShipScreenPainter::PaintBackdrop(UICanvas);
+    FHDShipScreenPainter::PaintTopBar(UICanvas, HDShipMenu::GetScreenTitle(Screen), HDHUDShip::MakeResourceView(this));
+    FHDShipScreenPainter::PaintList(UICanvas, ShipMenu, Items);
+    FHDShipScreenPainter::PaintBottomBar(UICanvas, Hints);
+
+    if (bInteractive)
+    {
+        const FString ScreenName = HDShipMenu::GetScreenName(Screen);
+        const int32 ViewWidth = FMath::RoundToInt(Canvas->ClipX);
+        const int32 ViewHeight = FMath::RoundToInt(Canvas->ClipY);
+
+        const FString FrameKey = FString::Printf(TEXT("%s|%dx%d"), *ScreenName, ViewWidth, ViewHeight);
+        if (FrameKey != LastShipFrameKey)
+        {
+            LastShipFrameKey = FrameKey;
+            UE_LOG(LogTemp, Display, TEXT("[HDShipUI] frame screen=%s view=%dx%d scale=%.3f"), *ScreenName, ViewWidth, ViewHeight, Frame.Scale);
+            UE_LOG(LogTemp, Display, TEXT("[HDShipUI] canvas dpi=%.3f font=%s"), UICanvas.GetDPIScale(), UICanvas.IsUsingFallbackFont() ? TEXT("fallback") : TEXT("Roboto"));
+        }
+
+        const FString HintsText = HDShipMenuView::JoinKeyHints(Hints);
+        const FString HintsKey = ScreenName + TEXT("|") + HintsText;
+        if (HintsKey != LastShipHintsKey)
+        {
+            LastShipHintsKey = HintsKey;
+            UE_LOG(LogTemp, Display, TEXT("[HDShipUI] hints screen=%s %s"), *ScreenName, *HintsText);
+        }
+
+        // 다 열려 멈춘 프레임에서만 센다(미끄러지는 중에는 아래 바가 화면 밖으로 나간다)
+        if (ShipTransition.IsSettled())
+        {
+            CheckShipTexts(ScreenName, UICanvas, ShipMenu.GetCursor());
+        }
+    }
+    else
+    {
+        // 닫았다가 다시 열면 frame·hints 줄을 다시 남긴다
+        LastShipFrameKey.Reset();
+        LastShipHintsKey.Reset();
+    }
+
+    if (CVarHDShipUIDebug.GetValueOnGameThread() > 0)
+    {
+        UICanvas.DrawDebug();
+    }
+}
+
+void AHDHUD::DrawShipOverlay()
+{
+    const AHDPlayerController* HDPlayerController = Cast<AHDPlayerController>(PlayerOwner);
+    if (Canvas == nullptr || HDPlayerController == nullptr)
+    {
+        return;
+    }
+
+    const FHDShipUIFrame Frame = HDShipUILayout::ComputeFrame(FVector2D(Canvas->ClipX, Canvas->ClipY));
+    FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, 1.f, 1.f, FVector2D::ZeroVector, true);
+
+    // 범위 안 단말기 안내(브리프 2 가 태그로 바꾼다)
+    FString Prompt;
     const int32 TerminalIndex = HDPlayerController->FindShipTerminalInRange();
     const TArray<FHDShipTerminalInfo>& Terminals = HDShipHub::GetTerminals();
     if (Terminals.IsValidIndex(TerminalIndex))
     {
-        const FString InteractText = HDShipHub::FormatInteractPrompt(Terminals[TerminalIndex]);
-        float InteractWidth = 0.f;
-        float InteractHeight = 0.f;
-        GetTextSize(InteractText, InteractWidth, InteractHeight, MediumFont, InteractPromptScale);
-        DrawText(InteractText, HDHUDMission::TextColor, (ScreenWidth - InteractWidth) * 0.5f, ScreenHeight - InteractPromptBottom, MediumFont, InteractPromptScale);
+        Prompt = HDShipHub::FormatInteractPrompt(Terminals[TerminalIndex]);
     }
 
-    // 왼쪽 아래: 키 안내
-    DrawText(InteriorHelpText, DisabledItemColor, HeaderMargin, ScreenHeight - HelpBottom, MediumFont);
+    FHDShipScreenPainter::PaintInteriorOverlay(UICanvas, HDHUDShip::MakeResourceView(this), Prompt);
+    CheckShipTexts(HDHUDShip::InteriorScreenName, UICanvas, Terminals.IsValidIndex(TerminalIndex) ? TerminalIndex : INDEX_NONE);
+
+    if (CVarHDShipUIDebug.GetValueOnGameThread() > 0)
+    {
+        UICanvas.DrawDebug();
+    }
 }
 
 void AHDHUD::DrawLaunchCountdown(float RemainingSeconds)
 {
-    using namespace HDHUDShip;
-
     if (Canvas == nullptr)
     {
         return;
     }
 
-    const float ScreenWidth = Canvas->ClipX;
-    const float ScreenHeight = Canvas->ClipY;
-    UFont* MediumFont = GEngine ? GEngine->GetMediumFont() : nullptr;
-    UFont* LargeFont = GEngine ? GEngine->GetLargeFont() : nullptr;
+    // 메뉴 위 맨 위 층. 메뉴 투명도와 상관없이 다 보인다. 숫자는 FHDLaunchCountdown::GetDisplaySeconds 와 같은 올림
+    const FHDShipUIFrame Frame = HDShipUILayout::ComputeFrame(FVector2D(Canvas->ClipX, Canvas->ClipY));
+    FHDShipUICanvas UICanvas(this, Canvas, GetShipUIFont(), Frame, 1.f, 1.f, FVector2D::ZeroVector, true);
+    FHDShipScreenPainter::PaintCountdown(UICanvas, FMath::CeilToInt(RemainingSeconds));
+    CheckShipTexts(HDHUDShip::CountdownScreenName, UICanvas, 0);
+}
 
-    // 위쪽 가운데: 큰 글자 HELLPOD LAUNCH IN n, 그 아래 취소 안내
-    const FString CountdownText = HDShipHub::FormatCountdown(RemainingSeconds);
-    float CountdownWidth = 0.f;
-    float CountdownHeight = 0.f;
-    GetTextSize(CountdownText, CountdownWidth, CountdownHeight, LargeFont, CountdownTextScale);
-    const float CountdownY = ScreenHeight * CountdownHeightRatio;
-    DrawText(CountdownText, HDHUDMission::TextColor, (ScreenWidth - CountdownWidth) * 0.5f, CountdownY, LargeFont, CountdownTextScale);
+void AHDHUD::CheckShipTexts(const FString& ScreenName, const FHDShipUICanvas& UICanvas, int32 Cursor)
+{
+    const FHDShipUIFrame& Frame = UICanvas.GetFrame();
+    const int32 ViewWidth = FMath::RoundToInt(Frame.View.Max.X);
+    const int32 ViewHeight = FMath::RoundToInt(Frame.View.Max.Y);
+    const FString ViewKey = FString::Printf(TEXT("%s|%dx%d"), *ScreenName, ViewWidth, ViewHeight);
+    const FString CursorKey = FString::Printf(TEXT("%s|%d"), *ViewKey, Cursor);
 
-    float CancelWidth = 0.f;
-    float CancelHeight = 0.f;
-    GetTextSize(CountdownCancelText, CancelWidth, CancelHeight, MediumFont);
-    DrawText(CountdownCancelText, ItemColor, (ScreenWidth - CancelWidth) * 0.5f, CountdownY + CountdownHeight + CountdownCancelGap, MediumFont);
+    // (화면, 뷰)마다 한 번은 늘 남기고, 그 뒤에는 (화면, 뷰, 커서)가 처음인 프레임에서 문제가 있을 때만 남긴다
+    const bool bFirstView = CheckedShipViews.Contains(ViewKey) == false;
+    const bool bFirstCursor = CheckedShipCursors.Contains(CursorKey) == false;
+    if (bFirstView == false && bFirstCursor == false)
+    {
+        return;
+    }
+    CheckedShipViews.Add(ViewKey);
+    CheckedShipCursors.Add(CursorKey);
+
+    const HDShipUILayout::FHDTextProblems Problems = HDShipUILayout::FindTextProblems(UICanvas.GetDrawnTexts(), Frame.View);
+    const bool bProblem = Problems.Overlaps > 0 || Problems.Clipped > 0;
+    if (bFirstView == false && bProblem == false)
+    {
+        return;
+    }
+
+    const FString Line = FString::Printf(TEXT("[HDShipUI] check screen=%s view=%dx%d texts=%d overlaps=%d clipped=%d truncated=%d"),
+        *ScreenName, ViewWidth, ViewHeight, Problems.Texts, Problems.Overlaps, Problems.Clipped, Problems.Truncated);
+    if (bProblem)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("%s cursor=%d first=\"%s\""), *Line, Cursor, *Problems.FirstProblem);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Display, TEXT("%s"), *Line);
+    }
 }
 
 void AHDHUD::NotifyHitFeedback(EHDHitOutcome Outcome, bool bWeakPoint)
