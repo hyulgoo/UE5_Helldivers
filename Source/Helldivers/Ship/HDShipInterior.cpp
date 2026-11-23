@@ -2,6 +2,11 @@
 
 #include "Ship/HDShipInterior.h"
 #include "Ship/HDShipHubRules.h"
+#include "Ship/HDWarTableMap.h"
+#include "Progression/HDProgressionSettings.h"
+#include "Game/HDMissionSettings.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
@@ -65,6 +70,10 @@ namespace HDShipInteriorLayout
     constexpr float     LightZ = 600.f;
     constexpr float     LightIntensity = 5000.f;
     constexpr float     LightAttenuationRadius = 2500.f;
+
+    // 작전 테이블 지도 캡처: 아래를 본다. 노출은 수동 고정(물리 카메라 노출 끔, 바이어스로 맞춤)
+    const FRotator      MapCaptureRotation(-90.f, 0.f, 0.f);
+    constexpr float     MapExposureBias = 0.f;
 }
 
 AHDShipInterior::AHDShipInterior(const FObjectInitializer& ObjectInitializer)
@@ -178,6 +187,8 @@ void AHDShipInterior::BeginPlay()
         }
     }
 
+    CreateMapCapture();
+
     UE_LOG(LogTemp, Display, TEXT("[HDShip] interior built at %s pieces=%d terminals=%d labels=0"), *GetActorLocation().ToString(), Pieces.Num(), HDShipHub::GetTerminals().Num());
 }
 
@@ -226,4 +237,79 @@ void AHDShipInterior::AddLight(const FVector& Location)
     Light->SetAttenuationRadius(LightAttenuationRadius);
     Light->SetCastShadows(false);
     Light->RegisterComponent();
+}
+
+void AHDShipInterior::CreateMapCapture()
+{
+    using namespace HDShipInteriorLayout;
+
+    const UHDProgressionSettings* ProgressionSettings = GetDefault<UHDProgressionSettings>();
+    const UHDMissionSettings* MissionSettings = GetDefault<UHDMissionSettings>();
+    NULL_CHECK(ProgressionSettings);
+    NULL_CHECK(MissionSettings);
+    NULL_CHECK(Root);
+
+    // 방은 첫 PlayerStart + ShipInteriorOffset 에 있다(AHDGameMode::EnterShip)
+    const FVector Center = GetActorLocation() - ProgressionSettings->ShipInteriorOffset;
+    MapCenterXY     = FVector2D(Center.X, Center.Y);
+    MapHalfExtent   = HDWarTableMap::ComputeHalfExtent(MissionSettings->ObjectiveRadiusMax);
+
+    if (ProgressionSettings->bWarTableMapCapture == false)
+    {
+        return;
+    }
+
+    MapTarget = NewObject<UTextureRenderTarget2D>(this);
+    NULL_CHECK(MapTarget);
+    MapTarget->InitAutoFormat(HDWarTableMap::TextureSize, HDWarTableMap::TextureSize);
+
+    MapCapture = NewObject<USceneCaptureComponent2D>(this);
+    NULL_CHECK(MapCapture);
+    MapCapture->SetupAttachment(Root);
+    MapCapture->SetUsingAbsoluteLocation(true);
+    MapCapture->SetUsingAbsoluteRotation(true);
+    MapCapture->SetWorldLocationAndRotation(HDWarTableMap::GetCaptureLocation(Center, static_cast<float>(GetActorLocation().Z)), MapCaptureRotation);
+    MapCapture->ProjectionType          = ECameraProjectionMode::Orthographic;
+    MapCapture->OrthoWidth              = MapHalfExtent * 2.f;
+    MapCapture->bCaptureEveryFrame      = false;
+    MapCapture->bCaptureOnMovement      = false;
+    MapCapture->CaptureSource           = ESceneCaptureSource::SCS_FinalColorLDR;
+    MapCapture->TextureTarget           = MapTarget;
+    MapCapture->HiddenActors.Add(this);
+    MapCapture->ShowFlags.SetFog(false);
+    MapCapture->ShowFlags.SetVolumetricFog(false);
+    MapCapture->ShowFlags.SetCloud(false);
+
+    FPostProcessSettings& PostProcess = MapCapture->PostProcessSettings;
+    PostProcess.bOverride_AutoExposureMethod                        = true;
+    PostProcess.AutoExposureMethod                                  = EAutoExposureMethod::AEM_Manual;
+    PostProcess.bOverride_AutoExposureApplyPhysicalCameraExposure   = true;
+    PostProcess.AutoExposureApplyPhysicalCameraExposure             = 0;
+    PostProcess.bOverride_AutoExposureBias                          = true;
+    PostProcess.AutoExposureBias                                    = MapExposureBias;
+    MapCapture->PostProcessBlendWeight = 1.f;
+
+    MapCapture->RegisterComponent();
+}
+
+void AHDShipInterior::RequestMapCapture()
+{
+    if (MapCapture == nullptr || MapTarget == nullptr)
+    {
+        if (bMapSchematicLogged == false)
+        {
+            bMapSchematicLogged = true;
+            UE_LOG(LogTemp, Display, TEXT("[HDShipUI] map schematic (capture off)"));
+        }
+        return;
+    }
+
+    MapCapture->CaptureScene();
+    MapCaptureFrame = GFrameCounter;
+    UE_LOG(LogTemp, Display, TEXT("[HDShipUI] map capture center=(%.0f, %.0f) halfExtent=%.0f size=%d"), MapCenterXY.X, MapCenterXY.Y, MapHalfExtent, HDWarTableMap::TextureSize);
+}
+
+UTextureRenderTarget2D* AHDShipInterior::GetMapTexture() const
+{
+    return (MapTarget && MapCaptureFrame > 0 && GFrameCounter > MapCaptureFrame) ? MapTarget.Get() : nullptr;
 }

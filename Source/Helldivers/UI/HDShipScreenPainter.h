@@ -11,6 +11,9 @@ struct FHDKeyHint;
 struct FHDResourceView;
 struct FHDPromptTag;
 struct FHDPromptTagInput;
+struct FHDShipUIFrame;
+struct FHDWarTableView;
+class UTexture;
 
 // 함선 화면별 그리기. 로직 상태(FHDShipMenu·줄·화면 데이터)는 읽기만 한다. 좌표는 설계 단위(1920×1080)를 캔버스 틀로 바꿔 쓴다
 class FHDShipScreenPainter
@@ -24,6 +27,9 @@ public:
     static void         PaintBottomBar(FHDShipUICanvas& Canvas, const TArray<FHDKeyHint>& Hints);
     // 목록 화면: 줄 버튼(선택 강조·꺼진 줄)과 ShipItem_<i> 히트박스, 오른쪽 상세 패널(고른 줄의 Label·Detail). System 은 가운데, 상세 없음
     static void         PaintList(FHDShipUICanvas& Canvas, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items);
+    // 작전 테이블: 왼쪽 작전 카드 열, 가운데 정사각형 작전 지역(MapTexture 가 있으면 캡처, 없으면 2000 단위 격자 도식. 위에 목표 띠 두 고리·강하 표식),
+    // 오른쪽 상세(목표, 난이도 막대 = Difficulty 줄 히트박스와 고른 동안 < > 상자 ShipKey_Left/Right, 보상, 맵 샘플, START MISSION = StartMission 줄)
+    static void         PaintWarTable(FHDShipUICanvas& Canvas, const FHDShipUIFrame& Frame, const FHDShipMenu& Menu, const TArray<FHDShipMenuItem>& Items, const FHDWarTableView& View, UTexture* MapTexture, const FVector2D& CenterXY, float HalfExtent);
     // 출격 대기: 한 겹 더 어둡게, 가운데 HELLPOD LAUNCH·큰 숫자·[BACKSPACE] CANCEL
     static void         PaintCountdown(FHDShipUICanvas& Canvas, int32 DisplaySeconds);
     // 함선 안(메뉴 닫힘): 오른쪽 위 자원(배경 없음), 왼쪽 아래 [P] SHIP MENU

@@ -46,6 +46,10 @@
 #include "Progression/HDWeaponCatalog.h"
 #include "Stratagem/HDStratagemCatalog.h"
 #include "UI/HDShipScreenPainter.h"
+#include "Ship/HDWarTableMap.h"
+#include "Game/HDMissionSettings.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace HDHUDMission
 {
@@ -476,6 +480,15 @@ void AHDHUD::DrawShipPhase(const AHDGameState& GameState)
     {
         ShipTransition = FHDShipUITransition();
     }
+    // 작전 테이블을 열거나 그 화면으로 바뀔 때마다 지도를 한 번 캡처한다(매 프레임 아님)
+    if (bMenuOpen && Screen == EHDShipScreen::WarTable && (bLastShipMenuOpen == false || LastShipScreen != EHDShipScreen::WarTable))
+    {
+        if (AHDShipInterior* ShipInterior = FindShipInterior())
+        {
+            ShipInterior->RequestMapCapture();
+        }
+    }
+
     bLastShipMenuOpen   = bMenuOpen;
     LastShipScreen      = Screen;
 
@@ -593,10 +606,17 @@ void AHDHUD::DrawShipMenu(bool bInteractive)
     const TArray<FHDShipMenuItem> Items = HDPlayerController->BuildShipMenuItems();
     const TArray<FHDKeyHint> Hints = HDShipMenuView::GetKeyHints(ShipMenu, Items, HDPlayerController->IsShipLaunching());
 
-    // 배경 → 위 바 → 본문(이 브리프는 타이틀이 아니면 모두 목록) → 아래 바
+    // 배경 → 위 바 → 본문(작전 테이블은 전용 화면, 나머지는 목록) → 아래 바
     FHDShipScreenPainter::PaintBackdrop(UICanvas);
     FHDShipScreenPainter::PaintTopBar(UICanvas, HDShipMenu::GetScreenTitle(Screen), HDHUDShip::MakeResourceView(this));
-    FHDShipScreenPainter::PaintList(UICanvas, ShipMenu, Items);
+    if (Screen == EHDShipScreen::WarTable)
+    {
+        DrawWarTable(UICanvas, ShipMenu, Items);
+    }
+    else
+    {
+        FHDShipScreenPainter::PaintList(UICanvas, ShipMenu, Items);
+    }
     FHDShipScreenPainter::PaintBottomBar(UICanvas, Hints);
 
     if (bInteractive)
@@ -665,6 +685,45 @@ void AHDHUD::DrawShipOverlay()
     }
 }
 
+AHDShipInterior* AHDHUD::FindShipInterior()
+{
+    UWorld* World = GetWorld();
+    if (CachedShipInterior.IsValid() == false && World)
+    {
+        for (TActorIterator<AHDShipInterior> It(World); It; ++It)
+        {
+            CachedShipInterior = *It;
+            break;
+        }
+    }
+    return CachedShipInterior.Get();
+}
+
+void AHDHUD::DrawWarTable(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items)
+{
+    const UHDProgressionSettings* ProgressionSettings = GetDefault<UHDProgressionSettings>();
+    NULL_CHECK(ProgressionSettings);
+
+    // AHDPlayerController::BuildShipMenuItems 와 같은 문맥(프로필·난이도 표)
+    FHDShipMenuContext Context;
+    if (const UHDProfileSubsystem* ProfileSubsystem = UHDProfileSubsystem::Get(this))
+    {
+        Context.Profile = ProfileSubsystem->GetProfile();
+    }
+    Context.Difficulties = ProgressionSettings->DifficultyLevels;
+
+    const FHDWarTableView View = HDShipMenuView::BuildWarTable(Context, UGameplayStatics::GetCurrentLevelName(this, true), ProgressionSettings->MakeRewardRules());
+
+    // 방이 없으면(고정 카메라 Bridge 모드) 도식, 중심은 원점
+    const AHDShipInterior* ShipInterior = FindShipInterior();
+    const UHDMissionSettings* MissionSettings = GetDefault<UHDMissionSettings>();
+    const float HalfExtent = ShipInterior ? ShipInterior->GetMapHalfExtent() : HDWarTableMap::ComputeHalfExtent(MissionSettings ? MissionSettings->ObjectiveRadiusMax : 0.f);
+    const FVector2D CenterXY = ShipInterior ? ShipInterior->GetMapCenterXY() : FVector2D::ZeroVector;
+    UTexture* MapTexture = ShipInterior ? ShipInterior->GetMapTexture() : nullptr;
+
+    FHDShipScreenPainter::PaintWarTable(UICanvas, UICanvas.GetFrame(), ShipMenu, Items, View, MapTexture, CenterXY, HalfExtent);
+}
+
 void AHDHUD::DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex)
 {
     UWorld* World = GetWorld();
@@ -673,16 +732,7 @@ void AHDHUD::DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalI
         return;
     }
 
-    if (CachedShipInterior.IsValid() == false)
-    {
-        for (TActorIterator<AHDShipInterior> It(World); It; ++It)
-        {
-            CachedShipInterior = *It;
-            break;
-        }
-    }
-
-    const AHDShipInterior* ShipInterior = CachedShipInterior.Get();
+    const AHDShipInterior* ShipInterior = FindShipInterior();
     const APawn* Pawn = PlayerOwner->GetPawn();
     if (ShipInterior == nullptr || Pawn == nullptr)
     {

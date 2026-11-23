@@ -7,6 +7,7 @@
 #include "Progression/HDProfileTypes.h"
 
 struct FHDMissionResultSummary;
+struct FHDRewardRules;
 
 // 아래 바 키 안내 하나: [Key] Action
 struct FHDKeyHint
@@ -25,6 +26,28 @@ struct FHDResourceView
     FString             LastMission;
 };
 
+// 작전 테이블 난이도 막대 한 칸
+struct FHDDifficultySegment
+{
+    int32               Level       = 1;
+    FString             Label;
+    bool                bCurrent    = false;
+};
+
+// 작전 테이블 화면의 그릴 내용(작전 카드·목표·난이도·보상·맵 샘플)
+struct FHDWarTableView
+{
+    FString                         OperationName;
+    FString                         OperationType;              // "DESTROY FACILITIES"
+    TArray<FString>                 Objectives;
+    bool                            bHasDifficulty      = false;
+    TArray<FHDDifficultySegment>    Segments;
+    FString                         DifficultyLabel;            // "2  NORMAL"
+    FString                         RewardMultiplier;           // "X" + FString::SanitizeFloat(배율)
+    int32                           SuccessRequisition  = 0;    // 목표 전부 + 성공을 가정한 ComputeReward
+    FHDSampleCounts                 MapSamples;
+};
+
 // 함선 화면의 "그릴 내용". 월드와 무관한 순수 함수라 자동 테스트(Helldivers.FrontEnd.ShipUI)로 고정한다
 namespace HDShipMenuView
 {
@@ -37,4 +60,8 @@ namespace HDShipMenuView
     HELLDIVERS_API FHDResourceView      MakeResourceView(const FHDProfileData& Profile, const FString& LastMission);
     // "LAST MISSION  COMPLETE|FAILED  +<징발> REQ". 결과가 없으면 빈 글자
     HELLDIVERS_API FString              FormatLastMission(const FHDMissionResultSummary* LastResult);
+    // 레벨 이름을 띄어 쓴 대문자. PIE 접두사(UEDPIE_<n>_)를 뗀다. "DesertMountains" → "DESERT MOUNTAINS", 빈 글자 → "UNKNOWN SECTOR"
+    HELLDIVERS_API FString              FormatMapName(const FString& LevelName);
+    // 프로필 난이도를 표로 자른 행으로 채운다. 표가 비면 bHasDifficulty 거짓, 목표 수 없이 "DESTROY FACILITIES", 징발 0
+    HELLDIVERS_API FHDWarTableView      BuildWarTable(const FHDShipMenuContext& Context, const FString& LevelName, const FHDRewardRules& Rules);
 }

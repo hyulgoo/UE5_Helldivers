@@ -57,6 +57,10 @@ private:
     void                                DrawShipOverlay();
     // 단말기 태그를 놓고 그린다. 보이는 태그나 활성 단말기가 바뀌면 [HDShipUI] prompt 줄
     void                                DrawShipPromptTags(FHDShipUICanvas& UICanvas, int32 ActiveTerminalIndex);
+    // 월드의 함선 방(처음 찾은 것을 캐시). 없으면 nullptr
+    AHDShipInterior*                    FindShipInterior();
+    // 작전 테이블 화면: 프로필·난이도 표로 화면 데이터를 만들고 방의 지도 캡처(없으면 도식)로 그린다
+    void                                DrawWarTable(FHDShipUICanvas& UICanvas, const FHDShipMenu& ShipMenu, const TArray<FHDShipMenuItem>& Items);
     // 맨 위 층: 어둡게 + 가운데 HELLPOD LAUNCH, 큰 숫자, [BACKSPACE] CANCEL
     void                                DrawLaunchCountdown(float RemainingSeconds);
     // 처음 쓸 때 /Engine/EngineFonts/Roboto 를 읽는다. 못 읽으면 nullptr(캔버스 도구가 엔진 중간 글꼴로 대신한다)

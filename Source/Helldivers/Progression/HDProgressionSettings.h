@@ -67,6 +67,10 @@ public:
     UPROPERTY(Config, EditAnywhere, Category = "Ship")
     float                       LaunchCountdownSeconds = 5.f;
 
+    // 참이면 작전 테이블 지도에 함선 아래에서 내려다본 맵 1회 캡처를 그린다. 거짓이면 격자 도식
+    UPROPERTY(Config, EditAnywhere, Category = "Ship")
+    bool                        bWarTableMapCapture = true;
+
     // 난이도 표(1 단계부터). 함선 메뉴 DIFFICULTY 줄에서 고르고 출격할 때 미션에 들어간다.
     // Config 에 줄이 없으면 생성자가 채운 기본 표(HDDifficulty::GetDefaultTable)가 남는다
     UPROPERTY(Config, EditAnywhere, Category = "Difficulty")

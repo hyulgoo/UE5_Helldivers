@@ -9,6 +9,7 @@
 #include "Fonts/FontMeasure.h"
 #include "GameFramework/HUD.h"
 #include "Engine/Texture2D.h"
+#include "Engine/Texture.h"
 #include "UI/HDShipIcons.h"
 #include "Stratagem/HDStratagemCatalog.h"
 
@@ -258,6 +259,45 @@ void FHDShipUICanvas::Icon(FName Id, const FBox2D& Rect, bool bDim)
         const FVector2D BadgePos(Rect.Max.X - Px(TilePadding), Rect.Max.Y - Px(TilePadding) - Px(9.f));
         Text(Ref.Badge, EHDShipFont::Small, BadgePos, EHDShipTextAlign::Right, bDim ? HDShipUIStyle::TextDisabled : HDShipUIStyle::Text, 0.f);
     }
+}
+
+void FHDShipUICanvas::Texture(UTexture* InTexture, const FBox2D& Rect)
+{
+    if (Canvas == nullptr || InTexture == nullptr || InTexture->GetResource() == nullptr || GetLayerAlpha() <= 0.f)
+    {
+        return;
+    }
+
+    const FVector2D Size = Rect.GetSize();
+    if (Size.X <= 0.0 || Size.Y <= 0.0)
+    {
+        return;
+    }
+
+    FCanvasTileItem Tile(Rect.Min + Offset, InTexture->GetResource(), Size, FLinearColor::White);
+    Tile.BlendMode = SE_BLEND_Opaque;
+    Canvas->DrawItem(Tile);
+}
+
+void FHDShipUICanvas::Line(const FVector2D& A, const FVector2D& B, float DesignThickness, const FLinearColor& Color)
+{
+    if (Canvas == nullptr)
+    {
+        return;
+    }
+
+    FLinearColor DrawColor = Color;
+    DrawColor.A *= GetLayerAlpha();
+    if (DrawColor.A <= 0.f)
+    {
+        return;
+    }
+
+    FCanvasLineItem LineItem(A + Offset, B + Offset);
+    LineItem.SetColor(DrawColor);
+    LineItem.LineThickness = FMath::Max(1.f, Px(DesignThickness));
+    LineItem.BlendMode = SE_BLEND_Translucent;
+    Canvas->DrawItem(LineItem);
 }
 
 void FHDShipUICanvas::HitBox(const FBox2D& Rect, FName Name)

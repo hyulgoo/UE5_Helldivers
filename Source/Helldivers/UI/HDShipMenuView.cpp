@@ -2,6 +2,7 @@
 
 #include "UI/HDShipMenuView.h"
 #include "Progression/HDMissionReward.h"
+#include "Progression/HDDifficulty.h"
 
 namespace HDShipMenuViewPrivate
 {
@@ -103,4 +104,84 @@ FString HDShipMenuView::FormatLastMission(const FHDMissionResultSummary* LastRes
     return FString::Printf(TEXT("LAST MISSION  %s  +%d REQ"),
         LastResult->Outcome.bSuccess ? TEXT("COMPLETE") : TEXT("FAILED"),
         LastResult->Reward.Requisition);
+}
+
+FString HDShipMenuView::FormatMapName(const FString& LevelName)
+{
+    // PIE 사본 레벨은 UEDPIE_<n>_ 접두사가 붙는다
+    FString Name = LevelName;
+    if (Name.StartsWith(TEXT("UEDPIE_")))
+    {
+        const int32 Underscore = Name.Find(TEXT("_"), ESearchCase::CaseSensitive, ESearchDir::FromStart, 7);
+        Name = Underscore != INDEX_NONE ? Name.Mid(Underscore + 1) : FString();
+    }
+
+    // 소문자(또는 숫자) 다음 대문자 앞에 공백, 밑줄은 공백
+    FString Spaced;
+    for (int32 Index = 0; Index < Name.Len(); ++Index)
+    {
+        const TCHAR Char = Name[Index];
+        if (Char == TEXT('_'))
+        {
+            Spaced.AppendChar(TEXT(' '));
+            continue;
+        }
+
+        if (Index > 0 && FChar::IsUpper(Char) && (FChar::IsLower(Name[Index - 1]) || FChar::IsDigit(Name[Index - 1])))
+        {
+            Spaced.AppendChar(TEXT(' '));
+        }
+        Spaced.AppendChar(Char);
+    }
+
+    Spaced.TrimStartAndEndInline();
+    return Spaced.IsEmpty() ? FString(TEXT("UNKNOWN SECTOR")) : Spaced.ToUpper();
+}
+
+FHDWarTableView HDShipMenuView::BuildWarTable(const FHDShipMenuContext& Context, const FString& LevelName, const FHDRewardRules& Rules)
+{
+    FHDWarTableView View;
+    View.OperationName  = FormatMapName(LevelName);
+    View.OperationType  = TEXT("DESTROY FACILITIES");
+    View.bHasDifficulty = Context.Difficulties.IsEmpty() == false;
+
+    if (View.bHasDifficulty == false)
+    {
+        View.Objectives = { TEXT("DESTROY FACILITIES"), TEXT("REACH EXTRACTION"), TEXT("OPTIONAL: RECOVER SAMPLES") };
+        return View;
+    }
+
+    const int32 NumLevels = Context.Difficulties.Num();
+    const int32 Level = HDDifficulty::ClampLevel(Context.Profile.Difficulty, NumLevels);
+    const FHDDifficultyLevel Row = HDDifficulty::GetLevel(Context.Difficulties, Level);
+
+    for (int32 Index = 0; Index < NumLevels; ++Index)
+    {
+        FHDDifficultySegment Segment;
+        Segment.Level       = Index + 1;
+        Segment.Label       = Context.Difficulties[Index].Label;
+        Segment.bCurrent    = Segment.Level == Level;
+        View.Segments.Add(Segment);
+    }
+
+    const int32 Required = Row.RequiredObjectives;
+    View.Objectives = {
+        FString::Printf(TEXT("DESTROY %d %s"), Required, Required == 1 ? TEXT("FACILITY") : TEXT("FACILITIES")),
+        TEXT("REACH EXTRACTION"),
+        TEXT("OPTIONAL: RECOVER SAMPLES")
+    };
+    View.DifficultyLabel    = FString::Printf(TEXT("%d  %s"), Level, *Row.Label);
+    View.RewardMultiplier   = TEXT("X") + FString::SanitizeFloat(Row.RewardMultiplier);
+    View.MapSamples         = Row.SampleCounts;
+
+    // 목표를 모두 부수고 성공했을 때(소지 샘플은 0 으로 본다)
+    FHDMissionOutcome Outcome;
+    Outcome.bSuccess            = true;
+    Outcome.CompletedObjectives = Required;
+    Outcome.RequiredObjectives  = Required;
+    Outcome.Difficulty          = Level;
+    Outcome.DifficultyLabel     = Row.Label;
+    Outcome.RewardMultiplier    = Row.RewardMultiplier;
+    View.SuccessRequisition = HDProgression::ComputeReward(Outcome, Rules).Requisition;
+    return View;
 }

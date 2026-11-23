@@ -11,6 +11,7 @@ class AHUD;
 class UCanvas;
 class UFont;
 class UTexture2D;
+class UTexture;
 
 // 글자 가로 맞춤. 세로는 늘 Pos.Y 가 글자 줄의 가운데다
 enum class EHDShipTextAlign : uint8
@@ -63,6 +64,10 @@ public:
     // 텍스처 경로 → 텍스처(못 읽으면 nullptr). HUD 가 캐시를 붙인다. 없으면 Icon 은 늘 글자 타일
     void                SetTextureLoader(TFunction<UTexture2D*(const FString&)> InLoader) { TextureLoader = MoveTemp(InLoader); }
     void                HitBox(const FBox2D& Rect, FName Name);
+    // 텍스처(렌더 타깃 포함)를 Rect 에 꽉 채워 불투명으로 그린다(렌더 타깃 알파가 믿을 수 없어서). 틀 투명도가 0 이면 그리지 않는다
+    void                Texture(UTexture* InTexture, const FBox2D& Rect);
+    // A → B 선분. 두께는 설계 두께 × 배율(최소 1px), 투명도·미끄러짐은 다른 그리기와 같다
+    void                Line(const FVector2D& A, const FVector2D& B, float DesignThickness, const FLinearColor& Color);
 
     const TArray<HDShipUILayout::FHDDrawnText>& GetDrawnTexts() const { return DrawnTexts; }
     void                ClearDrawnTexts() { DrawnTexts.Reset(); }
