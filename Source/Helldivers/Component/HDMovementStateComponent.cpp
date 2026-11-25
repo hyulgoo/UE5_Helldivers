@@ -48,7 +48,29 @@ void UHDMovementStateComponent::SetMovementState(const EHDCharacterMovementState
 {
     CONDITION_CHECK(NewState != EHDCharacterMovementState::Count);
 
+    const bool bWasSprint = MovementState == EHDCharacterMovementState::Sprint;
+    const bool bIsSprint = NewState == EHDCharacterMovementState::Sprint;
+    if (bWasSprint && bIsSprint == false)
+    {
+        bLastSprintExitInstant = bPendingInstantSprintExit;
+        bPendingInstantSprintExit = false;
+    }
+    else if (bIsSprint)
+    {
+        bPendingInstantSprintExit = false;
+    }
+
     MovementState = NewState;
+}
+
+void UHDMovementStateComponent::RequestInstantSprintExit()
+{
+    bPendingInstantSprintExit = true;
+}
+
+bool UHDMovementStateComponent::IsLastSprintExitInstant() const
+{
+    return bLastSprintExitInstant;
 }
 
 void UHDMovementStateComponent::SetSpringArmDefaultZOffset(const float ZOffset)

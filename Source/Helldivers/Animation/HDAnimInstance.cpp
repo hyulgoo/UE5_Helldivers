@@ -57,6 +57,7 @@ void UHDAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
     {
         CharacterMovementState = MovementState->GetMovementState();
         CharacterStanceState = MovementState->GetStanceState();
+        SprintExitBlendTime = MovementState->IsLastSprintExitInstant() ? 0.f : DefaultSprintExitBlendTime;
         YawOffset = bIsLookingViewport ? DeltaRotation.Yaw : 0.f;
     }
 

@@ -11,6 +11,7 @@
 #include "Define/HDSocketNames.h"
 #include "Weapon/HDWeapon.h"
 #include "Character/CharacterTypes/HDCharacterStateTypes.h"
+#include "Component/HDFaceAimRules.h"
 
 #define AIMOFFSET_PITCH_OFFSET 20.f
 
@@ -163,6 +164,12 @@ void UHDCombatComponent::AimOffset(const float DeltaTime)
 	APawn* Owner = GetOwner<APawn>();
     NULL_CHECK(Owner);
 
+    if (bIsShoulder == false && IsFacingAim())
+    {
+        FaceAim(Owner, DeltaTime);
+        return;
+    }
+
     FVector Velocity = Owner->GetVelocity();
     Velocity.Z = 0.f;
     const bool bIsMoving = Velocity.Size() > 0.1f;
@@ -235,6 +242,64 @@ void UHDCombatComponent::AimOffset(const float DeltaTime)
     }
 
     AimOffset_Pitch = BaseAimRoatation.Pitch - AIMOFFSET_PITCH_OFFSET;
+}
+
+void UHDCombatComponent::BeginFaceAim()
+{
+    ++FaceAimRequestCount;
+}
+
+void UHDCombatComponent::EndFaceAim()
+{
+    FaceAimRequestCount = FMath::Max(FaceAimRequestCount - 1, 0);
+
+    const UWorld* World = GetWorld();
+    if (World)
+    {
+        FaceAimHoldUntil = World->GetTimeSeconds() + FaceAimLingerTime;
+    }
+}
+
+float UHDCombatComponent::GetYawToAim() const
+{
+    const APawn* Owner = GetOwner<APawn>();
+    if (Owner == nullptr)
+    {
+        return 0.f;
+    }
+
+    return HDFaceAim::YawToAim(Owner->GetActorRotation().Yaw, Owner->GetControlRotation().Yaw);
+}
+
+bool UHDCombatComponent::IsFacingAim() const
+{
+    if (FaceAimRequestCount > 0)
+    {
+        return true;
+    }
+
+    const UWorld* World = GetWorld();
+    return World && World->GetTimeSeconds() < FaceAimHoldUntil;
+}
+
+void UHDCombatComponent::FaceAim(APawn* Owner, const float DeltaTime)
+{
+    // 견착처럼 몸을 조준 방향에 두되, 한 번에 돌지 않고 FaceAimTurnRate 로 돈다(뒤돌기 모션). 이동은 조준 방향 기준 스트레이프가 된다
+    bIsCharacterLookingViewport = true;
+    bUseRotateRootBone = false;
+    Owner->bUseControllerRotationYaw = false;
+    CharacterMovement->bOrientRotationToMovement = false;
+
+    const FRotator TargetRotation(0.f, Owner->GetControlRotation().Yaw, 0.f);
+    Owner->SetActorRotation(FMath::RInterpConstantTo(Owner->GetActorRotation(), TargetRotation, DeltaTime, FaceAimTurnRate));
+
+    // 끝난 뒤 제자리 회전이 튀지 않게 기준을 조준 방향에 맞춰 둔다
+    AimOffset_Yaw = 0.f;
+    InterpAimOffset_Yaw = 0.f;
+    TurningInPlace = EHDTurningInPlace::NotTurning;
+    StartingAimRotation = TargetRotation;
+
+    AimOffset_Pitch = Owner->GetBaseAimRotation().Pitch - AIMOFFSET_PITCH_OFFSET;
 }
 
 void UHDCombatComponent::TurnInPlace(const float DeltaTime)

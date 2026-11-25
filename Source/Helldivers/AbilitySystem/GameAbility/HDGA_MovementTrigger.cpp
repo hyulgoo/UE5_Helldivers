@@ -13,6 +13,25 @@ UHDGA_MovementTrigger::UHDGA_MovementTrigger(const FObjectInitializer& ObjectIni
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
+bool UHDGA_MovementTrigger::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags /*= nullptr*/, const FGameplayTagContainer* TargetTags /*= nullptr*/, OUT FGameplayTagContainer* OptionalRelevantTags /*= nullptr*/) const
+{
+    if (Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags) == false)
+    {
+        return false;
+    }
+
+    if (GetAssetTags().HasTagExact(Tag_Trigger_Sprint))
+    {
+        const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+        if (ASC && ASC->HasMatchingGameplayTag(Tag_Block_Sprint))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void UHDGA_MovementTrigger::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);

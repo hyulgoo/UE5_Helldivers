@@ -52,6 +52,14 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	uint8									bIsIdle : 1;
 
+    // StandMove 의 Move 상태에서 달리기 → 걷기 블렌드 시간(Blend Poses by bool 의 BlendTime_1 에 연결).
+    // 사격으로 달리기가 끊겼으면 0, 아니면 DefaultSprintExitBlendTime
+	UPROPERTY(BlueprintReadOnly, Category = "Movement")
+	float									SprintExitBlendTime = 0.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
+	float									DefaultSprintExitBlendTime = 0.5f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Movement")
 	uint8									bIsFalling : 1;
 

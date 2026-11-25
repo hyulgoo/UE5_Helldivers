@@ -7,6 +7,11 @@
 #include "Define/HDMontageSectionNames.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "AbilitySystemComponent.h"
+#include "Component/HDCombatComponent.h"
+#include "Component/HDFaceAimRules.h"
+#include "TimerManager.h"
+#include "Component/HDMovementStateComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 UHDGA_Fire::UHDGA_Fire(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
     : Super(ObjectInitializer)
@@ -34,6 +39,85 @@ void UHDGA_Fire::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const 
     WeaponInterface = ActorInfo->AvatarActor.Get();
     NULL_CHECK(WeaponInterface);
 
+    // 달리면서는 쏘지 않는다. 달리던 중이면 달리기를 끝내 걷기로 돌리고, 쏘는 동안 Shift 를 새로 눌러도 달리지 않게 막는다
+    UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+    if (ASC)
+    {
+        // 사격으로 끊긴 달리기는 블렌딩 없이 바로 걷는다. 애니메이션은 0초로 바꾸고, 속도도 이번 프레임에 걷기 속도로 자른다
+        AActor* SprintAvatar = ActorInfo->AvatarActor.Get();
+        UHDMovementStateComponent* MovementStateComp = SprintAvatar ? SprintAvatar->FindComponentByClass<UHDMovementStateComponent>() : nullptr;
+        const bool bWasSprinting = MovementStateComp && MovementStateComp->GetMovementState() == EHDCharacterMovementState::Sprint;
+        if (bWasSprinting)
+        {
+            MovementStateComp->RequestInstantSprintExit();
+        }
+
+        const FGameplayTagContainer SprintTags(Tag_Trigger_Sprint);
+        ASC->CancelAbilities(&SprintTags, nullptr, this);
+
+        UCharacterMovementComponent* CharacterMovement = SprintAvatar ? SprintAvatar->FindComponentByClass<UCharacterMovementComponent>() : nullptr;
+        if (bWasSprinting && CharacterMovement)
+        {
+            const FVector2D Horizontal(CharacterMovement->Velocity);
+            const float WalkSpeed = CharacterMovement->GetMaxSpeed();
+            if (Horizontal.Size() > WalkSpeed)
+            {
+                const FVector2D Clamped = Horizontal.GetSafeNormal() * WalkSpeed;
+                CharacterMovement->Velocity.X = Clamped.X;
+                CharacterMovement->Velocity.Y = Clamped.Y;
+            }
+            UE_LOG(LogTemp, Display, TEXT("[HDFire] sprint cut instant speed=%.0f"), WalkSpeed);
+        }
+        ASC->AddLooseGameplayTag(Tag_Block_Sprint);
+        bSprintBlocked = true;
+    }
+
+    // 쏘는 동안 몸을 조준 방향에 둔다. 뒤를 보고 있었으면 먼저 돌고, 절반 이상 돌았을 때도 누르고 있으면 쏜다
+    AActor* Avatar = ActorInfo->AvatarActor.Get();
+    Combat = Avatar ? Avatar->FindComponentByClass<UHDCombatComponent>() : nullptr;
+    if (Combat)
+    {
+        Combat->BeginFaceAim();
+        bFaceAimBegun = true;
+
+        InitialYawToAim = Combat->GetYawToAim();
+        if (HDFaceAim::NeedsTurnBeforeFire(InitialYawToAim, BackFacingAngle))
+        {
+            UE_LOG(LogTemp, Display, TEXT("[HDFire] turn before fire yaw=%.0f"), InitialYawToAim);
+
+            UWorld* World = GetWorld();
+            NULL_CHECK(World);
+            World->GetTimerManager().SetTimer(TurnCheckTimer, FTimerDelegate::CreateUObject(this, &UHDGA_Fire::CheckTurnBeforeFire), 1.f / 60.f, true);
+            return;
+        }
+    }
+
+    StartFiring();
+}
+
+void UHDGA_Fire::CheckTurnBeforeFire()
+{
+    if (IsActive() == false || Combat == nullptr)
+    {
+        GetWorld()->GetTimerManager().ClearTimer(TurnCheckTimer);
+        return;
+    }
+
+    const float CurrentYawToAim = Combat->GetYawToAim();
+    if (HDFaceAim::IsTurnedEnough(InitialYawToAim, CurrentYawToAim, TurnProgressToFire) == false)
+    {
+        return;
+    }
+
+    GetWorld()->GetTimerManager().ClearTimer(TurnCheckTimer);
+    UE_LOG(LogTemp, Display, TEXT("[HDFire] turned %.0f -> %.0f, fire"), InitialYawToAim, CurrentYawToAim);
+    StartFiring();
+}
+
+void UHDGA_Fire::StartFiring()
+{
+    NULL_CHECK(WeaponInterface);
+
     WeaponInterface->PlayWeaponMontage(EHDCombatMontage::Fire);
     AutoFireDelay = WeaponInterface->GetWeaponFireDelay();
     SectionName = WeaponInterface->IsShoulder() ? HDMONTAGE_SECTIONNAME_RIFLE_AIM : HDMONTAGE_SECTIONNAME_RIFLE_HIP;
@@ -56,6 +140,28 @@ void UHDGA_Fire::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const 
 
 void UHDGA_Fire::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        World->GetTimerManager().ClearTimer(TurnCheckTimer);
+    }
+
+    if (bFaceAimBegun && Combat)
+    {
+        Combat->EndFaceAim();
+    }
+    bFaceAimBegun = false;
+
+    if (bSprintBlocked)
+    {
+        UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+        if (ASC)
+        {
+            ASC->RemoveLooseGameplayTag(Tag_Block_Sprint);
+        }
+    }
+    bSprintBlocked = false;
+
     Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 

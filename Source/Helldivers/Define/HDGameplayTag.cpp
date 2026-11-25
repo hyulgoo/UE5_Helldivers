@@ -17,6 +17,7 @@ UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Reload,                          "Block.Reload"
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Grenade,                         "Block.Grenade");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Stratagem,                       "Block.Stratagem");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Minimap,                         "Block.Minimap");
+UE_DEFINE_GAMEPLAY_TAG(Tag_Block_Sprint,                          "Block.Sprint");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Input,                                 "Input");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_Aiming,                        "Trigger.Aiming");
 UE_DEFINE_GAMEPLAY_TAG(Tag_Trigger_Shoulder,                      "Trigger.Shoulder");

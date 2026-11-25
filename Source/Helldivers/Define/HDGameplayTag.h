@@ -26,6 +26,8 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_Reload);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_Grenade);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_Stratagem);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_Minimap);
+// 사격 중(UHDGA_Fire)에는 달리기를 새로 시작하지 않는다(UHDGA_MovementTrigger::CanActivateAbility)
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Block_Sprint);
 
 // Input
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tag_Input);

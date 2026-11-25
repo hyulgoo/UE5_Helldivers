@@ -81,6 +81,13 @@ public:
     const EHDTurningInPlace                 GetTurnInPlace() const;
     UAnimMontage*                           GetCombatMontage(const EHDCombatMontage MontageType);
 
+    // 조준 방향 바라보기(UHDGA_Fire 가 켜고 끈다). 켜져 있는 동안 비견착이어도 몸을 컨트롤 요로 FaceAimTurnRate 만큼씩 돌린다.
+    // 끈 뒤에도 FaceAimLingerTime 동안 유지해서 단발 사이에 이동 방향으로 되돌아가지 않게 한다
+    void                                    BeginFaceAim();
+    void                                    EndFaceAim();
+    // 몸 요 → 조준(컨트롤) 요 차이, [-180, 180]
+    float                                   GetYawToAim() const;
+
 protected:
     virtual void                            BeginPlay() override final;
     virtual void                            TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -89,6 +96,9 @@ private:
     void					                TraceUnderCrosshairs();
     void					                AimOffset(const float DeltaTime);
     void									TurnInPlace(const float DeltaTime);
+    bool                                    IsFacingAim() const;
+    // 비견착 조준 방향 바라보기 한 틱. AimOffset 이 IsFacingAim 일 때 부른다
+    void                                    FaceAim(APawn* Owner, const float DeltaTime);
     // 주인 앞 150 의 지면
     FVector                                 GetWeaponDropLocation() const;
     // 칸 → 무기 포인터 멤버. Grenade 는 nullptr
@@ -123,6 +133,16 @@ private:
 	float					                TurnThreshold;
 
 	EHDTurningInPlace		                TurningInPlace                  = EHDTurningInPlace::NotTurning;
+
+    // 조준 방향으로 도는 속도(도/초). 180도 뒤를 보다 쏘면 절반(90도)을 도는 데 90/이 값 초가 걸린다
+    UPROPERTY(EditAnywhere, Category = "Combat|FaceAim")
+    float                                   FaceAimTurnRate                 = 450.f;
+
+    UPROPERTY(EditAnywhere, Category = "Combat|FaceAim")
+    float                                   FaceAimLingerTime               = 0.6f;
+
+    int32                                   FaceAimRequestCount             = 0;
+    double                                  FaceAimHoldUntil                = 0.0;
     uint8					                bIsShoulder : 1                 = false;
     uint8					                bIsEquipped : 1                 = false;
     FVector					                HitTarget                       = FVector::ZeroVector;
