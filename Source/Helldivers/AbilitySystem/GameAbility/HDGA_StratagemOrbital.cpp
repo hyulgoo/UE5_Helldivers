@@ -68,6 +68,17 @@ void UHDGA_StratagemOrbital::SpawnProjectile(const int32 Index)
         nullptr,
         ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn
     );
+    NULL_CHECK(Projectile);
+
+    // 표(HDStratagems.json)에 적힌 값만 BP 기본값을 덮는다. 적지 않은 항목(예: 120mm)은 BP 값 그대로
+    if (OrbitalData.ProjectileDamage > 0.f)
+    {
+        Projectile->SetImpactDamage(OrbitalData.ProjectileDamage);
+    }
+    if (OrbitalData.ProjectileAttackRange > 0.f)
+    {
+        Projectile->SetExplodeDamageRange(OrbitalData.ProjectileAttackRange);
+    }
 
     UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
 }

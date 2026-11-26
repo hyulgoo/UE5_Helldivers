@@ -10,16 +10,18 @@ public class Helldivers : ModuleRules
 
         PublicIncludePaths.Add("Helldivers");
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Niagara", "PhysicsCore", "Landscape", "Foliage", "AIModule", "NavigationSystem", "DeveloperSettings" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "Niagara", "PhysicsCore", "AIModule", "NavigationSystem", "DeveloperSettings" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
-            "GameFeatures",
             "GameplayAbilities",
             "GameplayTasks",
             "GameplayTags",
-            "Landscape",
             "SlateCore"
         });
+
+        // 런타임에 읽는 표(HDStratagemCatalog·HDUpgradeCatalog). 패키징은 Config 에서 *.ini 만 넣으므로 따로 pak 에 넣는다
+        RuntimeDependencies.Add("$(ProjectDir)/Config/HDStratagems.json", StagedFileType.UFS);
+        RuntimeDependencies.Add("$(ProjectDir)/Config/HDUpgrades.json", StagedFileType.UFS);
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

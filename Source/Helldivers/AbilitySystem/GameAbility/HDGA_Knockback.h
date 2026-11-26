@@ -17,6 +17,7 @@ public:
 	UHDGA_Knockback(const FObjectInitializer& ObjectInitializer);
 	
 	virtual void                                    ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override final;
+	virtual void                                    EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override final;
 
 private:
 	void		                                    CheckCharacterRagdollState();

@@ -19,7 +19,7 @@ class HELLDIVERS_API UHDStratagemInfoUserWidget : public UUserWidget
 
 public:
 	// IconTexture 가 null 이면 아이콘 자리를 비우고 이름만 보인다
-	void								InitializeStratagemInfoWidget(UTexture2D* IconTexture, const TArray<EHDCommandInput>& CommandList, const TMap<EHDCommandInput, UTexture2D*> CommandIconList, const FName InStratagemName);
+	void								InitializeStratagemInfoWidget(UTexture2D* IconTexture, const TArray<EHDCommandInput>& CommandList, const TMap<EHDCommandInput, UTexture2D*>& CommandIconList, const FName InStratagemName);
 	void								ActiveCommandIconByNum(const int32 InputNum);
 	void								SetAllWidgetCapacity(const float Opacity);
 	FName								GetStratagemName() const;

@@ -71,8 +71,17 @@ bool UHDProfileSubsystem::HasSaveFile() const
 
 bool UHDProfileSubsystem::ModifyProfile(TFunctionRef<void(FHDProfileData&)> Change)
 {
+    const FHDProfileData Before = Profile;
     Change(Profile);
     HDProgression::Sanitize(Profile, HDProfileSubsystemPrivate::GetMaxDifficulty());
+
+    // 저장되는 값(UPROPERTY)이 그대로면(끝 단계에서 난이도를 더 넘김·거부된 구매) 디스크에 다시 쓰지 않는다
+    if (FHDProfileData::StaticStruct()->CompareScriptStruct(&Before, &Profile, PPF_None) && HasSaveFile())
+    {
+        UE_LOG(LogTemp, Display, TEXT("[HDProfile] unchanged, save skipped slot=%s"), *GetSlotName());
+        return true;
+    }
+
     return SaveProfile();
 }
 

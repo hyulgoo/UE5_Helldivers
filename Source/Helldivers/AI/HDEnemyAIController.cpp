@@ -358,7 +358,13 @@ void AHDEnemyAIController::TickState(const AHDCharacterNonPlayer& Enemy, const f
         {
             MoveRequestElapsed = 0.f;
 
-            const EPathFollowingRequestResult::Type Result = MoveToActor(Target.Get(), Enemy.GetEnemyStats().AttackRange * 0.8f);
+            // 시야가 막혀 쫓는 중이면(사거리 안 엄폐 뒤) 사거리 기준 도착 반경으로는 바로 AlreadyAtGoal 이 돼 제자리에 선다.
+            // 그때는 표적 가까이까지 돌아 들어간다. 시야가 트이면 Attack 으로 바뀐다
+            constexpr float NoSightAcceptanceRadius = 100.f;
+            const float AttackAcceptanceRadius = Enemy.GetEnemyStats().AttackRange * 0.8f;
+            const float AcceptanceRadius = bHasLineOfSight ? AttackAcceptanceRadius : FMath::Min(AttackAcceptanceRadius, NoSightAcceptanceRadius);
+
+            const EPathFollowingRequestResult::Type Result = MoveToActor(Target.Get(), AcceptanceRadius);
             if (Result == EPathFollowingRequestResult::Failed)
             {
                 bDirectChase = true;

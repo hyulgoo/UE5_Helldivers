@@ -3,6 +3,7 @@
 #include "Progression/HDUpgradeCatalog.h"
 #include "Engine/DataTable.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
@@ -23,6 +24,16 @@ FHDUpgradeCatalog FHDUpgradeCatalog::FromJsonString(const FString& JsonText)
     {
         Catalog.Names.Add(Key);
         Catalog.Definitions.Add(Value);
+
+        // 음수 가격은 구매할 때 자원을 늘린다. 막지 않고 알린다
+        for (int32 LevelIndex = 0; LevelIndex < Value.Levels.Num(); ++LevelIndex)
+        {
+            const FHDUpgradeLevel& Level = Value.Levels[LevelIndex];
+            if (Level.Requisition < 0 || Level.Common < 0 || Level.Rare < 0 || Level.Super < 0)
+            {
+                Catalog.Problems.Add(FString::Printf(TEXT("%s: level %d has a negative cost"), *Key.ToString(), LevelIndex + 1));
+            }
+        }
     });
 
     return Catalog;
@@ -39,12 +50,30 @@ const FHDUpgradeCatalog& FHDUpgradeCatalog::GetProjectCatalog()
     static FDateTime            CachedTimeStamp;
     static bool                 bLoaded = false;
 
+    // 함선 UI 가 아이콘마다 부르므로 매번 파일 시각을 묻지 않는다.
+    // 에디터는 표를 고치면 다시 읽도록 1초에 한 번 시각을 보고, 패키징 빌드는 처음 한 번만 읽는다
     const FString FilePath = GetProjectFilePath();
+#if WITH_EDITOR
+    static double               LastTimeStampCheckSeconds = 0.0;
+    const double NowSeconds = FPlatformTime::Seconds();
+    if (bLoaded && NowSeconds - LastTimeStampCheckSeconds < 1.0)
+    {
+        return CachedCatalog;
+    }
+    LastTimeStampCheckSeconds = NowSeconds;
+
     const FDateTime TimeStamp = IFileManager::Get().GetTimeStamp(*FilePath);
     if (bLoaded && TimeStamp == CachedTimeStamp)
     {
         return CachedCatalog;
     }
+#else
+    if (bLoaded)
+    {
+        return CachedCatalog;
+    }
+    const FDateTime TimeStamp = FDateTime::MinValue();
+#endif
 
     FString JsonText;
     if (FFileHelper::LoadFileToString(JsonText, *FilePath))

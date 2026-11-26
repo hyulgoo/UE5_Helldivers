@@ -60,6 +60,9 @@ void FGameplayAbilityHelper::SendGameplayEventToSelf(const FGameplayTag EventTag
 
 void FGameplayAbilityHelper::SendGameplayEventToSelf(const FGameplayTag EventTag, UAbilitySystemComponent* SourceASC, const float Magnitude /*= 0.f*/)
 {
+    // 액터 버전(아래)은 ASC 가 없는 액터에서 null 을 넘긴다
+    VALID_CHECK(SourceASC);
+
     AActor* OwningActor = SourceASC->GetOwnerActor();
     VALID_CHECK(OwningActor);
 

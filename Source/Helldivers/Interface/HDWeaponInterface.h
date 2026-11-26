@@ -27,6 +27,8 @@ public:
     virtual UAnimMontage*                   GetCombatMontage(const EHDCombatMontage MontageType) const = 0;
     
     virtual void                            PlayWeaponMontage(const EHDCombatMontage MontageType) = 0;
+    // 지금 쏘면 탄이 나가는가. 코드로 발사 이벤트를 보내는 무기는 FireDelay 안에 다시 쏘면 거짓이다
+    virtual bool                            CanFireNow() const = 0;
     virtual bool                            IsEquippedWeapon() const = 0;
     
     virtual bool                            IsShoulder() const = 0;       

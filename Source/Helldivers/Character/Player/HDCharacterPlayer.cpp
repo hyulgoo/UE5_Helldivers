@@ -549,6 +549,7 @@ bool AHDCharacterPlayer::Resupply()
     SpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Attribute_MaxCapacity, MaxCapacity);
 
     ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+    Combat->RefillStowedWeaponAmmo();
 
     ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetGrenadeAttribute(), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxGrenadeAttribute()));
     ASC->SetNumericAttributeBase(UHDWeaponAttributeSet::GetStimAttribute(), ASC->GetNumericAttribute(UHDWeaponAttributeSet::GetMaxStimAttribute()));
@@ -605,8 +606,9 @@ void AHDCharacterPlayer::PlayWeaponMontage(const EHDCombatMontage MontageType)
     if(MontageType == EHDCombatMontage::Fire)
     {
         const int32 SectionIndex = WeaponMontage->GetSectionIndex(SectionName);
-        const float MontageLength = WeaponMontage->GetSectionLength(SectionIndex); 
-        PlayRate = MontageLength / Combat->GetWeaponFireDelay();
+        const float MontageLength = WeaponMontage->GetSectionLength(SectionIndex);
+        const float FireDelay = Combat->GetWeaponFireDelay();
+        PlayRate = FireDelay > 0.f ? MontageLength / FireDelay : 1.f;
     }
 
     UAnimInstance* WeaponAnimInstance = WeaponMesh->GetAnimInstance();
@@ -621,6 +623,19 @@ void AHDCharacterPlayer::PlayWeaponMontage(const EHDCombatMontage MontageType)
     {
         ScheduleCodeMontageEvent(MontageType, WeaponMontage, SectionName);
     }
+}
+
+bool AHDCharacterPlayer::CanFireNow() const
+{
+    // 몽타주 노티파이로 쏘는 무기(소총)는 막지 않는다. 코드 이벤트 무기만 아래 ScheduleCodeMontageEvent 와 같은 판정을 쓴다
+    const AHDWeapon* ActiveWeapon = Combat->GetWeapon();
+    const UWorld* World = GetWorld();
+    if (ActiveWeapon == nullptr || ActiveWeapon->SendsMontageEventsFromCode() == false || World == nullptr)
+    {
+        return true;
+    }
+
+    return HDWeaponMontageEvent::IsFireReady(LastCodeFireEventTime, World->GetTimeSeconds(), Combat->GetWeaponFireDelay());
 }
 
 void AHDCharacterPlayer::ScheduleCodeMontageEvent(const EHDCombatMontage MontageType, const UAnimMontage* WeaponMontage, const FName SectionName)

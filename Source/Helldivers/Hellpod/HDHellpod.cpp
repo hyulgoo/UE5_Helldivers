@@ -221,7 +221,8 @@ void AHDHellpod::SpawnCharacterEnd()
 {
 	NULL_CHECK(SpawnedCharacter);
 	SpawnedCharacter->GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
-	SpawnedCharacter->GetCapsuleComponent()->SetCollisionProfileName(HDCOLLISION_PROFILE_PAWN);
+	// 캐릭터 기본 캡슐 프로필(AHDCharacterBase). Pawn 프로필은 투사체·스트라타젬을 막아 탄이 메시(부위) 대신 캡슐에 맞고 던진 비컨이 자기 캡슐에 부딪힌다
+	SpawnedCharacter->GetCapsuleComponent()->SetCollisionProfileName(HDCOLLISION_PROFILE_CAPSULE);
 	SpawnedCharacter->GetMesh()->SetCollisionProfileName(HDCOLLISION_PROFILE_PLAYER);
 
 	SetLifeSpan(30.f);
@@ -396,8 +397,13 @@ void AHDHellpod::MoveHellpod(const FInputActionValue& Value)
 	const FVector& ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	const FVector& RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-	CollisionBox->AddImpulse(FVector::RightVector * MovementVector.Y * MaxMoveSpeed);
-	CollisionBox->AddImpulse(FVector::ForwardVector * MovementVector.X * MaxMoveSpeed);
+	// Triggered 는 누르는 동안 매 프레임 온다. 프레임 시간을 곱해 프레임률과 상관없이 같은 만큼 민다.
+	// MaxMoveSpeed 는 60fps 에서 프레임마다 준 충격량으로 맞춰 둔 값이라 그 기준을 곱한다
+	constexpr float TunedFrameRate = 60.f;
+	const float FrameScale = GetWorld()->GetDeltaSeconds() * TunedFrameRate;
+
+	CollisionBox->AddImpulse(RightDirection * MovementVector.Y * MaxMoveSpeed * FrameScale);
+	CollisionBox->AddImpulse(ForwardDirection * MovementVector.X * MaxMoveSpeed * FrameScale);
 }
 
 void AHDHellpod::RotateHellpodByCurrentImpulse(const float DeltaTime)

@@ -45,6 +45,8 @@ public:
     EHDWeaponSlot                           GetLastGunSlot() const;
     // 총 칸의 무기(비어 있는 칸은 뺀다)
     void                                    GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const;
+    // 보급: 들고 있지 않은 총의 AmmoData 를 최대로 채운다. 들고 있는 총(Weapon)은 Attribute 가 값이라 보급 GE 가 채운다
+    void                                    RefillStowedWeaponAmmo();
     void                                    SpawnProjectile();
 
     AHDWeapon*                              GetWeapon() const;

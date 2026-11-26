@@ -285,9 +285,10 @@ void AHDPlayerController::PlayerTick(float DeltaTime)
         return;
     }
 
-    // 헬포드 등 플레이어 캐릭터가 아니면 버린다
+    // 헬포드 등 플레이어 캐릭터가 아니면 버린다. 입력을 막아 둔 동안(헬포드 상승 중·미션 종료 뒤)도 버린다.
+    // 이 큐는 Enhanced Input 을 거치지 않아 DisableInput 이 막지 못한다
     AHDCharacterPlayer* HDPlayer = GetPawn<AHDCharacterPlayer>();
-    if (HDPlayer)
+    if (HDPlayer && HDPlayer->InputEnabled() && InputEnabled())
     {
         for (const EHDCommandInput Command : PendingStratagemCommands)
         {

@@ -298,7 +298,7 @@ bool AHDGameMode::EnterShipInterior(APlayerController* PC)
 
     // BP_CharacterPlayer 의 캡슐은 충돌 없음으로 시작하고 헬포드 상승이 끝날 때(AHDHellpod::SpawnCharacterEnd) 충돌을 켠다.
     // 상승을 건너뛰므로 같은 프로필을 여기서 준다(안 주면 바닥을 뚫고 떨어진다)
-    Crew->GetCapsuleComponent()->SetCollisionProfileName(HDCOLLISION_PROFILE_PAWN);
+    Crew->GetCapsuleComponent()->SetCollisionProfileName(HDCOLLISION_PROFILE_CAPSULE);
     Crew->GetMesh()->SetCollisionProfileName(HDCOLLISION_PROFILE_PLAYER);
 
     PC->SetControlRotation(FRotator(0.f, SpawnTransform.Rotator().Yaw, 0.f));

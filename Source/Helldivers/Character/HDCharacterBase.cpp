@@ -104,22 +104,26 @@ FVector AHDCharacterBase::GetBodyLocation() const
 void AHDCharacterBase::SetRagdoll(const bool bRagdoll, const FVector& Impulse)
 {
 	USkeletalMeshComponent* CharacterMesh = GetMesh();
-	CharacterMesh->SetSimulatePhysics(bRagdoll);
 
 	if (bRagdoll)
 	{
+		CharacterMesh->SetSimulatePhysics(true);
 		GetCharacterMovement()->DisableMovement();
 		CharacterMesh->AddImpulse(Impulse, NAME_None, true);
 	}
 	else
 	{
+		// 물리를 끄기 전에 날아간 몸 위치를 읽는다
+		const FVector BonmeLocation = CharacterMesh->GetBoneLocation("pelvis");
+		CharacterMesh->SetSimulatePhysics(false);
+
 		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
 
-		const FVector& BonmeLocation = CharacterMesh->GetBoneLocation("pelvis");
 		const FRotator NewMeshRotation(0.f, CharacterMesh->GetComponentRotation().Yaw, 0.f);
 
+		// 누운 골반은 바닥 바로 위다. 캡슐 중심을 거기 두면 아래 절반이 땅에 묻히므로 반높이만큼 올린다
 		UCapsuleComponent* Capsule = GetCapsuleComponent();
-		Capsule->SetWorldLocation(BonmeLocation);
+		Capsule->SetWorldLocation(BonmeLocation + FVector(0.f, 0.f, Capsule->GetScaledCapsuleHalfHeight()));
 		Capsule->SetWorldRotation(NewMeshRotation);
 
 		CharacterMesh->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -100.f), FRotator(0.f, -90.f, 0.f));

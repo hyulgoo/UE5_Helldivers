@@ -21,7 +21,7 @@
 AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer) 
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
 	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
 	SetRootComponent(CollisionBox);
@@ -87,13 +87,15 @@ void AHDProjectileBase::OnBoxHit(UPrimitiveComponent* HitComp, AActor* OtherActo
 	NULL_CHECK(OtherActor);
 
 	AActor* OwnerActor = GetOwner();
-	NULL_CHECK(OwnerActor);
-
 	TScriptInterface<IAbilitySystemInterface> OwnerAbilitySystemInterface = OwnerActor;
-	NULL_CHECK(OwnerAbilitySystemInterface);
+	UAbilitySystemComponent* OwnerASC = OwnerAbilitySystemInterface ? OwnerAbilitySystemInterface->GetAbilitySystemComponent() : nullptr;
 
-	UAbilitySystemComponent* OwnerASC = OwnerAbilitySystemInterface->GetAbilitySystemComponent();
-	NULL_CHECK(OwnerASC);
+	// 쏜 쪽(적·포탑)이 날아가는 사이 사라졌으면 피해·큐 없이 탄만 지운다. 그냥 돌아가면 맞은 자리에 DestroyTime 까지 남는다
+	if (OwnerASC == nullptr)
+	{
+		Destroy();
+		return;
+	}
 
 	if (ImpactType == EImpactType::Explode)
 	{
@@ -190,7 +192,8 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 	UWorld* World = GetWorld();
 	VALID_CHECK(World);
 
-	const FCollisionShape CollisionSphere = FCollisionShape::MakeSphere(ExplodeKnockBackRange);
+	// 피해 반경이 넉백 반경보다 넓을 수 있다(스트라타젬 표가 피해 반경만 바꾼다). 둘 중 넓은 쪽으로 찾는다
+	const FCollisionShape CollisionSphere = FCollisionShape::MakeSphere(FMath::Max(ExplodeDamageRange, ExplodeKnockBackRange));
 
 	const FCollisionQueryParams Params(SCENE_QUERY_STAT(Explosion), false, this);
 	const FCollisionObjectQueryParams ObjectParams(ECC_Pawn);
@@ -247,7 +250,8 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
 		const AHDCharacterNonPlayer* TargetEnemy = Cast<AHDCharacterNonPlayer>(Target);
 		const bool bDeadEnemy = TargetEnemy && TargetEnemy->IsDead();
 
-		if (bDeadEnemy == false && Distance <= ExplodeDamageRange)
+		// 반경 0 에 거리 0 이면 0/0 이라 피해가 NaN 이 된다
+		if (bDeadEnemy == false && ExplodeDamageRange > 0.f && Distance <= ExplodeDamageRange)
 		{
 			const float Damage = ImpactDamage * (1.f - (Distance / ExplodeDamageRange));
 
@@ -274,11 +278,13 @@ void AHDProjectileBase::ApplyExplode(UAbilitySystemComponent* SourceASC, const F
                 }
                 bHitEnemy = true;
             }
-
-			UE_LOG(LogTemp, Error, TEXT("Distance : %f, ExplodeDamageRange : %f, ImpactDamage : %f"), Damage, ExplodeDamageRange, ImpactDamage);
 		}
 
-        FGameplayAbilityHelper::SendGameplayEventToTarget(KnockbackTag, this, TargetASC, KnockbackImpulse * FMath::Max(0.f, 1.f - (Distance / ExplodeKnockBackRange)));
+        // 찾는 반경이 넉백 반경보다 넓어졌으니 넉백 반경 밖은 보내지 않는다(세기 0 으로 보내면 래그돌만 켜진다)
+        if (Distance < ExplodeKnockBackRange)
+        {
+            FGameplayAbilityHelper::SendGameplayEventToTarget(KnockbackTag, this, TargetASC, KnockbackImpulse * (1.f - (Distance / ExplodeKnockBackRange)));
+        }
 	}
 
     if (bHitEnemy)
@@ -304,8 +310,10 @@ void AHDProjectileBase::ApplyDamageGameEffect(UAbilitySystemComponent* SourceASC
 	VALID_CHECK(SourceASC);
 	VALID_CHECK(TargetASC);
 
-	const FGameplayEffectContextHandle Context = TargetASC->MakeEffectContext();
-	const FGameplayEffectSpecHandle ImpactGameEffectSpecHandle = TargetASC->MakeOutgoingSpec(DamageGameEffect, 1.f, Context);
+	// 가해자는 쏜 쪽 ASC, 원인은 이 투사체로 남긴다(피격자 ASC 로 만들면 피격자 자신이 가해자로 기록된다)
+	FGameplayEffectContextHandle Context = SourceASC->MakeEffectContext();
+	Context.AddSourceObject(this);
+	const FGameplayEffectSpecHandle ImpactGameEffectSpecHandle = SourceASC->MakeOutgoingSpec(DamageGameEffect, 1.f, Context);
 	CONDITION_CHECK(ImpactGameEffectSpecHandle.IsValid());
 
 	ImpactGameEffectSpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_Damage_Projectile, -InterpImpactDamage);
@@ -315,7 +323,7 @@ void AHDProjectileBase::ApplyDamageGameEffect(UAbilitySystemComponent* SourceASC
 	{
 		NULL_CHECK(StatusGameEffect);
 
-		const FGameplayEffectSpecHandle StatusGameEffectSpecHandle = TargetASC->MakeOutgoingSpec(StatusGameEffect, 1.f, Context);
+		const FGameplayEffectSpecHandle StatusGameEffectSpecHandle = SourceASC->MakeOutgoingSpec(StatusGameEffect, 1.f, Context);
 		CONDITION_CHECK(StatusGameEffectSpecHandle.IsValid());
 
 		StatusGameEffectSpecHandle.Data->SetSetByCallerMagnitude(Tag_Data_DotDamage_TickDamage, -DotDamage);

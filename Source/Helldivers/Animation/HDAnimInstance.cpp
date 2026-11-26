@@ -48,7 +48,8 @@ void UHDAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	CharacterRotationLastFrame = CharacterRotation;
 	CharacterRotation = Owner->GetActorRotation();
 	DeltaRot = UKismetMathLibrary::NormalizedDeltaRotator(CharacterRotation, CharacterRotationLastFrame);
-	const float Target = DeltaRot.Yaw / DeltaSeconds;
+	// 시간이 흐르지 않은 갱신(DeltaSeconds 0)이면 0 나누기라 Lean 이 한 프레임 끝까지 튄다
+	const float Target = DeltaSeconds > KINDA_SMALL_NUMBER ? DeltaRot.Yaw / DeltaSeconds : 0.f;
 	const float Interp = FMath::FInterpTo(Lean, Target, DeltaSeconds, 6.f);
 	Lean = FMath::Clamp(Interp, -90.f, 90.f);
 

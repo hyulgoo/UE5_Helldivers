@@ -37,6 +37,7 @@ private:
     void                                SetSplnePoints();
     void                                DropBombWithDelayAndReturn(const int32 Index);
     void                                CreateProjectile(TSubclassOf<AHDProjectileBase> ProjectileClass, const int32 Index);
+    void                                ApplyEffectDataToProjectile(AHDProjectileBase* Projectile) const;
 
 private:
     UPROPERTY(EditDefaultsOnly, Category = "Eagle")

@@ -76,6 +76,7 @@ protected:
     virtual void                            SpawnProjectile() override final;
     virtual UAnimMontage*                   GetCombatMontage(const EHDCombatMontage MontageType) const override final;
     virtual void                            PlayWeaponMontage(const EHDCombatMontage MontageType) override final;
+    virtual bool                            CanFireNow() const override final;
     virtual bool                            IsEquippedWeapon() const override final;
     virtual bool                            IsShoulder() const override final;
     virtual bool                            IsWeaponAutoFire() const override final;

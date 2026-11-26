@@ -7,7 +7,7 @@
 #include "Components/HorizontalBox.h"
 #include "UI/HDCommandIcon.h"
 
-void UHDStratagemInfoUserWidget::InitializeStratagemInfoWidget(UTexture2D* IconTexture, const TArray<EHDCommandInput>& CommandList, const TMap<EHDCommandInput, UTexture2D*> CommandIconList, const FName InStratagemName)
+void UHDStratagemInfoUserWidget::InitializeStratagemInfoWidget(UTexture2D* IconTexture, const TArray<EHDCommandInput>& CommandList, const TMap<EHDCommandInput, UTexture2D*>& CommandIconList, const FName InStratagemName)
 {
     StratagemName = InStratagemName;
     LastStatus.Reset();
@@ -36,7 +36,9 @@ void UHDStratagemInfoUserWidget::InitializeStratagemInfoWidget(UTexture2D* IconT
     {
         UHDCommandIcon* CommandIconWidget = CreateWidget<UHDCommandIcon>(this, CommandIconWidgetClass);
         NULL_CHECK(CommandIconWidget);
-        CommandIconWidget->SetCommandIcon(CommandIconList[CommandInput]);
+        // 화살표 그림이 없는 방향이면 아이콘 자리를 비운다(operator[] 는 없는 키에서 멈춘다)
+        UTexture2D* const* CommandIcon = CommandIconList.Find(CommandInput);
+        CommandIconWidget->SetCommandIcon(CommandIcon ? *CommandIcon : nullptr);
         CommandIconWidgetList.Add(CommandIconWidget);
 
         HB_StratagemCommand->AddChildToHorizontalBox(CommandIconWidget);

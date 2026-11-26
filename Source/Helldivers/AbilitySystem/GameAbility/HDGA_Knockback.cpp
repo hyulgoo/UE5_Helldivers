@@ -14,6 +14,12 @@ void UHDGA_Knockback::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
 {
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
+    if (TriggerEventData == nullptr)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, false, true);
+        return;
+    }
+
     if(TriggerEventData->EventTag == Tag_Data_Knockback_Hit)
     {
         LOG(TEXT("Knockback GA called!"));
@@ -24,9 +30,18 @@ void UHDGA_Knockback::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     {
         // Character Ragdoll
         RagdollInterface = ActorInfo->AvatarActor.Get();
-        NULL_CHECK(RagdollInterface);
-        
-        const FVector& Direction = (TriggerEventData->Instigator->GetActorLocation() - ActorInfo->AvatarActor->GetActorLocation()).GetSafeNormal();
+        const AActor* Instigator = TriggerEventData->Instigator.Get();
+        if (RagdollInterface == nullptr || Instigator == nullptr)
+        {
+            EndAbility(Handle, ActorInfo, ActivationInfo, false, true);
+            return;
+        }
+
+        // 인스턴스를 다시 쓰므로(InstancedPerActor) 지난 발동에서 남은 값을 지운다. 남아 있으면 아래 판정이 영영 참이 안 된다
+        bRecoveryFromRagdoll = false;
+
+        // 폭발(Instigator = 투사체) 바깥쪽으로 민다
+        const FVector& Direction = (ActorInfo->AvatarActor->GetActorLocation() - Instigator->GetActorLocation()).GetSafeNormal();
         const FVector Impulse = Direction * TriggerEventData->EventMagnitude;
 
         RagdollInterface->SetRagdoll(true, Impulse);
@@ -55,7 +70,25 @@ void UHDGA_Knockback::CheckCharacterRagdollState()
         {
             GetWorld()->GetTimerManager().SetTimer(RecoveryFromRagdollTimerHandle, this, &UHDGA_Knockback::RecoveryFromRagdoll, 0.5f, false);
         }
+        else
+        {
+            // 죽었으면 일어나지 않고(시체는 래그돌 그대로) 능력만 끝낸다. 켜 둔 채 두면 증원 뒤 다음 넉백에서 일어나지 못한다
+            EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+        }
     }
+}
+
+void UHDGA_Knockback::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+    // 증원 때 CancelAllAbilities 로 끝나도 다음 발동이 깨끗하게 시작하도록 타이머와 플래그를 정리한다
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(StateCheckTimerHandle);
+        World->GetTimerManager().ClearTimer(RecoveryFromRagdollTimerHandle);
+    }
+    bRecoveryFromRagdoll = false;
+
+    Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void UHDGA_Knockback::RecoveryFromRagdoll()

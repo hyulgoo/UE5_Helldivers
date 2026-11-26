@@ -2,6 +2,7 @@
 
 #include "Stratagem/Deployable/HDSentryTurret.h"
 #include "AbilitySystemComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -32,6 +33,9 @@ namespace HDSentryTurretPrivate
 
     // 적 캡슐 가운데쯤을 노린다
     const FVector AimOffset(0.f, 0.f, 50.f);
+
+    // 표적이 없을 때 다시 찾는 간격(초). 매 틱 모든 적을 돌며 선 검사하지 않게 한다
+    constexpr float IdleSearchInterval = 0.2f;
 }
 
 AHDSentryTurret::AHDSentryTurret(const FObjectInitializer& ObjectInitializer)
@@ -124,10 +128,10 @@ void AHDSentryTurret::Tick(float DeltaSeconds)
         return;
     }
 
-    // 표적이 없으면 대기가 끝난 채로 다음 틱에 다시 찾는다
+    // 표적이 없으면 잠깐 뒤에 다시 찾는다
     if (TryFire() == false)
     {
-        FireCooldown = 0.f;
+        FireCooldown = HDSentryTurretPrivate::IdleSearchInterval;
         return;
     }
 
@@ -165,10 +169,12 @@ bool AHDSentryTurret::TryFire()
         }
 
         FHDSentryCandidate& Candidate = Candidates.AddDefaulted_GetRef();
-        Candidate.Location = Enemy->GetActorLocation();
+        // 래그돌 중에는 캡슐(액터 위치)이 제자리에 남는다. 날아간 몸(골반)을 그대로 겨눈다
+        const bool bRagdoll = Enemy->GetMesh()->IsSimulatingPhysics();
+        Candidate.Location = Enemy->GetBodyLocation();
         Candidate.bAlive = Enemy->IsDead() == false;
 
-        const FVector AimPoint = Candidate.Location + AimOffset;
+        const FVector AimPoint = bRagdoll ? Candidate.Location : Candidate.Location + AimOffset;
         AimPoints.Add(AimPoint);
 
         // 죽었거나 사거리 밖이면 SelectTarget 이 어차피 뺀다. 선 검사는 남은 후보만 한다

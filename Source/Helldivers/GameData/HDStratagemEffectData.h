@@ -39,7 +39,7 @@ public:
     TSubclassOf<AHDWeapon>      SupportWeaponClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eagle")
-    uint8                       bIsEagle : 1;
+    uint8                       bIsEagle : 1 = false;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eagle")
     EHDEagleAirStrikeDirection  EagleAirStrikeDirection = EHDEagleAirStrikeDirection::Front;
@@ -48,7 +48,7 @@ public:
     float                       OrbitalDuration = 0.f;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RandomLocation")
-    uint8                       bUseRandomRange: 1;
+    uint8                       bUseRandomRange : 1 = false;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RandomLocation")
     float                       RandomPositionRange = 0.f;
@@ -60,7 +60,7 @@ public:
     float                       SpecifyProjectileSpawnDelay = 0.f;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multiple")
-    uint8                       bMultipleSpawn: 1;
+    uint8                       bMultipleSpawn : 1 = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multiple")
     TArray<FVector2D>           MultiSpawnDropLocation;

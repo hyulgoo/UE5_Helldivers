@@ -9,11 +9,12 @@
 #include "Game/HDGameState.h"
 #include "Define/HDDefine.h"
 #include "Collision/HDCollision.h"
+#include "GameFramework/Character.h"
 
 AHDStratagem::AHDStratagem(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
-    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = false;
 
     CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
 	SetRootComponent(CollisionSphere);
@@ -55,7 +56,10 @@ void AHDStratagem::BeginPlay()
 
 void AHDStratagem::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-    if (OtherComp->GetCollisionObjectType() != ECC_WorldStatic)
+    // 지형(WorldStatic)만 받으면 시설 지붕(시설 메시는 Pawn)·소품(WorldDynamic) 위에 떨어진 비컨이 발동하지 않고 남는다.
+    // 캐릭터와 다른 비컨에서만 튕겨 나간다
+    const bool bCharacterOrBeacon = OtherActor && (OtherActor->IsA<ACharacter>() || OtherActor->IsA<AHDStratagem>());
+    if (OtherComp == nullptr || bCharacterOrBeacon)
     {
         return;
     }

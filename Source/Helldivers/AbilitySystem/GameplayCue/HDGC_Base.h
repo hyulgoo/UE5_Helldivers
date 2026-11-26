@@ -33,10 +33,11 @@ protected:
 	TArray<TObjectPtr<UNiagaraSystem>>	NiagaraSystems;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameplayCue|Pacticle")
-	float								ParticleScale;
+	float								ParticleScale = 1.f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameplayCue|Pacticle")
-	float								SoundVolume;
+	// 0 이면 소리가 나지 않는다. BP 에서 바꾸지 않은 큐는 1 로 재생한다
+	float								SoundVolume = 1.f;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GameplayCue|Sound")
 	TArray<TObjectPtr<USoundBase>>		EffectSounds;

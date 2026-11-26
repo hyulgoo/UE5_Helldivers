@@ -9,6 +9,13 @@
 #include "Interface/HDWeaponInterface.h"
 #include "Projectile/HDProjectileBase.h"
 #include "Weapon/HDCasing.h"
+#include "HAL/IConsoleManager.h"
+
+static TAutoConsoleVariable<int32> CVarHDWeaponDebugAim(
+    TEXT("hd.Weapon.DebugAim"),
+    0,
+    TEXT("1: draw the crosshair aim point sphere every frame"),
+    ECVF_Cheat);
 
 AHDWeapon::AHDWeapon(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -71,7 +78,11 @@ const void AHDWeapon::TraceEndWithScatter(const FVector& HitTarget)
 	const float DistanceToSphere = ToTarge.Size();
 	const FVector SphereCenter	 = Start + ToTarge.GetSafeNormal() * DistanceToSphere;
 
-	DrawDebugSphere(GetWorld(), HitTarget, 15.f, 12, FColor::Orange, false, 0.1f);
+	// 조준점 확인용. 켜 두면 미션·함선에서 매 프레임 화면에 주황 구가 보인다
+	if (CVarHDWeaponDebugAim.GetValueOnGameThread() != 0)
+	{
+		DrawDebugSphere(GetWorld(), HitTarget, 15.f, 12, FColor::Orange, false, 0.1f);
+	}
 }
 
 void AHDWeapon::SpawnProjectile(const FVector& HitTarget)

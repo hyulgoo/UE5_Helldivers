@@ -3,6 +3,7 @@
 #include "Stratagem/HDStratagemCatalog.h"
 #include "Engine/DataTable.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
@@ -23,6 +24,12 @@ FHDStratagemCatalog FHDStratagemCatalog::FromJsonString(const FString& JsonText)
     {
         Catalog.Names.Add(Key);
         Catalog.Definitions.Add(Value);
+
+        // 음수 가격은 해금할 때 자원을 늘린다. 막지 않고 알린다
+        if (Value.UnlockCost < 0)
+        {
+            Catalog.Problems.Add(FString::Printf(TEXT("%s: UnlockCost %d is negative"), *Key.ToString(), Value.UnlockCost));
+        }
     });
 
     return Catalog;
@@ -39,12 +46,30 @@ const FHDStratagemCatalog& FHDStratagemCatalog::GetProjectCatalog()
     static FDateTime            CachedTimeStamp;
     static bool                 bLoaded = false;
 
+    // 함선 UI 가 아이콘마다 부르므로 매번 파일 시각을 묻지 않는다.
+    // 에디터는 표를 고치면 다시 읽도록 1초에 한 번 시각을 보고, 패키징 빌드는 처음 한 번만 읽는다
     const FString FilePath = GetProjectFilePath();
+#if WITH_EDITOR
+    static double               LastTimeStampCheckSeconds = 0.0;
+    const double NowSeconds = FPlatformTime::Seconds();
+    if (bLoaded && NowSeconds - LastTimeStampCheckSeconds < 1.0)
+    {
+        return CachedCatalog;
+    }
+    LastTimeStampCheckSeconds = NowSeconds;
+
     const FDateTime TimeStamp = IFileManager::Get().GetTimeStamp(*FilePath);
     if (bLoaded && TimeStamp == CachedTimeStamp)
     {
         return CachedCatalog;
     }
+#else
+    if (bLoaded)
+    {
+        return CachedCatalog;
+    }
+    const FDateTime TimeStamp = FDateTime::MinValue();
+#endif
 
     FString JsonText;
     if (FFileHelper::LoadFileToString(JsonText, *FilePath))

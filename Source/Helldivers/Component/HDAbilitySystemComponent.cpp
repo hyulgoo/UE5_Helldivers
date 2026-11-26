@@ -9,9 +9,17 @@
 
 void UHDAbilitySystemComponent::AbilityInputTagTriggered(const FGameplayTag AssetTag)
 {
+    // 활성화가 능력을 주거나 지우면 배열이 다시 잡힐 수 있다. 엔진 입력 처리처럼 순회 동안 목록 변경을 미룬다
+    ABILITYLIST_SCOPE_LOCK();
+
     TArray<FGameplayAbilitySpec>& ActivatebleAbilities = GetActivatableAbilities();
     for (FGameplayAbilitySpec& Spec : ActivatebleAbilities)
     {
+        if (Spec.Ability == nullptr)
+        {
+            continue;
+        }
+
         const FGameplayTagContainer& TagContainer = Spec.Ability->GetAssetTags();
         if (TagContainer.IsValid() == false || TagContainer.HasTagExact(AssetTag) == false)
         {
@@ -31,9 +39,17 @@ void UHDAbilitySystemComponent::AbilityInputTagTriggered(const FGameplayTag Asse
 
 void UHDAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag AssetTag)
 {
+    // 활성화가 능력을 주거나 지우면 배열이 다시 잡힐 수 있다. 엔진 입력 처리처럼 순회 동안 목록 변경을 미룬다
+    ABILITYLIST_SCOPE_LOCK();
+
     TArray<FGameplayAbilitySpec>& ActivatebleAbilities = GetActivatableAbilities();
     for (FGameplayAbilitySpec& Spec : ActivatebleAbilities)
     {
+        if (Spec.Ability == nullptr)
+        {
+            continue;
+        }
+
         const FGameplayTagContainer& TagContainer = Spec.Ability->GetAssetTags();
         if (TagContainer.IsValid() == false || TagContainer.HasTagExact(AssetTag) == false)
         {
@@ -49,9 +65,17 @@ void UHDAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag Asset
 
 void UHDAbilitySystemComponent::AbilityInputTagToggled(const FGameplayTag AssetTag)
 {
+    // 활성화가 능력을 주거나 지우면 배열이 다시 잡힐 수 있다. 엔진 입력 처리처럼 순회 동안 목록 변경을 미룬다
+    ABILITYLIST_SCOPE_LOCK();
+
     TArray<FGameplayAbilitySpec>& ActivatebleAbilities = GetActivatableAbilities();
     for (FGameplayAbilitySpec& Spec : ActivatebleAbilities)
     {
+        if (Spec.Ability == nullptr)
+        {
+            continue;
+        }
+
         const FGameplayTagContainer& TagContainer = Spec.Ability->GetAssetTags();
         if (TagContainer.IsValid() == false || TagContainer.HasTagExact(AssetTag) == false)
         {

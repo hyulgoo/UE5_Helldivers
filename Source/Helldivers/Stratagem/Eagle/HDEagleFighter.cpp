@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Stratagem/Eagle/HDEagleFighter.h"
+#include "Stratagem/HDStratagemPattern.h"
 #include "Stratagem/Types/EagleAirStrikeDirectionTypes.h"
 #include "Stratagem/Types/StratagemProjectileTypes.h"
 #include "Components/SplineComponent.h"
@@ -109,12 +110,13 @@ void AHDEagleFighter::SetSplnePoints()
     const FVector HeightOffset  = FVector(0.f, 0.f, (Start.Z - Mid.Z) / 4.f);
     const FVector ArcOffset     = FlightDirection * 35000.f;
 
-    const FVector MidPoint1 = (HeightOffset * 3.f) + (ArcOffset * 1.f);
-    const FVector MidPoint2 = (HeightOffset * 2.f) + (ArcOffset * 2.f);
-    const FVector MidPoint3 = (HeightOffset * 1.f) + (ArcOffset * 1.f);
-    const FVector MidPoint4 = (HeightOffset * 1.f) + (ArcOffset * -1.f);
-    const FVector MidPoint5 = (HeightOffset * 2.f) + (ArcOffset * -2.f);
-    const FVector MidPoint6 = (HeightOffset * 3.f) + (ArcOffset * -1.f);
+    // 월드 좌표로 넣으므로 Mid(표적 위) 기준이어야 한다. 빠지면 월드 원점 기준이 돼 표적이 멀수록 원점 쪽으로 돈다
+    const FVector MidPoint1 = Mid + (HeightOffset * 3.f) + (ArcOffset * 1.f);
+    const FVector MidPoint2 = Mid + (HeightOffset * 2.f) + (ArcOffset * 2.f);
+    const FVector MidPoint3 = Mid + (HeightOffset * 1.f) + (ArcOffset * 1.f);
+    const FVector MidPoint4 = Mid + (HeightOffset * 1.f) + (ArcOffset * -1.f);
+    const FVector MidPoint5 = Mid + (HeightOffset * 2.f) + (ArcOffset * -2.f);
+    const FVector MidPoint6 = Mid + (HeightOffset * 3.f) + (ArcOffset * -1.f);
 
     SplineComponent->ClearSplinePoints();
     SplineComponent->AddSplinePoint(Start,      ESplineCoordinateSpace::World);
@@ -142,11 +144,10 @@ void AHDEagleFighter::DropBombWithDelayAndReturn(const int32 Index)
 {
     bIsAirStrikeDone = true;
 
-    const int32 NumberOfProjectileToBeSpawn = StratagemEffectData.ProjectileDropLocation.IsEmpty() 
-                                        ? StratagemEffectData.SpecifyProjectileSpawnCount : StratagemEffectData.ProjectileDropLocation.Num();
+    const int32 NumberOfProjectileToBeSpawn = HDStratagemPattern::GetProjectileCount(StratagemEffectData);
 
     CONDITION_CHECK(NumberOfProjectileToBeSpawn >= 1);
-    CONDITION_CHECK(Index <= NumberOfProjectileToBeSpawn);
+    CONDITION_CHECK(Index < NumberOfProjectileToBeSpawn);
 
     TSubclassOf<AHDProjectileBase> ProjectileClass = StratagemEffectData.StratagemProjectileType == EHDStratagemProjectile::Bullet 
                                                     ? ProjectileBulletClass : ProjectileBombClass;
@@ -158,7 +159,7 @@ void AHDEagleFighter::DropBombWithDelayAndReturn(const int32 Index)
         GetWorldTimerManager().SetTimer(
             TimerHandle,
             FTimerDelegate::CreateUObject(this, &AHDEagleFighter::DropBombWithDelayAndReturn, Index + 1),
-            0.05f,
+            StratagemEffectData.SpecifyProjectileSpawnDelay > 0.f ? StratagemEffectData.SpecifyProjectileSpawnDelay : 0.05f,
             false
         );
     }
@@ -170,9 +171,15 @@ void AHDEagleFighter::CreateProjectile(TSubclassOf<AHDProjectileBase> Projectile
     VALID_CHECK(World);
 
     const FVector& EagleLocation = GetActorLocation();
-    const FVector2D& DropLocation2D = StratagemEffectData.ProjectileDropLocation[ProjectileIndex];
 
-    FVector FinalDropTargetLocation = ProjectileTargetLocation + FVector(DropLocation2D.X, DropLocation2D.Y, 0.f);
+    // 낙하 위치가 비어 있으면(SpecifyProjectileSpawnCount 만 쓸 때) 0 또는 무작위 오프셋을 돌려준다(범위 밖 인덱스 방지)
+    FRandomStream RandomStream(FMath::Rand());
+    const FVector2D DropLocation2D = HDStratagemPattern::GetDropOffset(StratagemEffectData, ProjectileIndex, RandomStream);
+
+    // 표의 X/Y 는 비행 방향 기준이다. 월드 축 그대로 더하면 던진 방향과 상관없이 늘 월드 X 축으로 깔린다
+    const FRotator FlightYaw(0.f, FlightDirection.Rotation().Yaw, 0.f);
+
+    FVector FinalDropTargetLocation = ProjectileTargetLocation + FlightYaw.RotateVector(FVector(DropLocation2D.X, DropLocation2D.Y, 0.f));
     FVector ToTarget = FinalDropTargetLocation - EagleLocation;
     FTransform SpawnTransform(ToTarget.Rotation(), EagleLocation);
 
@@ -186,6 +193,7 @@ void AHDEagleFighter::CreateProjectile(TSubclassOf<AHDProjectileBase> Projectile
 
     AHDProjectileBase* SpawnProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform, Params);
     NULL_CHECK(SpawnProjectile);
+    ApplyEffectDataToProjectile(SpawnProjectile);
 
     if (StratagemEffectData.bMultipleSpawn)
     {
@@ -193,11 +201,27 @@ void AHDEagleFighter::CreateProjectile(TSubclassOf<AHDProjectileBase> Projectile
         for(const FVector2D& DropPosition : StratagemEffectData.MultiSpawnDropLocation)
         {
             MultipleSpawnLocationDiff = DropLocation2D + DropPosition;
-            FinalDropTargetLocation = ProjectileTargetLocation + FVector(MultipleSpawnLocationDiff.X, MultipleSpawnLocationDiff.Y, 0.f);
+            FinalDropTargetLocation = ProjectileTargetLocation + FlightYaw.RotateVector(FVector(MultipleSpawnLocationDiff.X, MultipleSpawnLocationDiff.Y, 0.f));
             ToTarget = FinalDropTargetLocation - EagleLocation;
             SpawnTransform = FTransform(ToTarget.Rotation(), EagleLocation);
 
             SpawnProjectile = World->SpawnActor<AHDProjectileBase>(ProjectileClass, SpawnTransform, Params);
+            ApplyEffectDataToProjectile(SpawnProjectile);
         }
+    }
+}
+
+void AHDEagleFighter::ApplyEffectDataToProjectile(AHDProjectileBase* Projectile) const
+{
+    NULL_CHECK(Projectile);
+
+    // 표(HDStratagems.json)에 적힌 값만 BP 기본값을 덮는다. 피해·반경은 맞을 때 읽으므로 스폰 뒤에 넣어도 된다
+    if (StratagemEffectData.ProjectileDamage > 0.f)
+    {
+        Projectile->SetImpactDamage(StratagemEffectData.ProjectileDamage);
+    }
+    if (StratagemEffectData.ProjectileAttackRange > 0.f)
+    {
+        Projectile->SetExplodeDamageRange(StratagemEffectData.ProjectileAttackRange);
     }
 }

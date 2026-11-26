@@ -32,6 +32,9 @@ public:
     // 같은 투사체 BP 를 쓰되 쏘는 쪽에 따라 충돌 피해만 바꿀 때(예: 원거리형 적)
     void                                        SetImpactDamage(const float NewImpactDamage) { ImpactDamage = NewImpactDamage; }
 
+    // 스트라타젬 표(HDStratagems.json ProjectileAttackRange)로 폭발 피해 반경만 바꿀 때. 맞을 때 읽으므로 스폰 뒤에 불러도 된다
+    void                                        SetExplodeDamageRange(const float NewExplodeDamageRange) { ExplodeDamageRange = NewExplodeDamageRange; }
+
     // 관통 등급(HDArmor). 0 을 넣으면 자동으로 돌아간다. 판정은 맞을 때 읽으므로 BeginPlay 뒤에 불러도 된다
     void                                        SetArmorPenetration(const int32 NewArmorPenetration) { ArmorPenetration = NewArmorPenetration; }
 

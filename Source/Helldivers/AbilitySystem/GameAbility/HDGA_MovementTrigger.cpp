@@ -123,7 +123,8 @@ void UHDGA_MovementTrigger::EndAbility(const FGameplayAbilitySpecHandle Handle, 
 
         FGameplayAbilityHelper::RemoveActiveEffectByGrantedTag(Tag_Cost_Stamina, ASC);
 
-        GetWorld()->GetTimerManager().SetTimer(RegenStaminaHandle, FTimerDelegate::CreateLambda([this, ASC]() {
+        // 1초 사이 ASC 가 사라지면(PlayerState 파괴) 부르지 않는다
+        GetWorld()->GetTimerManager().SetTimer(RegenStaminaHandle, FTimerDelegate::CreateWeakLambda(ASC, [ASC]() {
             FGameplayAbilityHelper::SendGameplayEventToSelf(Tag_Trigger_RegenStamina, ASC);}), 1.f, false);
 	}
 	else if (CurrentTagContainer.HasTagExact(Tag_Trigger_Crouch) || CurrentTagContainer.HasTagExact(Tag_Trigger_Prone))

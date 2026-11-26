@@ -501,6 +501,22 @@ void UHDCombatComponent::GetAllWeapons(TArray<AHDWeapon*>& OutWeapons) const
     }
 }
 
+void UHDCombatComponent::RefillStowedWeaponAmmo()
+{
+    TArray<AHDWeapon*> Weapons;
+    GetAllWeapons(Weapons);
+
+    // 넣어 둔 총은 꺼낼 때 AmmoData 를 Attribute 로 불러온다(ActivateSlotWeapon). 여기 채워 두지 않으면 보급 전 탄약 그대로 나온다
+    for (AHDWeapon* SlotWeapon : Weapons)
+    {
+        if (SlotWeapon != Weapon)
+        {
+            SlotWeapon->AmmoData.Ammo       = SlotWeapon->AmmoData.MaxAmmo;
+            SlotWeapon->AmmoData.Capacity   = SlotWeapon->AmmoData.MaxCapacity;
+        }
+    }
+}
+
 FVector UHDCombatComponent::GetWeaponDropLocation() const
 {
     const AActor* Owner = GetOwner();

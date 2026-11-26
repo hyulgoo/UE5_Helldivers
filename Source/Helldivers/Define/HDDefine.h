@@ -8,8 +8,12 @@
         (strrchr(__FILE__, '/')  ? strrchr(__FILE__, '/')  + 1 : __FILE__)
 #endif
 
+// 아래 검사 매크로가 로그를 남기는 때: PIE, 또는 에디터가 아닌 실행(Standalone -game·패키징 개발 빌드).
+// 에디터에서 PIE 밖(에셋 열기·자동화 테스트)은 남기지 않는다
+#define HD_CHECK_LOG_ENABLED (GIsEditor == false || (GWorld && GWorld->IsPlayInEditor()))
+
 #define LOG(Format, ...) \
-if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+if (HD_CHECK_LOG_ENABLED) \
 { \
     UE_LOG(LogTemp, Error, TEXT("[%s] At Function: %s (%s:%d)"), \
         *FString::Printf(Format, ##__VA_ARGS__), ANSI_TO_TCHAR(__FUNCTION__), ANSI_TO_TCHAR(SHORT_FILE_NAME), __LINE__); \
@@ -18,7 +22,7 @@ if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
 #define CONDITION_CHECK(condition) \
 if((condition) == false) \
 { \
-    if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+    if (HD_CHECK_LOG_ENABLED) \
     { \
         UE_LOG(LogTemp, Error, TEXT("[%s] is false!, At Function: %s (%s:%d)"), \
             TEXT(#condition), ANSI_TO_TCHAR(__FUNCTION__), ANSI_TO_TCHAR(SHORT_FILE_NAME), __LINE__); \
@@ -29,7 +33,7 @@ if((condition) == false) \
 #define CONDITION_CHECK_WITH_RETURNTYPE(condition, ret) \
 if((condition) == false) \
 { \
-    if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+    if (HD_CHECK_LOG_ENABLED) \
     { \
         UE_LOG(LogTemp, Error, TEXT("[%s] is false!, At Function: %s (%s:%d)"), \
             TEXT(#condition), ANSI_TO_TCHAR(__FUNCTION__), ANSI_TO_TCHAR(SHORT_FILE_NAME), __LINE__); \
@@ -52,7 +56,7 @@ if((condition) == false) \
 #define NULL_CHECK(ptr) \
 if((ptr) == nullptr) \
 { \
-    if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+    if (HD_CHECK_LOG_ENABLED) \
     { \
         UE_LOG(LogTemp, Error, TEXT("[%s] is null, At Function: %s (%s:%d)"), \
             TEXT(#ptr), ANSI_TO_TCHAR(__FUNCTION__), ANSI_TO_TCHAR(SHORT_FILE_NAME), __LINE__); \
@@ -63,7 +67,7 @@ if((ptr) == nullptr) \
 #define NULL_CHECK_WITH_RETURNTYPE(ptr, ret) \
 if((ptr) == nullptr) \
 { \
-    if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+    if (HD_CHECK_LOG_ENABLED) \
     { \
         UE_LOG(LogTemp, Error, TEXT("[%s] is null, At Function: %s (%s:%d)"), \
             TEXT(#ptr), ANSI_TO_TCHAR(__FUNCTION__), ANSI_TO_TCHAR(SHORT_FILE_NAME), __LINE__); \
@@ -86,7 +90,7 @@ if((ptr) == nullptr) \
 #define VALID_CHECK(ptr) \
 if(IsValid(ptr) == false) \
 { \
-    if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+    if (HD_CHECK_LOG_ENABLED) \
         { \
         const UObject* CheckedObject = static_cast<const UObject*>(ptr); \
         FString ObjectName = CheckedObject ? CheckedObject->GetName() : TEXT("null"); \
@@ -99,7 +103,7 @@ if(IsValid(ptr) == false) \
 #define VALID_CHECK_WITH_RETURNTYPE(ptr, ret) \
 if(IsValid(ptr) == false) \
 { \
-    if (WITH_EDITOR && GIsEditor && GWorld && GWorld->IsPlayInEditor()) \
+    if (HD_CHECK_LOG_ENABLED) \
     { \
         const UObject* CheckedObject = static_cast<const UObject*>(ptr); \
         FString ObjectName = CheckedObject ? CheckedObject->GetName() : TEXT("null"); \

@@ -39,6 +39,13 @@ void UHDGA_Fire::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const 
     WeaponInterface = ActorInfo->AvatarActor.Get();
     NULL_CHECK(WeaponInterface);
 
+    // FireDelay 안에 다시 누르면 탄이 나가지 않는다. 몽타주만 돌지 않게 바로 끝낸다
+    if (WeaponInterface->CanFireNow() == false)
+    {
+        EndAbility(Handle, ActorInfo, ActivationInfo, false, true);
+        return;
+    }
+
     // 달리면서는 쏘지 않는다. 달리던 중이면 달리기를 끝내 걷기로 돌리고, 쏘는 동안 Shift 를 새로 눌러도 달리지 않게 막는다
     UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
     if (ASC)

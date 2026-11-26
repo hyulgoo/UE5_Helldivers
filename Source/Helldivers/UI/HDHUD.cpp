@@ -559,10 +559,11 @@ void AHDHUD::DrawShipPhase(const AHDGameState& GameState)
             DrawShipOverlay();
         }
 
-        // 닫는 중이면 마지막 화면을 그 투명도로(히트박스 없음, 입력은 이미 게임으로 돌아갔다)
+        // 닫는 중이면 마지막 화면을 그 투명도로(히트박스 없음, 입력은 이미 게임으로 돌아갔다).
+        // 출격 카운트다운 중에도 히트박스 없이 그린다. 아래 바가 ShipKey_5 를 먼저 등록하면 가운데 CANCEL 이 등록되지 못한다
         if (bMenuOpen || ShipTransition.IsVisible())
         {
-            DrawShipMenu(bMenuOpen);
+            DrawShipMenu(bMenuOpen && GameState.GetLaunchRemaining() < 0.f);
         }
     }
 
