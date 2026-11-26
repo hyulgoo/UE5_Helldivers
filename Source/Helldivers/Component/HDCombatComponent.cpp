@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Perception/AISense_Hearing.h"
+#include "Collision/HDCollision.h"
 #include "Define/HDDefine.h"
 #include "Define/HDSocketNames.h"
 #include "Weapon/HDWeapon.h"
@@ -138,16 +139,24 @@ void UHDCombatComponent::TraceUnderCrosshairs()
 
     if (bScreenToWorld)
     {
-        FVector Start = CrosshairWorldPosition;
-        const float DistanceToCharacter = (GetOwner()->GetActorLocation() - Start).Size();
-        Start += CrosshairWorldDirection * (DistanceToCharacter + 100.f);
+        // 캐릭터를 시선 위에 내린 지점에서 시작한다. 카메라와 캐릭터 사이(등 뒤)는 보지 않고, 캐릭터 바로 앞 적은 건너뛰지 않는다
+        const float DistanceToCharacter = FVector::DotProduct(GetOwner()->GetActorLocation() - CrosshairWorldPosition, CrosshairWorldDirection);
+        const FVector Start = CrosshairWorldPosition + CrosshairWorldDirection * FMath::Max(0.f, DistanceToCharacter);
 
         const FVector End = Start + CrosshairWorldDirection * HITSCAN_TRACE_LENGTH;
         UWorld* World = GetWorld();
         VALID_CHECK(World);
 
+        // 탄과 같은 충돌 프로필로 찾아야 조준점이 곧 탄착점이 된다. Visibility 는 캐릭터(캡슐·메시)가 무시해서 적을 지나 뒤 땅에 맞았고,
+        // 총구에서 그 먼 점으로 쏜 탄이 어깨 카메라와의 시차만큼 적을 비껴갔다. 탄처럼 쏜 캐릭터와 들고 있는 무기는 무시한다
+        FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(HDAimTrace), false, GetOwner());
+        if (Weapon)
+        {
+            QueryParams.AddIgnoredActor(Weapon.Get());
+        }
+
         FHitResult TraceHitResult;
-        const bool bHit = World->LineTraceSingleByChannel(TraceHitResult, Start, End, ECollisionChannel::ECC_Visibility);        
+        const bool bHit = World->LineTraceSingleByProfile(TraceHitResult, Start, End, HDCOLLISION_PROFILE_PROJECTILE, QueryParams);
 
         HitTarget = bHit ? TraceHitResult.ImpactPoint : End;
 
@@ -541,6 +550,8 @@ void UHDCombatComponent::SpawnProjectile()
 {
     VALID_CHECK(Weapon);
 
+    // 쏘는 순간 다시 잰다. 몽타주 노티파이는 이 컴포넌트 Tick 보다 먼저 와서, 그대로 두면 한 프레임 전 카메라로 잰 조준점을 쓴다
+    TraceUnderCrosshairs();
     Weapon->SpawnProjectile(HitTarget);
 
     // 총성: 최대 거리 0 = 듣는 쪽 HearingRange 로 거른다

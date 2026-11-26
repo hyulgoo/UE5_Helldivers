@@ -25,6 +25,9 @@ AHDProjectileBase::AHDProjectileBase(const FObjectInitializer& ObjectInitializer
 
 	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
 	SetRootComponent(CollisionBox);
+	// 상자 기본값(반지름 32, 64cm)이 그대로면 사선 근처 땅·엄폐물에 먼저 걸려 조준점보다 앞에 맞는다.
+	// 탄 크기로 둔다(BPP_Bullet_Heavy 와 같은 값). 폭탄·수류탄은 BP·자식 클래스가 따로 정한다
+	CollisionBox->InitBoxExtent(FVector(1.f));
 	CollisionBox->SetCollisionProfileName(HDCOLLISION_PROFILE_PROJECTILE);
 	CollisionBox->IgnoreActorWhenMoving(GetInstigator(), true);
 	CollisionBox->OnComponentHit.AddDynamic(this, &AHDProjectileBase::OnBoxHit);
